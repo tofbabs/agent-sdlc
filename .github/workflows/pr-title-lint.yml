@@ -75,8 +75,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TITLE: ${{ github.event.pull_request.title }}
           PR: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
+
+          # release-please's own release PR is the one case where a chore: title
+          # MUST be allowed to touch plugins/. Its entire job is to move
+          # plugin.json's version, via the extra-files updater in
+          # release-please-config.json, and it is always titled
+          # `chore(main): release <version>`. Without this exemption the guard
+          # fails every release PR and nothing can ever ship — the exact outcome
+          # it was written to prevent, arrived at from the other direction.
+          #
+          # Exempt narrowly, on the branch release-please owns rather than the
+          # `autorelease: pending` label, which a human can add to anything: the
+          # only plugins/ path it may touch is the manifest it exists to bump. A
+          # release branch carrying any other plugin edit still fails, because
+          # that content would ship under a version release-please already
+          # decided, with no changelog entry describing it.
+          if [ "$HEAD_REF" != "${HEAD_REF#release-please--}" ]; then
+            SMUGGLED="$(gh pr view "$PR" --json files --jq '.files[].path' \
+              | { grep '^plugins/' || true; } \
+              | { grep -vE '^plugins/[^/]+/\.claude-plugin/plugin\.json$' || true; })"
+            if [ -n "$SMUGGLED" ]; then
+              echo "::error::Release PR '$TITLE' touches plugin content beyond the version manifest. Those edits would ship under a version release-please has already decided, with nothing in the changelog describing them. Move them to their own feat: or fix: PR."
+              printf '%s\n' "$SMUGGLED" | sed 's/^/  unexpected: /'
+              exit 1
+            fi
+            echo "release-please release PR on '$HEAD_REF' — manifest bump only. OK."
+            exit 0
+          fi
 
           # Only `feat` and `fix` reliably produce a version bump. Everything
           # else may be shown in the changelog without cutting a release.
