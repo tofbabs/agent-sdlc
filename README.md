@@ -27,7 +27,7 @@ nobody could tell what had changed or why.
 Add the marketplace and enable the plugin, pinned to a tag:
 
 ```bash
-claude plugin marketplace add kodobe/agentic-sdlc@v0.1.0
+claude plugin marketplace add kodobe/agent-sdlc@v0.1.1
 claude plugin install agentic-sdlc@kodobe-sdlc
 ```
 
@@ -40,8 +40,8 @@ consuming project's `.claude/settings.json`:
     "kodobe-sdlc": {
       "source": {
         "source": "github",
-        "repo": "kodobe/agentic-sdlc",
-        "ref": "v0.1.0"
+        "repo": "kodobe/agent-sdlc",
+        "ref": "v0.1.1"
       }
     }
   },

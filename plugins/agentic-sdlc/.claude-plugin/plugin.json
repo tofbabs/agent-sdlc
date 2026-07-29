@@ -1,7 +1,7 @@
 {
   "name": "agentic-sdlc",
   "displayName": "Agentic SDLC",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Planner → architect → coder pipeline. /plan decomposes a brief into epics, stories and ARCH handoffs; /build cascades an epic onto one branch and opens a PR. Handoffs, a tooling-debt ledger and model tiering are part of the protocol.",
   "author": { "name": "Kodobe", "email": "sam@kodobe.com" },
   "license": "UNLICENSED",

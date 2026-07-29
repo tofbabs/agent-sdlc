@@ -2,6 +2,30 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## 0.1.1 — 2026-07-29
+
+**Supersedes 0.1.0. Do not pin 0.1.0** — it shipped a stale `/build` and a README
+pointing at a repository that does not exist. It is left on the remote rather than
+retagged, because rewriting a published tag is the failure this repo exists to
+prevent.
+
+**Fixed**
+
+- `commands/build.md` re-synced from `reward-fulfillment-app` (88 → 192 lines).
+  0.1.0 was cut against a copy taken minutes before the source gained the
+  epic-branch cascade: waves off `feat/EPIC-<n>`, sub-worktrees merged back
+  `--no-ff`, the `#77` add/add analysis, and the rule that the epic PR is
+  merge-committed rather than squashed so release-please still sees per-package
+  scopes. Pinning 0.1.0 would have handed a project the pre-cascade `/build`.
+- README install snippets point at `kodobe/agent-sdlc`, the actual repository.
+
+**Noted, not fixed** — see the 0.1.0 known-issues list below, which still applies.
+It gained one entry: `agents/coder.md` and `commands/build.md` now disagree about
+whether the coder opens a PR.
+
+> The gap between 0.1.0 and 0.1.1 is roughly forty minutes, and drift caused it.
+> That is the argument for this repo, made faster than expected.
+
 ## 0.1.0 — 2026-07-29
 
 Initial extraction from `reward-fulfillment-app/.claude/`, **verbatim**. The
@@ -27,6 +51,14 @@ the point of the release: prove distribution works before changing meaning.
 
 **Known issues, deliberately carried forward**
 
+- `agents/coder.md` still describes the pre-cascade flow: branch from `main` with
+  `git checkout -b feat/<STORY-ID>`, then `gh pr create` and report the PR number.
+  `commands/build.md` now branches stories off the **epic** branch and instructs
+  the coder to "Commit; do NOT open a PR". The command's prompt overrides at
+  runtime so `/build` behaves correctly, but the agent file misleads anyone
+  invoking `coder` directly, and the two files shipped together disagree.
+  **Reconcile in 0.2.0** — the agent should describe committing to the branch it
+  was given, and leave PR policy to the command.
 - `commands/plan.md` step 1 says "Planner is on 4.7". The `planner` agent is on
   Sonnet 5 and 4.7 is not in the current model range. It is a stale comment with
   no runtime effect — the agent's own frontmatter is what selects the model — but
