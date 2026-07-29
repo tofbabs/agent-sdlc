@@ -1,0 +1,101 @@
+name: PR title lint
+
+# Two guards, both protecting the same thing: that a change which reaches this
+# repo also reaches consuming projects.
+#
+# 1. release-please derives releases from the commit SUBJECT on main, and this
+#    repo squash-merges the PR TITLE into that subject. A non-conventional title
+#    lands a subject release-please cannot parse, so the merged change gets no
+#    version bump, no changelog entry and no tag. reward-fulfillment-app hit
+#    exactly this (its PR #66).
+#
+# 2. A PR that edits shipped plugin content under a type release-please ignores
+#    (chore/docs/ci/refactor) produces NO new version. Claude Code resolves a
+#    plugin's version from plugin.json and keeps its cached copy when the string
+#    has not changed — so the change ships to nobody, silently. That was the
+#    original failure mode this repo was built to prevent; under release-please
+#    it reappears as "wrong commit type" rather than "forgot to bump".
+#
+# Make both REQUIRED status checks in branch protection to actually enforce them.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+  # Deliberately reports on merge_group too: a required check that never runs on
+  # the merge queue is treated as never satisfied and blocks the merge forever.
+  merge_group:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  conventional-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge-queue no-op (title validated on the pull_request event)
+        if: github.event_name == 'merge_group'
+        run: echo "merge_group — title already validated on pull_request; reporting pass."
+
+      - name: PR title must be a Conventional Commit
+        if: github.event_name == 'pull_request'
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Exactly the types release-please-config.json lists under
+          # changelog-sections. Any other type is silently dropped.
+          types: |
+            feat
+            fix
+            docs
+            refactor
+            revert
+            build
+            ci
+            test
+            chore
+          requireScope: false
+
+  shipped-content-is-releasable:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge-queue no-op
+        if: github.event_name == 'merge_group'
+        run: echo "merge_group — validated on pull_request; reporting pass."
+
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+
+      - name: Editing plugins/** requires feat or fix
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Only `feat` and `fix` reliably produce a version bump. Everything
+          # else may be shown in the changelog without cutting a release.
+          if printf '%s' "$TITLE" | grep -qE '^(feat|fix)(\([^)]*\))?!?:'; then
+            echo "Title is '$TITLE' — releasable. OK."
+            exit 0
+          fi
+
+          # A `!` or a BREAKING CHANGE footer always releases, whatever the type.
+          if printf '%s' "$TITLE" | grep -qE '^[a-z]+(\([^)]*\))?!:'; then
+            echo "Title marks a breaking change — releasable. OK."
+            exit 0
+          fi
+
+          CHANGED="$(gh pr view "$PR" --json files --jq '.files[].path')"
+          if printf '%s\n' "$CHANGED" | grep -q '^plugins/'; then
+            echo "::error::This PR edits shipped plugin content under plugins/, but its title is '$TITLE'. Only feat: and fix: cut a new version. Merged as-is, plugin.json's version string would not move, Claude Code would keep every consuming project's cached copy, and this change would reach nobody. Retitle it feat: or fix:, or move the plugins/ edit to its own PR."
+            printf '%s\n' "$CHANGED" | sed 's/^/  changed: /'
+            exit 1
+          fi
+
+          echo "No plugins/ content touched — '$TITLE' is fine."

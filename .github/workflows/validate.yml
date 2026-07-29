@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
+    branches: [main]
 
 jobs:
   plugin:
@@ -22,30 +24,43 @@ jobs:
       - name: JSON is parseable
         run: |
           for f in .claude-plugin/marketplace.json \
-                   plugins/agentic-sdlc/.claude-plugin/plugin.json; do
+                   plugins/agentic-sdlc/.claude-plugin/plugin.json \
+                   release-please-config.json \
+                   .release-please-manifest.json; do
             python3 -m json.tool "$f" > /dev/null || { echo "invalid JSON: $f"; exit 1; }
           done
 
-      # plugin.json is the version authority; a version in marketplace.json is
-      # silently ignored, which makes a stale manifest impossible to spot.
+      # plugin.json is what Claude Code reads; a version in marketplace.json is
+      # silently ignored, so a stale manifest would be impossible to spot.
       - name: Version is declared in exactly one place
         run: |
           if grep -q '"version"' .claude-plugin/marketplace.json; then
-            echo "marketplace.json declares a version — plugin.json always wins, silently. Remove it."
+            echo "::error::marketplace.json declares a version — plugin.json always wins, silently. Remove it."
             exit 1
           fi
 
-      # A tagged commit whose manifest version does not match ships nothing to
-      # existing installs: Claude Code sees the same version string and keeps cache.
-      - name: Tag matches manifest version
+      # release-please writes version.txt (its `simple` strategy) and, via
+      # extra-files, plugin.json. If the extra-files entry is ever broken or
+      # renamed, release-please still tags and still bumps version.txt while
+      # plugin.json stays behind — and a plugin whose version string did not move
+      # reaches no existing install. That is the original footgun wearing a new
+      # hat, so it gets its own check rather than being assumed away.
+      - name: version.txt, the manifest and plugin.json agree
+        run: |
+          PLUGIN=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
+          TXT=$(tr -d '[:space:]' < version.txt)
+          MANIFEST=$(python3 -c "import json;print(json.load(open('.release-please-manifest.json'))['.'])")
+          echo "plugin.json=$PLUGIN  version.txt=$TXT  manifest=$MANIFEST"
+          if [ "$PLUGIN" != "$TXT" ] || [ "$PLUGIN" != "$MANIFEST" ]; then
+            echo "::error::Version files disagree. plugin.json is the authority Claude Code reads; version.txt and .release-please-manifest.json are release-please bookkeeping. All three are machine-written — do not hand-edit them. If they have drifted, check the extra-files entry in release-please-config.json."
+            exit 1
+          fi
+
+      # The tag is what consuming projects pin, so it must match what Claude Code
+      # will report as the installed version.
+      - name: Tag matches plugin.json
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${GITHUB_REF#refs/tags/v}"
-          MANIFEST=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
-          [ "$TAG" = "$MANIFEST" ] || { echo "tag v$TAG != plugin.json $MANIFEST"; exit 1; }
-
-      - name: CHANGELOG has an entry for the manifest version
-        run: |
-          MANIFEST=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
-          grep -q "^## $MANIFEST" CHANGELOG.md \
-            || { echo "CHANGELOG.md has no '## $MANIFEST' section"; exit 1; }
+          PLUGIN=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
+          [ "$TAG" = "$PLUGIN" ] || { echo "::error::tag v$TAG != plugin.json $PLUGIN"; exit 1; }

@@ -1,0 +1,81 @@
+name: Release
+
+# release-please owns the version, the tag and CHANGELOG.md from v0.1.1 onward.
+# Nobody edits plugin.json's version by hand any more, and nobody hand-writes a
+# changelog section — the release PR proposes both, and merging it ships them.
+#
+# The human gate is merging that PR. It is the same gate as before; what changed
+# is that the release notes are derived from commits rather than remembered.
+#
+# THE RELEASE PR IS AN EDITING SURFACE. release-please drafts CHANGELOG.md from
+# commit subjects and body bullets; when a release deserves narrative — "do not
+# pin 0.1.0", "this supersedes that" — push a commit onto the release PR that
+# rewrites the section, then merge. Nothing regenerates it after the merge.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
+    steps:
+      # Learned in reward-fulfillment-app: the GITHUB_TOKEN fallback CANNOT work
+      # in this org. "Allow GitHub Actions to create and approve pull requests"
+      # is refused org-wide by kodobe policy, so without a PAT release-please
+      # can never open a release PR and nothing ever ships — surfacing as a
+      # confusing permissions error deep in the action log. Name the cause here.
+      - name: Release gate is operable
+        run: |
+          if [ -z "${{ secrets.RELEASE_PLEASE_TOKEN }}" ]; then
+            echo "::error::RELEASE_PLEASE_TOKEN is not set, so no release PR can be opened and no version will ever ship. The GITHUB_TOKEN fallback cannot work: the kodobe organisation refuses 'Allow GitHub Actions to create and approve pull requests', and that switch is org-wide. Add a PAT with repo+workflow scope as the RELEASE_PLEASE_TOKEN secret, exactly as reward-fulfillment-app and kdb-legacy-core do."
+            exit 1
+          fi
+
+      - uses: googleapis/release-please-action@v4
+        id: rp
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Consuming projects pin a marketplace `ref`, so the tag IS the artifact —
+  # there is nothing to build or publish. This job exists to say, in the run
+  # summary, what every consuming project now has to do.
+  announce:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          TAG='${{ needs.release-please.outputs.tag_name }}'
+          {
+            echo "## Released $TAG"
+            echo
+            echo "Consuming projects do not update automatically. Bump each one's"
+            echo '`.claude/settings.json`:'
+            echo
+            echo '```json'
+            echo '"extraKnownMarketplaces": {'
+            echo '  "kodobe-sdlc": {'
+            echo '    "source": {'
+            echo '      "source": "github",'
+            echo '      "repo": "kodobe/agent-sdlc",'
+            echo "      \"ref\": \"$TAG\""
+            echo '    }'
+            echo '  }'
+            echo '}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
