@@ -13,12 +13,36 @@ nobody could tell what had changed or why.
                    architect → resolves the handoffs, decides
                    you skim (non-blocking)
 
-/build EPIC-<n>    coder → cascades every story onto one feat/EPIC-<n> branch
-                   architect → unblocks the coder mid-build
+/build EPIC-<n>    per story, SOLO or PAIR:
+                     SOLO  coder builds the story end to end
+                     PAIR  navigator ⇄ coder ping-pong TDD, one increment a turn
+                   both cascade onto one feat/EPIC-<n> branch
+                   architect → unblocks mid-build
                    ends at "one PR is open"
 ```
 
 **The one blocking gate is the human.** Nothing here merges its own PR.
+
+### Solo vs. pair
+
+Every story is built one of two ways, chosen per story by `/build`:
+
+- **SOLO** — one coder runs the story end to end. The default for small,
+  well-specified stories with an existing pattern to follow. This is the original
+  behaviour and remains fully supported.
+- **PAIR** — ping-pong TDD split across two agents. The **navigator** (Opus 4.8)
+  writes the next failing test and reviews the last increment; the **coder**
+  (Sonnet 5, the driver) makes it pass with the simplest thing that works. They
+  alternate one increment at a time through a shared pair log at
+  `backlog/pair/<STORY-ID>.md`. Chosen for M/L, novel, or previously-bounced
+  stories — where the driver *not* owning the tests is what keeps them honest.
+
+Pairing roughly doubles a story's turns, so `/build` sends it only where the risk
+justifies it. Mode is orthogonal to the epic cascade: a wave can hold SOLO and
+PAIR stories side by side, each in its own worktree.
+
+Review still runs as a separate routine against the open PR; the coder's **REVISE**
+mode closes the loop, ruling on each finding by ID.
 
 ---
 
@@ -255,7 +279,7 @@ map as append-only.
 .claude-plugin/marketplace.json          catalog — the thing projects add
 plugins/agentic-sdlc/
   .claude-plugin/plugin.json             manifest — the version authority
-  agents/{planner,architect,coder}.md
+  agents/{planner,architect,coder,navigator}.md
   commands/{plan,build}.md
 templates/
   settings.baseline.json                 universal deny-rules, copy-in

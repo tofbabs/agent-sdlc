@@ -29,20 +29,43 @@ Check:
   `docs/TOOLING-DEBT.md`, request the log entry. The shortcut itself may be fine —
   the missing ledger entry is not.
 
-Post inline comments via:
+Post inline comments where a finding has a specific line:
 
 ```
 gh api repos/{owner}/{repo}/pulls/<n>/comments -f body=... -f commit_id=... -f path=... -F line=N -f side=RIGHT
 ```
 
-Then the verdict:
+## The round comment — the record the coder's REVISE loop reads
+
+Post ONE summary comment per pass, then the GitHub verdict. The coder's REVISE
+mode reads this comment and replies ruling on each finding by ID, so the format
+is a contract — keep it exactly:
+
+```markdown
+## Review — round <k>
+- verdict: REQUEST_CHANGES | APPROVE
+- reviewed sha: <the head sha you reviewed>
+
+- F1: <severity> — <issue> — <required fix>
+- F2: <severity> — <issue> — <required fix>
+```
+
+- **Round number**: 1 for the first review; increment each time you re-review a
+  new head. Find the previous round by reading your own prior `## Review — round`
+  comments on the PR.
+- **Finding IDs are stable across rounds.** If `F2` from round 1 is still unfixed
+  in round 2, it stays `F2` — do not renumber. A finding the coder DISPUTED and
+  you now accept: say so against the same ID. New findings continue the numbering.
+- **On a re-review**, rule on the coder's `## Response — round <k>` replies:
+  confirm each `FIXED` against the new sha, and accept or hold each `DISPUTED`.
+- `APPROVE` only with no open findings. Add "Ready for human merge" to the body.
+
+Then the GitHub verdict (this is what the human and CI see):
 
 ```
-gh pr review <n> --request-changes --body "..."
-gh pr review <n> --approve --body "..."
+gh pr review <n> --request-changes --body "<the round comment>"
+gh pr review <n> --approve --body "<the round comment>"
 ```
 
-Findings format: `severity — issue — required fix`.
-
-Never edit code. Never merge. Approve only if you'd be comfortable being on call
-when this breaks at 3am.
+Never edit code. Never merge. Never edit or delete the coder's response comments.
+Approve only if you'd be comfortable being on call when this breaks at 3am.
