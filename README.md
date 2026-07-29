@@ -70,6 +70,7 @@ agent reading a path that isn't there.
 | `CLAUDE.md` | Conventions, and **the check command** the coder runs before opening a PR | yes |
 | `backlog/` | Where `/plan` writes `EPIC-<n>.md`, and where `/build` reads stories | yes |
 | `docs/TOOLING-DEBT.md` | The ledger. Appended to by architect and coder; triaged by the gap-scan routine | yes |
+| a brief, per feature | **The input to `/plan`** — the one document written by hand. Path is yours; `/plan <path>` takes it | yes, per feature |
 | `docs/adr/` | ACCEPTED ADRs are binding on every agent | created on first one-way door |
 
 `templates/` has a starting point for each. Copy them in on first setup:
@@ -77,7 +78,30 @@ agent reading a path that isn't there.
 ```bash
 cp templates/TOOLING-DEBT.md          <project>/docs/
 cp templates/backlog/EPIC-template.md <project>/backlog/
+cp templates/brief.md                 <project>/docs/templates/
+cp templates/ADR.md                   <project>/docs/templates/
 ```
+
+### The brief is part of the protocol
+
+`/plan` takes a brief and generates everything downstream from it, so its shape
+decides what the backlog looks like. `templates/brief.md` is that shape.
+
+Two sections carry most of the weight and the template says so in place:
+`Scope — out`, which is what stops the planner inventing epics, and `Technical
+context`, which on a greenfield repo is the only evidence the architect has for
+choosing a stack. A brief thin on either produces a plausible, sprawling,
+wrong backlog — cheaply, and in parallel.
+
+### ADRs use a house format, deliberately
+
+`templates/ADR.md` has no "Options Considered" section. MADR and its relatives
+do, and that contradicts `architect.md`, which is told to decide rather than
+produce an options paper. Rejected alternatives appear under **Decision**, as
+things already ruled out and why.
+
+An ADR is for a **one-way door** only. Everything cheaper is resolved in place in
+the epic file as `ARCH-<n>` with `reversibility: TWO-WAY`.
 
 ### CLAUDE.md must state the check command
 
@@ -134,19 +158,70 @@ Skipping one is a shortcut like any other, and the ledger rule applies.
 
 ## Releasing
 
-Version lives in **`plugins/agentic-sdlc/.claude-plugin/plugin.json` only.** Never
-also in `marketplace.json` — Claude Code takes the manifest value silently, so a
-stale manifest masks whatever the marketplace entry says.
+**release-please owns the version, the tag and `CHANGELOG.md`.** Nobody bumps a
+version by hand and nobody remembers to write release notes — which is the whole
+point, because "remembering" is what produced a stale `/build` inside forty
+minutes of this repo existing.
 
-```bash
-./scripts/release.sh 0.2.0
+```
+conventional commits on main
+   → release-please opens a release PR (bumps the version files, drafts notes)
+      → you edit its CHANGELOG section if the release deserves narrative
+         → you merge it            ← the human gate
+            → tag v<version> ships
 ```
 
-The script refuses to tag unless the manifest version matches, `CHANGELOG.md` has
-a matching section, and `claude plugin validate .` passes.
+Match the commit type to what a consuming project has to do:
 
-> **Bump on every release.** If the version string doesn't change, existing
-> installs keep the cached copy and receive nothing, however many commits landed.
+| Commit | Bump (pre-1.0) | Means |
+|---|---|---|
+| `fix:` | patch — `0.1.1 → 0.1.2` | Nothing to do. Bump the pin when convenient. |
+| `feat:` | patch — `0.1.1 → 0.1.2` | New capability. Nothing to do. |
+| `feat!:` / `BREAKING CHANGE:` | minor — `0.1.1 → 0.2.0` | **The consuming project must act** — a new required path, a renamed agent, a changed contract. |
+| `docs:` | none | Shows in the changelog, cuts no release. |
+| `chore:` `ci:` `test:` | none, hidden | Invisible. |
+
+Below 1.0 the config sets `bump-minor-pre-major` and
+`bump-patch-for-minor-pre-major`, so **a minor bump means and only means "you have
+work to do."** That is a more useful signal than semver's default here, where
+every consumer is a repo whose settings file names a `ref`.
+
+### Where the narrative goes
+
+release-please drafts from commit subjects and single-line body bullets; it will
+not carry a paragraph, and it truncates multi-line bullets. So:
+
+- **Reasoning that a future reader needs** goes in the README, an ADR, or a
+  comment beside the thing it explains — not only in the changelog.
+- **Release-specific narrative** — "supersedes 0.1.0", "do not pin this" — goes
+  in the **release PR**. It is an ordinary PR: push a commit rewriting its
+  `CHANGELOG.md` section, then merge. Nothing regenerates it afterwards.
+
+### The three version files
+
+`plugins/agentic-sdlc/.claude-plugin/plugin.json` is the authority Claude Code
+reads. `version.txt` and `.release-please-manifest.json` are release-please's
+bookkeeping. **All three are machine-written — never hand-edit any of them**; CI
+checks they agree, because a release that tags without moving `plugin.json` bumps
+nothing that Claude Code can see and reaches no existing install.
+
+Never put a `version` in `marketplace.json`: `plugin.json` beats it silently.
+
+```bash
+./scripts/preflight.sh   # runs the CI invariants locally. Does not tag.
+```
+
+### Two things this repo needs configured once
+
+- **`RELEASE_PLEASE_TOKEN`** — a PAT with `repo` + `workflow` scope. The
+  `GITHUB_TOKEN` fallback cannot work: the kodobe organisation refuses "Allow
+  GitHub Actions to create and approve pull requests" org-wide, so without the PAT
+  release-please can never open a release PR and nothing ever ships.
+  `reward-fulfillment-app` and `kdb-legacy-core` both hit this.
+- **Required status checks** — `validate`, `conventional-title` and
+  `shipped-content-is-releasable`. The last one fails a PR that edits `plugins/**`
+  under a type release-please ignores, which would otherwise merge, cut no
+  version, and reach nobody.
 
 `name` is the stable identifier — it is what `enabledPlugins` keys on in every
 consuming project. To change the label, set `displayName` and leave `name` alone.
@@ -164,8 +239,10 @@ map as append-only.
 3. **Deliberate divergence gets written down** in the project's
    `docs/PIPELINE-LOCAL.md`, with a trigger, same as the tooling-debt ledger. A
    divergence you recorded is a decision; one you didn't is drift.
-4. **CHANGELOG entry per release**, saying what a consuming project must do —
-   usually nothing.
+4. **The changelog is generated, not remembered.** release-please derives it
+   from commit types, so "what must a consuming project do" is answered by
+   whether you wrote `feat!:` or `feat:` — a decision taken while the change is
+   fresh, rather than reconstructed at release time by whoever is cutting it.
 5. **Automate the nudge.** A routine that compares each project's pinned `ref`
    against the latest tag and opens a bump PR turns "keep current" from a
    discipline into a notification.
@@ -183,7 +260,12 @@ plugins/agentic-sdlc/
 templates/
   settings.baseline.json                 universal deny-rules, copy-in
   TOOLING-DEBT.md                        empty ledger
+  brief.md                               the input to /plan
+  ADR.md                                 house format — decision, not options paper
   backlog/EPIC-template.md
   routines/{review,gap-scan}-prompt.md   cloud routine prompts
-scripts/release.sh
+scripts/preflight.sh                     CI invariants, locally. Does not tag.
+release-please-config.json               how a commit type becomes a version
+.release-please-manifest.json  ┐ machine-written bookkeeping —
+version.txt                    ┘ never hand-edit, CI checks they agree
 ```
