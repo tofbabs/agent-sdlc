@@ -19,8 +19,8 @@ architecture or tooling decision — do NOT decide those yourself. Write
 backlog/EPIC-<n>.md.")
 ```
 
-Run in parallel across epics if the brief covers several. Planner is on 4.7 — the cost floor — so
-this is cheap — go wide.
+Run in parallel across epics if the brief covers several. Planner is on Sonnet 5 —
+the cost floor — so this is cheap: go wide.
 
 ---
 
