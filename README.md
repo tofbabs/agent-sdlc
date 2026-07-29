@@ -9,14 +9,22 @@ Extracted from `reward-fulfillment-app` (MyJara), which in turn descended from
 nobody could tell what had changed or why.
 
 ```
-/plan <brief>      planner → epics, stories, ARCH handoffs
-                   architect → resolves the handoffs, decides
-                   you skim (non-blocking)
+/agentic-sdlc:plan <brief>     planner → epics, stories, ARCH handoffs
+                               architect → resolves the handoffs, decides
+                               you skim (non-blocking)
 
-/build EPIC-<n>    coder → cascades every story onto one feat/EPIC-<n> branch
-                   architect → unblocks the coder mid-build
-                   ends at "one PR is open"
+/agentic-sdlc:build EPIC-<n>   coder → cascades every story onto one feat/EPIC-<n> branch
+                               architect → unblocks the coder mid-build
+                               ends at "one PR is open"
 ```
+
+> **Everything is namespaced by the plugin name.** `plugin.json`'s `name` is what
+> namespaces components, so the commands are `/agentic-sdlc:plan` and
+> `/agentic-sdlc:build`, and the agents register as `agentic-sdlc:planner`,
+> `agentic-sdlc:architect`, `agentic-sdlc:coder` — there are no bare `/plan`,
+> `/build` or `planner` variants. A project moving off local `.claude/agents`
+> loses the unprefixed names it was used to; the docs it wrote against them need
+> updating with the pin.
 
 **The one blocking gate is the human.** Nothing here merges its own PR.
 
@@ -51,6 +59,14 @@ consuming project's `.claude/settings.json`:
 
 Teammates are prompted to install on folder-trust. **Upgrading is a one-line diff
 to `ref`** — reviewable, revertable, and visible in `git log`.
+
+> **The install is bound to one directory.** `enabledPlugins` declares the intent,
+> but the install is recorded in `~/.claude/plugins/installed_plugins.json` against
+> a specific `projectPath`. A second directory with the same settings — a workspace
+> root above the repo, a git worktree, a sibling checkout — gets **nothing** until
+> it is installed there too, and the symptom is silent: `/agentic-sdlc:plan` simply
+> is not offered. Fix it from that directory with
+> `claude plugin install agentic-sdlc@kodobe-sdlc --scope local`, then restart.
 
 The plugin is listed by relative path inside this repo, so the marketplace `ref`
 pins the plugin transitively. One knob, not two.
