@@ -13,7 +13,7 @@ Build a backlog. **Delegate — you write no stories yourself.**
 ## STEP 1 — Decompose
 
 ```
-Agent(subagent_type: "planner", prompt: "Decompose this into epics and stories with
+Agent(subagent_type: "agentic-sdlc:planner", prompt: "Decompose this into epics and stories with
 acceptance criteria. Raise ARCH-<n> handoffs for anything that is genuinely an
 architecture or tooling decision — do NOT decide those yourself. Write
 backlog/EPIC-<n>.md.")
@@ -29,7 +29,7 @@ the cost floor — so this is cheap: go wide.
 For every `ARCH-<n>` with status `OPEN`:
 
 ```
-Agent(subagent_type: "architect", prompt: "Resolve ARCH-<n>. Read the codebase first
+Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n>. Read the codebase first
 — consistency with what exists beats cleverness. WebFetch for anything version- or
 maturity-dependent. DECIDE. Write an ADR only for genuine one-way doors; otherwise
 resolve inline in the epic file. Log any deliberate shortcut to docs/TOOLING-DEBT.md.")

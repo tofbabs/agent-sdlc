@@ -59,10 +59,10 @@ For each wave (stories whose depends_on are all already committed):
 
   2. Build the story in its worktree, by its selected mode:
 
-     SOLO → Agent(subagent_type: "coder", prompt: "MODE: SOLO. Implement
-            <STORY-ID> in <worktree>. Match existing patterns. Block to the
-            architect if you hit an unanticipated tooling or pattern decision —
-            do not guess. Log deliberate shortcuts to docs/TOOLING-DEBT.md.
+     SOLO → Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: SOLO.
+            Implement <STORY-ID> in <worktree>. Match existing patterns. Block to
+            the architect if you hit an unanticipated tooling or pattern decision
+            — do not guess. Log deliberate shortcuts to docs/TOOLING-DEBT.md.
             Commit; do NOT open a PR — this is an epic wave.")
 
      PAIR → run the PAIR LOOP (below) for <STORY-ID> in <worktree>. It ends with
@@ -70,7 +70,7 @@ For each wave (stories whose depends_on are all already committed):
             state SOLO leaves. No PR — this is an epic wave.
 
   3. If the coder OR navigator reports BLOCKED on an ARCH:
-       Agent(subagent_type: "architect", prompt: "Resolve ARCH-<n> — the coder is
+       Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n> — the coder is
              blocked and waiting. Read the codebase, decide, update the epic file.")
        → resume the coder on the same story
 
@@ -107,20 +107,21 @@ does internally. Shared state is the worktree branch plus
 0. In the story's worktree, create backlog/pair/<STORY-ID>.md — an empty pair
    log with the story's acceptance criteria listed at the top.
 
-1. Agent(subagent_type: "navigator", prompt: "PAIR on <STORY-ID> in <worktree>.
+1. Agent(subagent_type: "agentic-sdlc:navigator", prompt: "PAIR on <STORY-ID> in <worktree>.
          Read the pair log. Review the driver's last increment if any. Write the
          next failing test. Steer. One test, then stop.")
 
 2. Read the pair log tail:
-     SESSION: COMPLETE   → Agent(coder, "MODE: PAIR — <STORY-ID> in <worktree>,
-                           session complete. Run full verification, commit the
-                           final state. Do NOT open a PR — this is an epic wave.")
+     SESSION: COMPLETE   → Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR —
+                           <STORY-ID> in <worktree>, session complete. Run full
+                           verification, commit the final state. Do NOT open a PR
+                           — this is an epic wave.")
                            → story done, back to the wave.
-     SESSION: BLOCKED    → Agent(architect, "Resolve ARCH-<n> — a pair is blocked
-                           and waiting.") → back to 1.
+     SESSION: BLOCKED    → Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve
+                           ARCH-<n> — a pair is blocked and waiting.") → back to 1.
      otherwise           → continue.
 
-3. Agent(subagent_type: "coder", prompt: "MODE: PAIR — driver turn on <STORY-ID>
+3. Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR — driver turn on <STORY-ID>
          in <worktree>. Read the pair log, make the failing test pass with the
          simplest thing that works, one increment, commit, stop.")
 
@@ -214,7 +215,7 @@ cascade — so this loop runs as its own `/build` invocation after a verdict lan
 When the latest round says `REQUEST_CHANGES`:
 
 ```
-1. Agent(subagent_type: "coder", prompt: "MODE: REVISE on PR <n>. Read the
+1. Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: REVISE on PR <n>. Read the
          routine's latest review comment, address EVERY finding — fix or dispute,
          never ignore — run the full gate, push, and reply on the PR ruling on
          each finding by ID.")

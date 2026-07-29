@@ -9,23 +9,32 @@ Extracted from `reward-fulfillment-app` (MyJara), which in turn descended from
 nobody could tell what had changed or why.
 
 ```
-/plan <brief>      planner → epics, stories, ARCH handoffs
-                   architect → resolves the handoffs, decides
-                   you skim (non-blocking)
+/agentic-sdlc:plan <brief>     planner → epics, stories, ARCH handoffs
+                               architect → resolves the handoffs, decides
+                               you skim (non-blocking)
 
-/build EPIC-<n>    per story, SOLO or PAIR:
-                     SOLO  coder builds the story end to end
-                     PAIR  navigator ⇄ coder ping-pong TDD, one increment a turn
-                   both cascade onto one feat/EPIC-<n> branch
-                   architect → unblocks mid-build
-                   ends at "one PR is open"
+/agentic-sdlc:build EPIC-<n>   per story, SOLO or PAIR:
+                                 SOLO  coder builds the story end to end
+                                 PAIR  navigator ⇄ coder ping-pong TDD, one increment a turn
+                               both cascade onto one feat/EPIC-<n> branch
+                               architect → unblocks mid-build
+                               ends at "one PR is open"
 ```
+
+> **Everything is namespaced by the plugin name.** `plugin.json`'s `name` is what
+> namespaces components, so the commands are `/agentic-sdlc:plan` and
+> `/agentic-sdlc:build`, and the agents register as `agentic-sdlc:planner`,
+> `agentic-sdlc:architect`, `agentic-sdlc:coder`, `agentic-sdlc:navigator` —
+> there are no bare `/plan`, `/build` or `planner` variants. A project moving off
+> local `.claude/agents`
+> loses the unprefixed names it was used to; the docs it wrote against them need
+> updating with the pin.
 
 **The one blocking gate is the human.** Nothing here merges its own PR.
 
 ### Solo vs. pair
 
-Every story is built one of two ways, chosen per story by `/build`:
+Every story is built one of two ways, chosen per story by `/agentic-sdlc:build`:
 
 - **SOLO** — one coder runs the story end to end. The default for small,
   well-specified stories with an existing pattern to follow. This is the original
@@ -37,9 +46,9 @@ Every story is built one of two ways, chosen per story by `/build`:
   `backlog/pair/<STORY-ID>.md`. Chosen for M/L, novel, or previously-bounced
   stories — where the driver *not* owning the tests is what keeps them honest.
 
-Pairing roughly doubles a story's turns, so `/build` sends it only where the risk
-justifies it. Mode is orthogonal to the epic cascade: a wave can hold SOLO and
-PAIR stories side by side, each in its own worktree.
+Pairing roughly doubles a story's turns, so `/agentic-sdlc:build` sends it only
+where the risk justifies it. Mode is orthogonal to the epic cascade: a wave can
+hold SOLO and PAIR stories side by side, each in its own worktree.
 
 Review still runs as a separate routine against the open PR; the coder's **REVISE**
 mode closes the loop, ruling on each finding by ID.
@@ -75,6 +84,14 @@ consuming project's `.claude/settings.json`:
 
 Teammates are prompted to install on folder-trust. **Upgrading is a one-line diff
 to `ref`** — reviewable, revertable, and visible in `git log`.
+
+> **The install is bound to one directory.** `enabledPlugins` declares the intent,
+> but the install is recorded in `~/.claude/plugins/installed_plugins.json` against
+> a specific `projectPath`. A second directory with the same settings — a workspace
+> root above the repo, a git worktree, a sibling checkout — gets **nothing** until
+> it is installed there too, and the symptom is silent: `/agentic-sdlc:plan` simply
+> is not offered. Fix it from that directory with
+> `claude plugin install agentic-sdlc@kodobe-sdlc --scope local`, then restart.
 
 The plugin is listed by relative path inside this repo, so the marketplace `ref`
 pins the plugin transitively. One knob, not two.
