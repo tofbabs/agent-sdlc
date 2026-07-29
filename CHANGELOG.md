@@ -2,6 +2,20 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.2](https://github.com/kodobe/agent-sdlc/compare/v0.1.1...v0.1.2) (2026-07-29)
+
+
+### Features
+
+* **agents:** add navigator agent and TDD pairing mode ([3e5405f](https://github.com/kodobe/agent-sdlc/commit/3e5405f859af31645e3e79e2e7671ff5fb1dc612))
+* **agents:** add navigator agent and TDD pairing mode ([660bbe2](https://github.com/kodobe/agent-sdlc/commit/660bbe278fe0f65829a6a01e170f433623c062b2))
+
+
+### Bug Fixes
+
+* resolve plugin-namespaced agent names from /plan and /build ([d2e0980](https://github.com/kodobe/agent-sdlc/commit/d2e0980fde58428043872781c16ee97d8cf501a4))
+* resolve plugin-namespaced agent names from /plan and /build ([243e36c](https://github.com/kodobe/agent-sdlc/commit/243e36cd9ccb924a0e031dd648e9d92b5b0e19fe))
+
 ## 0.1.1 — 2026-07-29
 
 **Supersedes 0.1.0. Do not pin 0.1.0** — it shipped a stale `/build` and a README
