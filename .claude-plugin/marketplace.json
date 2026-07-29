@@ -1,0 +1,13 @@
+{
+  "name": "kodobe-sdlc",
+  "description": "Kodobe's versioned agentic SDLC pipeline — planner, architect and coder agents behind /plan and /build, pinned per project by git tag.",
+  "owner": { "name": "Kodobe", "email": "sam@kodobe.com" },
+  "plugins": [
+    {
+      "name": "agentic-sdlc",
+      "source": "./plugins/agentic-sdlc",
+      "category": "workflow",
+      "tags": ["planning", "backlog", "agents", "sdlc"]
+    }
+  ]
+}

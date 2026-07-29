@@ -1,0 +1,51 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Structural validation of marketplace.json, plugin.json, and every
+      # agent/command frontmatter.
+      - name: Validate plugin
+        run: claude plugin validate .
+
+      - name: JSON is parseable
+        run: |
+          for f in .claude-plugin/marketplace.json \
+                   plugins/agentic-sdlc/.claude-plugin/plugin.json; do
+            python3 -m json.tool "$f" > /dev/null || { echo "invalid JSON: $f"; exit 1; }
+          done
+
+      # plugin.json is the version authority; a version in marketplace.json is
+      # silently ignored, which makes a stale manifest impossible to spot.
+      - name: Version is declared in exactly one place
+        run: |
+          if grep -q '"version"' .claude-plugin/marketplace.json; then
+            echo "marketplace.json declares a version — plugin.json always wins, silently. Remove it."
+            exit 1
+          fi
+
+      # A tagged commit whose manifest version does not match ships nothing to
+      # existing installs: Claude Code sees the same version string and keeps cache.
+      - name: Tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          MANIFEST=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
+          [ "$TAG" = "$MANIFEST" ] || { echo "tag v$TAG != plugin.json $MANIFEST"; exit 1; }
+
+      - name: CHANGELOG has an entry for the manifest version
+        run: |
+          MANIFEST=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
+          grep -q "^## $MANIFEST" CHANGELOG.md \
+            || { echo "CHANGELOG.md has no '## $MANIFEST' section"; exit 1; }

@@ -1,0 +1,34 @@
+{
+  "$comment": "COPY-IN BASELINE, not a live dependency — plugins do not contribute permissions, so each project owns its own deny-list. Merge these three categories into <project>/.claude/settings.json and then add whatever categories that project's blast radius requires. Permissive by design: things are denied only where no amount of agent autonomy makes them correct, never because we distrust the agent's judgment on quality.",
+
+  "permissions": {
+    "deny": [
+      "$c1: destructive and unrecoverable",
+      "Bash(git push:*--force*)",
+      "Bash(git push:*-f *)",
+      "Bash(git reset:*--hard*)",
+
+      "$c2: an agent that merges its own work is not a review process — review runs as a separate routine against the open PR",
+      "Bash(gh pr merge:*)",
+
+      "$c3: secrets",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/id_rsa*)"
+    ]
+  },
+
+  "$add_your_own": [
+    "Shared or blast-radius infrastructure: tofu/terraform apply and destroy, helm upgrade/install/uninstall/rollback, kubectl apply/delete/rollout, parameter-store writes. Include these whenever the project deploys into infrastructure it does not solely own. Planning and validating stays allowed — that is how a change is verified before a human applies it.",
+    "Publishing: npm/pnpm publish, if the project's packages are private.",
+    "Any path holding credentials that .env globs do not already cover."
+  ],
+
+  "$deliberately_allowed": [
+    "Editing CI, lint, coverage and build config — the whole point is that tooling arrives incrementally and agents help build it.",
+    "Read-only and diagnostic infrastructure commands: tofu plan/validate/fmt, helm lint/template, kubectl get/describe/logs. Agents SHOULD use these.",
+    "--no-verify: moot without git hooks. If the project adds hooks, revisit.",
+    "The trade for all of the above: deliberate shortcuts get logged to docs/TOOLING-DEBT.md with an observable trigger."
+  ]
+}
