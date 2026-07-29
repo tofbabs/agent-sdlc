@@ -40,14 +40,14 @@ For each wave (stories whose depends_on are all already committed):
      Two or more           → one sub-worktree each, branched off the EPIC branch:
          git worktree add ../wt-STORY-<id> -b feat/STORY-<id> feat/EPIC-<n>
 
-  2. Agent(subagent_type: "coder", prompt: "Implement <STORY-ID> in <worktree>.
+  2. Agent(subagent_type: "agentic-sdlc:coder", prompt: "Implement <STORY-ID> in <worktree>.
            Match existing patterns. Block to the architect if you hit an
            unanticipated tooling or pattern decision — do not guess. Log
            deliberate shortcuts to docs/TOOLING-DEBT.md. Commit; do NOT open a
            PR.")
 
   3. If the coder reports BLOCKED on an ARCH:
-       Agent(subagent_type: "architect", prompt: "Resolve ARCH-<n> — the coder is
+       Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n> — the coder is
              blocked and waiting. Read the codebase, decide, update the epic file.")
        → resume the coder on the same story
 
