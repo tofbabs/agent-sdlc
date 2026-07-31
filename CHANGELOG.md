@@ -2,6 +2,25 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.3](https://github.com/kodobe/agent-sdlc/compare/v0.1.2...v0.1.3) (2026-07-31)
+
+
+### Features
+
+* **build:** enforce pair-log carryover limits in code, not prose ([aa05bb8](https://github.com/kodobe/agent-sdlc/commit/aa05bb8cfc993dbf4f800d5ff416fbd86567e573))
+* **build:** enforce pair-log carryover limits in code, not prose ([f9c5d46](https://github.com/kodobe/agent-sdlc/commit/f9c5d46e3c23db02fe9f1bf6c159163905fb7fb7))
+
+
+### Bug Fixes
+
+* **build:** stop pair stories costing O(alternations squared) ([27aed0a](https://github.com/kodobe/agent-sdlc/commit/27aed0a4195e77ee94b0e8883a3360fe694de028))
+* **build:** stop pair stories costing O(alternations squared) ([445503d](https://github.com/kodobe/agent-sdlc/commit/445503d593b061785fd82b86e164a6fa9161beb8))
+
+
+### Documentation
+
+* **build:** design for cutting pair-log carryover cost ([827f020](https://github.com/kodobe/agent-sdlc/commit/827f020509ce7d2dd44aa504b45ea5b51aa69afa))
+
 ## [0.1.2](https://github.com/kodobe/agent-sdlc/compare/v0.1.1...v0.1.2) (2026-07-29)
 
 
