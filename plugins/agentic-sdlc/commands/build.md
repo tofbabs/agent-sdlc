@@ -103,15 +103,39 @@ drives the alternation**. The pairing IS this loop; it is not something the code
 does internally. Shared state is the worktree branch plus
 `backlog/pair/<STORY-ID>.md`.
 
+### Every turn is a FRESH agent. Never `SendMessage`.
+
+**Each step below spawns a new `Agent()`. Do not continue a previous navigator or
+driver with `SendMessage`, and do not keep a pair agent alive across turns.** This
+is the single most expensive mistake available in this command, and it is the
+tempting one — a live partner "remembers the session", which sounds like exactly
+what a pair wants.
+
+It is not, because a subagent's context is re-sent on *every internal tool-call
+round trip*, not once per turn — 18 of them per navigator turn and 42 per driver
+turn, measured. Keep the agent alive and its context climbs with every increment,
+so turn *k* costs `round trips × context(k)` and the story costs
+**O(alternations²)**. Measured on EPIC-15 STORY-15-1 (16 navigator + 15 driver
+turns): driver context 50k → 405k, 139M input tokens for that one agent, ~380M
+across the run.
+
+A fresh agent starts at a flat ~60-80k every turn and the story goes linear. The
+pair log exists *precisely* to make freshness affordable — it is the session's
+memory, so the agent doesn't have to be. Carrying both means paying for memory
+twice and letting the more expensive copy be the one that grows.
+
 ```
-0. In the story's worktree, create backlog/pair/<STORY-ID>.md — an empty pair
-   log with the story's acceptance criteria listed at the top.
+0. In the story's worktree, create backlog/pair/<STORY-ID>.md from the PAIR LOG
+   SHAPE below — header, an empty STATE block, an empty turn log.
 
 1. Agent(subagent_type: "agentic-sdlc:navigator", prompt: "PAIR on <STORY-ID> in <worktree>.
-         Read the pair log. Review the driver's last increment if any. Write the
-         next failing test. Steer. One test, then stop.")
+         Read the pair log's header, STATE block and last two entries — not the
+         whole file. Review the driver's last increment if any. Write the next
+         failing test. Steer. Refresh STATE. One test, then stop.")
 
-2. Read the pair log tail:
+2. Read ONLY the last ~30 lines of the pair log — never the whole file into your
+   own context, or you accumulate one copy per alternation:
+       tail -n 30 backlog/pair/<STORY-ID>.md
      SESSION: COMPLETE   → Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR —
                            <STORY-ID> in <worktree>, session complete. Run full
                            verification, commit the final state. Do NOT open a PR
@@ -122,7 +146,8 @@ does internally. Shared state is the worktree branch plus
      otherwise           → continue.
 
 3. Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR — driver turn on <STORY-ID>
-         in <worktree>. Read the pair log, make the failing test pass with the
+         in <worktree>. Read the pair log's header, STATE block and last two
+         entries — not the whole file. Make the failing test pass with the
          simplest thing that works, one increment, commit, stop.")
 
 4. → back to 1.
@@ -135,6 +160,41 @@ Do not skip navigator turns to "speed up" — the alternation is the mechanism. 
 driver running unreviewed increments is just SOLO mode with a worse name and
 double the cost. When the story finishes, its worktree is in the same committed
 state a SOLO story would be, and re-joins the cascade at THE LOOP step 4.
+
+### PAIR LOG SHAPE
+
+The log has to stay **O(1) to read**, because a fresh agent reads it every turn
+and an unboundedly growing log just moves the quadratic out of the agent's context
+and into the file. Three parts, and only one of them grows:
+
+```markdown
+# Pair log — <STORY-ID>
+
+## Acceptance criteria (verbatim from backlog/EPIC-<n>.md)
+<the ACs>
+
+## Binding constraints (do not rediscover these)
+<what the epic and the ADRs already settled>
+
+## STATE  — the navigator OVERWRITES this block every turn. Max 15 lines.
+- ACs met: <ids>
+- ACs remaining: <ids>
+- next reds planned: <short list>
+- open flag / REDO: <or none>
+- alternation: <k> of 20
+
+## Turn log  — append-only, MAX 10 LINES PER ENTRY
+```
+
+STATE is the continuity mechanism, and it is fixed-size *because it is rewritten,
+not appended*. Forward-looking reasoning — the plan, the reds you can see coming,
+the traps — belongs there, where it costs the same on turn 20 as on turn 2. The
+turn log records what happened; it is not a place to restate the plan.
+
+**The 10-line cap is real.** On STORY-15-1 the mean entry ran 2.6KB against a
+template of ~150 bytes, and single entries reached 5.4KB — essays that re-derived
+the foreseen red-list every turn. No code blocks in an entry either: the diff is
+on the branch, and `git log` / `git diff HEAD~1` is one cheap call away.
 
 ---
 
@@ -246,6 +306,12 @@ story shouldn't multiply your rate across every easy one.
 turns are few and judgment is dense. In the loops its cost compounds across
 volume for decisions that are mostly local and cheap to redo.
 
+**The model tier is the small lever; the context curve is the big one.** A PAIR
+story's spend is `Σ over turns of (round trips × context at that turn)`. Model
+choice scales the rate. Whether the agents are fresh scales the *shape* — flat or
+quadratic — and on EPIC-15 that shape was worth more than any tier decision in
+this section. Get freshness right first.
+
 ---
 
 ## HARD RULES
@@ -269,6 +335,11 @@ volume for decisions that are mostly local and cheap to redo.
   the driver write or modify a test. Either collapses the pair back into solo work
   while still paying the pair's price. One increment per driver turn, one test per
   navigator turn.
+- **Never continue a pair agent with `SendMessage`. Every turn is a fresh
+  `Agent()`.** A live agent's context is re-sent on each of its 18–42 internal
+  round trips per turn, so keeping it alive makes a story cost O(alternations²) —
+  see PAIR LOOP. The pair log is the memory; the agent must not be. Likewise,
+  never read the whole pair log into the orchestrator's own context — `tail` it.
 - If a coder blocks three times on one story, the **story** is probably wrong.
   Escalate to the human rather than grinding.
 - **Check the epic file's `status:` against `main` before starting.** Story status

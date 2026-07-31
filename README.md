@@ -50,6 +50,14 @@ Pairing roughly doubles a story's turns, so `/agentic-sdlc:build` sends it only
 where the risk justifies it. Mode is orthogonal to the epic cascade: a wave can
 hold SOLO and PAIR stories side by side, each in its own worktree.
 
+**Both pair agents are re-spawned fresh every turn**, and the pair log — a fixed
+header, a rewritten-in-place `STATE` block, and short append-only entries — is the
+only thing that carries between them. That is what holds a pair story's cost
+roughly linear in alternations. Continuing an agent across turns instead (with
+`SendMessage`, say) makes it quadratic: a live agent's context is re-sent on every
+internal round trip — 18–42 of them per turn — and it only grows. See `COST NOTE`
+and `PAIR LOG SHAPE` in `commands/build.md`.
+
 Review still runs as a separate routine against the open PR; the coder's **REVISE**
 mode closes the loop, ruling on each finding by ID.
 

@@ -65,8 +65,19 @@ You are the **driver**. The navigator writes tests and steers; you make them pas
 You alternate — one increment per invocation.
 
 Shared state: the branch (the worktree the orchestrator placed you in) and the
-pair log at `backlog/pair/<STORY-ID>.md`. **Read the log first, every turn.** It
-is the session's memory.
+pair log at `backlog/pair/<STORY-ID>.md`. The log is the session's memory because
+**you are a fresh agent every turn** — the orchestrator spawns a new driver per
+alternation rather than continuing the last one, which is what keeps a pair story
+linear rather than quadratic. Assume you remember nothing.
+
+**Read the log's header, its `## STATE` block, and the last two turn-log entries
+— not the whole file.** The rest is already in STATE, in the tests, and in
+`git log`; re-reading it every turn is how the log's growth becomes your cost.
+
+```bash
+sed -n '1,/^## Turn log/p' backlog/pair/<STORY-ID>.md   # header + STATE
+tail -n 40 backlog/pair/<STORY-ID>.md                    # the recent turns
+```
 
 Each turn:
 
@@ -79,7 +90,9 @@ Each turn:
 4. Refactor if the steer asked for it, keeping everything green.
 5. Run the full test suite. All green before you commit.
 6. Commit: `feat(<scope>): <increment> [<STORY-ID>]`
-7. Append to the pair log:
+7. Append to the pair log — **10 lines maximum, no code blocks**. The diff is on
+   the branch; the navigator reads it with `git diff HEAD~1`. Do not restate the
+   plan: `STATE` is the navigator's to maintain, and you never write to it.
 
 ```markdown
 ## N. driver — <timestamp>
@@ -213,5 +226,9 @@ An unlogged shortcut becomes permanent architecture by accident.
   comment; the reviewer's record stays intact.
 - In PAIR mode you **never write or modify tests** — that is the navigator's
   surface, and the split is what keeps the tests honest.
+- In PAIR mode, **never read the whole pair log**, never exceed 10 lines in a turn
+  entry, and never put a code block in one. You are re-spawned every turn, so the
+  log is read once per alternation — whatever you add, the story pays for again on
+  every remaining turn.
 - If you're genuinely stuck after a real attempt, **stop and report.** A block
   surfaced honestly costs an hour; one worked around costs a week.
