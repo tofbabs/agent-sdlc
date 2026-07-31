@@ -56,6 +56,14 @@ jobs:
             exit 1
           fi
 
+      # pair-log.mjs is the enforcement behind the PAIR loop's two carryover
+      # limits — the 10-line turn entry and the driver never receiving the brief.
+      # Both were prose in build.md before and drifted in every measured story;
+      # a regression here silently restores a 3.6x token cost on every PAIR
+      # story, which no other check would notice.
+      - name: pair-log invariants
+        run: ./scripts/pair-log.test.sh
+
       # The tag is what consuming projects pin, so it must match what Claude Code
       # will report as the installed version.
       - name: Tag matches plugin.json

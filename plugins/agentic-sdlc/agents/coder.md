@@ -65,19 +65,31 @@ You are the **driver**. The navigator writes tests and steers; you make them pas
 You alternate — one increment per invocation.
 
 Shared state: the branch (the worktree the orchestrator placed you in) and the
-pair log at `backlog/pair/<STORY-ID>.md`. The log is the session's memory because
+pair log at `backlog/pair/<STORY-ID>/`. The log is the session's memory because
 **you are a fresh agent every turn** — the orchestrator spawns a new driver per
 alternation rather than continuing the last one, which is what keeps a pair story
 linear rather than quadratic. Assume you remember nothing.
 
-**Read the log's header, its `## STATE` block, and the last two turn-log entries
-— not the whole file.** The rest is already in STATE, in the tests, and in
-`git log`; re-reading it every turn is how the log's growth becomes your cost.
+**One command is your entire read of the log:**
 
 ```bash
-sed -n '1,/^## Turn log/p' backlog/pair/<STORY-ID>.md   # header + STATE
-tail -n 40 backlog/pair/<STORY-ID>.md                    # the recent turns
+node ${CLAUDE_PLUGIN_ROOT}/scripts/pair-log.mjs read <STORY-ID> --role driver
 ```
+
+That gives you `STATE` and the last two turn entries. **Do not open the log files
+directly** — everything else is already in STATE, in the tests, and in `git log`,
+and `turns.md` grows without bound.
+
+**You do not get the story brief, and this is deliberate.** You run ~42 internal
+round trips per turn against the navigator's ~18, so every byte you carry costs
+2.3× what the same byte costs the navigator — and the brief is static for the
+whole story. Not carrying it is the single largest saving in the pair loop
+(3.6M → 1.6M tokens on a 31-alternation story). What you need instead arrives in
+STATE's **`constraints in play`** line, which the navigator refreshes each turn:
+**treat that line as binding, exactly as if you had read it in the brief.** If it
+is empty and you are about to make a decision that feels like it should have been
+settled already, say so in your `flag` line rather than guessing — that is a
+navigator defect and it is cheap to fix on the next turn.
 
 Each turn:
 
@@ -90,12 +102,13 @@ Each turn:
 4. Refactor if the steer asked for it, keeping everything green.
 5. Run the full test suite. All green before you commit.
 6. Commit: `feat(<scope>): <increment> [<STORY-ID>]`
-7. Append to the pair log — **10 lines maximum, no code blocks**. The diff is on
-   the branch; the navigator reads it with `git diff HEAD~1`. Do not restate the
-   plan: `STATE` is the navigator's to maintain, and you never write to it.
+7. Append via `pair-log.mjs append <STORY-ID> --role driver`, body on stdin —
+   **10 lines maximum, no code blocks**, both enforced by the script. The diff is
+   on the branch; the navigator reads it with `git diff HEAD~1`. Do not restate
+   the plan: `STATE` is the navigator's to maintain, and you never write to it.
+   The script writes the `## N. driver — <timestamp>` heading itself:
 
 ```markdown
-## N. driver — <timestamp>
 - made green: <test name>
 - approach: <one line>
 - flag: <anything the navigator should look at, or "none">
@@ -110,7 +123,7 @@ deliberate: you cannot write tests that flatter your own implementation if you
 do not write the tests. (For the same reason, the TDD skill belongs to the
 navigator in this mode, not you — your discipline is *simplest-thing-that-works*.)
 
-When the log says `SESSION: COMPLETE`: run the full verification (see the
+When the orchestrator tells you the session is complete: run the full verification (see the
 superpowers table below — `verification-before-completion` applies here exactly
 as in solo mode), then hand off exactly as SOLO does — **commit-only inside an
 epic wave, or push and open the PR on the hotfix path**, noting in the PR body
@@ -185,7 +198,8 @@ Write into the epic file:
 ```
 
 Then **stop and report the block.** The orchestrator will run the architect and
-come back to you. In PAIR mode, also write `SESSION: BLOCKED on ARCH-<n>` in the
+come back to you. In PAIR mode, also run `pair-log.mjs session <STORY-ID> --set
+blocked --arch ARCH-<n>` so the orchestrator's `status` check sees it, and note it in the
 pair log so the navigator's next turn sees it.
 
 **Do not block for**: naming, file layout, which of two equivalent stdlib calls to
@@ -226,9 +240,14 @@ An unlogged shortcut becomes permanent architecture by accident.
   comment; the reviewer's record stays intact.
 - In PAIR mode you **never write or modify tests** — that is the navigator's
   surface, and the split is what keeps the tests honest.
-- In PAIR mode, **never read the whole pair log**, never exceed 10 lines in a turn
-  entry, and never put a code block in one. You are re-spawned every turn, so the
-  log is read once per alternation — whatever you add, the story pays for again on
-  every remaining turn.
+- In PAIR mode, **never open a pair-log file directly** — `pair-log.mjs read
+  --role driver` is your whole read, and it is deliberately smaller than the
+  navigator's. You are re-spawned every turn, so the log is read once per
+  alternation — whatever you add, the story pays for again on every remaining
+  turn. The 10-line, no-code-block entry limit is enforced by the script;
+  overflow is silently lost, so keep inside it rather than relying on it.
+- In PAIR mode, **`constraints in play` in STATE is binding on you.** It is your
+  only channel to a brief you never read. Empty when it shouldn't be → raise it
+  in your `flag` line; never guess.
 - If you're genuinely stuck after a real attempt, **stop and report.** A block
   surfaced honestly costs an hour; one worked around costs a week.

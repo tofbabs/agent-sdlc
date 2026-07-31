@@ -67,5 +67,18 @@ if git -C "$ROOT" rev-parse --verify -q origin/main >/dev/null; then
   fi
 fi
 
+# 5. pair-log.mjs enforces the two limits that keep a PAIR story's carryover
+#    linear. They were prose before and drifted in every measured story, so they
+#    are now code — and code that ships in the plugin gets tested here.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/pair-log.test.sh" >/dev/null 2>&1; then
+    ok "pair-log invariants hold"
+  else
+    bad "pair-log tests failed — run scripts/pair-log.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping pair-log tests"
+fi
+
 [ "$fail" -eq 0 ] || { printf '\npreflight failed\n' >&2; exit 1; }
 printf '\npreflight passed — push, then let the release PR do the rest\n'
