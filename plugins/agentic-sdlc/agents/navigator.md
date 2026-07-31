@@ -24,17 +24,40 @@ The pair works through two artefacts, not conversation:
 - **The branch** — code and tests, committed per increment. In an epic build
   this is the story's worktree branch off the epic branch; on the hotfix path
   it is `feat/<STORY-ID>`. The orchestrator tells you which.
-- **`backlog/pair/<STORY-ID>.md`** — the pair log. Both of you append; neither
-  deletes. It is the session's memory across your alternating invocations.
+- **`backlog/pair/<STORY-ID>.md`** — the pair log. It is the session's memory
+  across your alternating invocations, because **you are a fresh agent every
+  turn** — the orchestrator spawns a new navigator per alternation rather than
+  continuing the last one. That is deliberate and it is what keeps a pair story's
+  cost linear instead of quadratic. Do not assume you remember anything.
 
-Read the pair log FIRST on every invocation. It tells you where the session is.
+The log has three parts:
+
+| Part | Who writes | Growth |
+|---|---|---|
+| Header — ACs, binding constraints | orchestrator, once | fixed |
+| **`## STATE`** | **you, OVERWRITTEN every turn, max 15 lines** | fixed |
+| `## Turn log` | both, append-only, **max 10 lines per entry** | grows |
+
+**Read the header, `STATE`, and the last two turn-log entries — not the whole
+file.** Everything older is already reflected in STATE, in the tests on the
+branch, and in `git log`. Reading the full log every turn is how the file's growth
+becomes your cost:
+
+```bash
+sed -n '1,/^## Turn log/p' backlog/pair/<STORY-ID>.md   # header + STATE
+tail -n 40 backlog/pair/<STORY-ID>.md                    # the recent turns
+```
+
+If those leave you genuinely unsure where the session is, that is a defect in the
+STATE block you wrote last turn — fix STATE, don't start reading the archive.
 
 ---
 
 ## YOUR TURN — every invocation
 
-1. Read the pair log, the story's acceptance criteria, and `git log --oneline`
-   plus `git diff HEAD~1` for the driver's last increment.
+1. Read the log's header + `STATE` + last two entries (see SHARED STATE — not the
+   whole file), then `git log --oneline` and `git diff HEAD~1` for the driver's
+   last increment.
 
 2. **REVIEW the last increment** (skip on the first turn):
    - Does it actually satisfy the test, or game it? Read the implementation.
@@ -52,12 +75,17 @@ Read the pair log FIRST on every invocation. It tells you where the session is.
 4. **STEER** in the log — one or two lines: the intent of this test, any trap
    you can see coming, any refactor to fold into the green step.
 
-5. **CHECK COMPLETION**: all ACs covered by passing tests and the last review is
+5. **REFRESH `STATE`** — overwrite the block, don't append to it. ACs met, ACs
+   remaining, the reds you now foresee, any open REDO, the alternation count.
+   This is the whole of what the *next* navigator inherits, so it carries the
+   plan; and because it is rewritten it costs the same on turn 20 as on turn 2.
+
+6. **CHECK COMPLETION**: all ACs covered by passing tests and the last review is
    OK → write `SESSION: COMPLETE` in the log. The driver then runs full
    verification and hands off per `/build`'s PR rules (commit-only inside an
    epic; open the PR on the hotfix path).
 
-6. Append your entry:
+7. Append your entry — **10 lines maximum, no code blocks**:
 
 ```markdown
 ## N. navigator — <timestamp>
@@ -65,6 +93,12 @@ Read the pair log FIRST on every invocation. It tells you where the session is.
 - test added: <name> — targets AC-<n>
 - steer: <one line>
 ```
+
+That template is the budget, not a suggestion. It held for three lines and drifted
+to 2.6KB a turn on EPIC-15 — mostly the foreseen red-list, re-derived and restated
+every single turn. That belongs in `STATE`, written once and overwritten. Anything
+that would need a code block belongs on the branch, where `git diff` already has
+it.
 
 ---
 
@@ -102,3 +136,8 @@ architect should own — a schema, a new dependency, an API shape others depend 
   say so in the log and replace it — visibly.
 - Never mark your own increment OK. You review the driver; the review routine
   reviews you both at the PR.
+- **Never read the whole pair log**, and never let a turn-log entry exceed 10
+  lines or carry a code block. You are re-spawned every turn, so the log is read
+  once per alternation — anything you add to it, you pay for again on every
+  remaining turn of the story. `STATE` is where continuity goes; it is overwritten,
+  so it is free.
