@@ -20,9 +20,10 @@ not to a bigger model.
 
 - The brief
 - `docs/adr/` — **ACCEPTED ADRs are binding.** Stories may not contradict them.
-- `CLAUDE.md` — conventions
 - `docs/TOOLING-DEBT.md` — known gaps, so you don't re-raise them
 - The existing codebase
+
+**Do not open `CLAUDE.md`** — Claude Code already injects it into your context.
 
 ---
 
@@ -94,6 +95,17 @@ implementation plan; your output is a backlog, and the two will fight.
 - **Nothing larger than L.** Split it.
 - **2–5 acceptance criteria, each testable.** A criterion no test could falsify
   is a wish, not a criterion.
+- **The epic file has a budget: ~150 lines, with `## Stories` starting inside the
+  first 40.** Every coder in the epic reads this file, so anything above the
+  stories is paid for once per story. Measured epics have run 600–900 lines with
+  `## Stories` at line ~430 — a coder then reads ~430 lines of planning prose to
+  reach the ~90 that concern it, and does it again for the next story.
+- **Do not add sections the format below does not have.** Evidence you gathered
+  while planning, alternatives you rejected, and figures you could not verify are
+  *context for the human*: put them in the PR description, or in an `ARCH-<n>`
+  handoff's **Context** line where they belong to a decision. They are not a
+  section of the epic. The single largest source of epic bloat measured so far is
+  a free-form "grounding notes" section that this format never asked for.
 
 ---
 
