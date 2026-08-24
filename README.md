@@ -21,6 +21,43 @@ nobody could tell what had changed or why.
                                ends at "one PR is open"
 ```
 
+Or the lean lane, on the same two commands:
+
+```
+/agentic-sdlc:plan <brief> --fast    planner → a ~40-line task list, one `done when` each
+                                     no ARCH handoffs — one-way doors tagged, not blocked
+                                     architect runs only if something was tagged
+
+/agentic-sdlc:build FAST-<n> --fast  SOLO throughout, one branch, no worktrees
+                                     tests: the check, plus the negative case on any
+                                     auth/money/destructive-data/contract surface
+                                     gate once, one PR, every shortcut in the ledger
+```
+
+### Two lanes
+
+The flag is per command, so they mix: `/build EPIC-3 --fast` builds a
+deliberately-planned epic the lean way.
+
+|  | deliberate | `--fast` |
+|---|---|---|
+| Artifact | `backlog/EPIC-<n>.md`, ~150 lines, 2–5 Gherkin criteria per story | `backlog/FAST-<n>.md`, ~40 lines, one `done when` per task |
+| Decisions | `ARCH-<n>` handoff, coder blocks and waits | coder decides and logs; five one-way doors are tagged and batched, never blocking |
+| Tests | the story's criteria; PAIR stories are strict ping-pong TDD | the `done when`, plus the **negative** case on each risk surface touched — auth, money, destructive data paths, external contracts — nothing else |
+| Branching | epic branch, worktrees, dependency waves, `--no-ff` merge-backs | one branch, sequential, gate once |
+| Agents | planner, architect (Fable), coder, navigator (Opus 4.8) | planner + coder (both Sonnet 5); architect at most once, usually zero |
+| Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
+
+**Pick `--fast`** for prototypes, spikes, internal tools, and anything you would be
+content to rewrite. **Pick the deliberate lane** for a persisted data model, a
+contract another team consumes, or anything touching money, auth or PII — and note
+that those five hit the one-way-door list and get the architect even in fast mode.
+
+Fast mode is a debt generator by design. That is the trade, and the condition is
+that it is written down: every shortcut is one row in `docs/TOOLING-DEBT.md`, the
+PR body stamps `Mode: FAST`, and the review routine judges the ledger against the
+fast floor rather than bouncing the PR for a missing unit test.
+
 > **Everything is namespaced by the plugin name.** `plugin.json`'s `name` is what
 > namespaces components, so the commands are `/agentic-sdlc:plan` and
 > `/agentic-sdlc:build`, and the agents register as `agentic-sdlc:planner`,
@@ -117,8 +154,8 @@ agent reading a path that isn't there.
 | Path | Purpose | Required |
 |---|---|---|
 | `CLAUDE.md` | Conventions, and **the check command** the coder runs before opening a PR | yes |
-| `backlog/` | Where `/plan` writes `EPIC-<n>.md`, and where `/build` reads stories | yes |
-| `docs/TOOLING-DEBT.md` | The ledger. Appended to by architect and coder; triaged by the gap-scan routine | yes |
+| `backlog/` | Where `/plan` writes `EPIC-<n>.md` (or `FAST-<n>.md` under `--fast`), and where `/build` reads them | yes |
+| `docs/TOOLING-DEBT.md` | The ledger. Appended to by architect and coder; triaged by the gap-scan routine. `--fast` runs write one row per shortcut here — the mode's whole justification | yes |
 | a brief, per feature | **The input to `/plan`** — the one document written by hand. Path is yours; `/plan <path>` takes it | yes, per feature |
 | `docs/adr/` | ACCEPTED ADRs are binding on every agent | created on first one-way door |
 
@@ -127,6 +164,7 @@ agent reading a path that isn't there.
 ```bash
 cp templates/TOOLING-DEBT.md          <project>/docs/
 cp templates/backlog/EPIC-template.md <project>/backlog/
+cp templates/backlog/FAST-template.md <project>/backlog/   # only if you use --fast
 cp templates/brief.md                 <project>/docs/templates/
 cp templates/ADR.md                   <project>/docs/templates/
 ```
@@ -306,12 +344,16 @@ plugins/agentic-sdlc/
   .claude-plugin/plugin.json             manifest — the version authority
   agents/{planner,architect,coder,navigator}.md
   commands/{plan,build}.md
+  reference/                             protocols loaded on demand, never by default
+    pair-loop.md, coder-pair-mode.md, coder-revise-mode.md
+    fast-mode.md, coder-fast-mode.md     read only when --fast is present
+  scripts/pair-log.mjs                   the pair log's only read/write surface
 templates/
   settings.baseline.json                 universal deny-rules, copy-in
   TOOLING-DEBT.md                        empty ledger
   brief.md                               the input to /plan
   ADR.md                                 house format — decision, not options paper
-  backlog/EPIC-template.md
+  backlog/{EPIC,FAST}-template.md
   routines/{review,gap-scan}-prompt.md   cloud routine prompts
 scripts/preflight.sh                     CI invariants, locally. Does not tag.
 release-please-config.json               how a commit type becomes a version

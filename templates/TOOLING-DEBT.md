@@ -36,6 +36,25 @@
 |-----|----------------|------------|
 | | | |
 
+## Fast-mode shortcuts
+
+Written by `--fast` runs. One row per shortcut — if logging one costs more than
+taking it, nobody logs anything. Triaged by the gap scan like any other entry.
+
+| Shortcut | Instead of | Trigger to fix | From |
+|----------|------------|----------------|------|
+| | | | |
+
+> A `--fast` run adds one line naming itself, so a reader knows why the rows are
+> here: `_Run: FAST-3, 2026-08-23, tasks T3-1..T3-6 — built in fast mode._`
+>
+> What belongs here: a missing test on a risk surface (auth, money, destructive
+> data paths, external contracts) — including one covered by a happy-path test with
+> no negative case, which is the same gap — a hardcoded value, a stubbed
+> integration, a deferred migration. What does **not**: "skipped TDD", "did not pair", "wrote
+> fewer tests". Fast mode's whole shape is those things; rows restating it are how
+> a ledger stops being read.
+
 ## Logged by agents
 
 Raw entries appended during `/plan` and `/build`. The gap scan triages these into

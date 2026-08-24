@@ -1,12 +1,26 @@
 ---
-description: Plan a feature — stories from the planner, architecture decisions from the architect. Non-blocking.
-argument-hint: <path-to-brief.md-or-epic-description>
-allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill
+description: Plan a feature — stories from the planner, architecture decisions from the architect. Non-blocking. `--fast` takes the lean lane: a flat task list, no handoffs.
+argument-hint: <path-to-brief.md-or-epic-description> [--fast]
+allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill, Bash(cat:*)
 ---
 
-Input: $1
+Input: `$ARGUMENTS` minus the flag — strip `--fast` if present; what remains is the brief.
 
 Build a backlog. **Delegate — you write no stories yourself.**
+
+---
+
+## FAST LANE
+
+`--fast` in the arguments replaces everything below: one planner invocation, a
+~40-line task list, and no architect pass unless a one-way door was tagged.
+
+```bash
+cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
+```
+
+**Read it before STEP 1** — that file is the protocol, this is not. A deliberate
+run never reads it and never pays for it.
 
 ---
 
