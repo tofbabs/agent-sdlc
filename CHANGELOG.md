@@ -2,6 +2,14 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.5](https://github.com/kodobe/agent-sdlc/compare/v0.1.4...v0.1.5) (2026-08-24)
+
+
+### Features
+
+* **agentic-sdlc:** add the --fast lean lane, gated by a negative-test floor ([f6c0e6e](https://github.com/kodobe/agent-sdlc/commit/f6c0e6ea1ff18f33faf93d3adfa4adeb849c1d66))
+* **agentic-sdlc:** add the --fast lean lane, gated by a negative-test floor ([a6bab4b](https://github.com/kodobe/agent-sdlc/commit/a6bab4bb01d9f65ec045b0a396f06969e632f558))
+
 ## [0.1.4](https://github.com/kodobe/agent-sdlc/compare/v0.1.3...v0.1.4) (2026-08-24)
 
 
