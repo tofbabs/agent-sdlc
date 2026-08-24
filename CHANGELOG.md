@@ -2,6 +2,14 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.4](https://github.com/kodobe/agent-sdlc/compare/v0.1.3...v0.1.4) (2026-08-24)
+
+
+### Features
+
+* **agentic-sdlc:** load PAIR and REVISE protocols on demand, bound the epic file ([4214d92](https://github.com/kodobe/agent-sdlc/commit/4214d92d6a7ee343c0f80d5967ee55dd2648cff4))
+* **agentic-sdlc:** load PAIR and REVISE protocols on demand, bound the epic file ([8b81d5a](https://github.com/kodobe/agent-sdlc/commit/8b81d5a015223de1962732debffcea8e807dcc7f))
+
 ## [0.1.3](https://github.com/kodobe/agent-sdlc/compare/v0.1.2...v0.1.3) (2026-07-31)
 
 
