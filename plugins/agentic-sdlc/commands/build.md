@@ -1,12 +1,26 @@
 ---
-description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄coder TDD pair. Architect unblocks mid-build. Opens one PR. Review, and the REVISE loop that closes it, happen separately.
-argument-hint: [EPIC-n | STORY-id]
-allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill, Bash(git:*), Bash(gh:*)
+description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄coder TDD pair. Architect unblocks mid-build. Opens one PR. Review, and the REVISE loop that closes it, happen separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
+argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast]
+allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
 
-Target: $1
+Target: `$ARGUMENTS` minus the flag — strip `--fast` if present; what remains is the target.
 
 Execute the backlog. **Delegate all code.**
+
+---
+
+## FAST LANE
+
+`--fast` in the arguments replaces the cascade below: one branch, SOLO throughout,
+no worktrees, no navigator, gate once, one PR.
+
+```bash
+cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
+```
+
+**Read it before the first coder turn** — that file is the protocol, this is not.
+A deliberate run never reads it and never pays for it.
 
 ---
 
@@ -21,7 +35,8 @@ Any `OPEN` handoff on a target story → run the architect first.
 
 ## MODE SELECTION — per story
 
-Each story is built one of two ways. Decide per story, not per epic:
+Each story is built one of two ways. Decide per story, not per epic. (Under
+`--fast` this heuristic does not run at all — every task is SOLO.)
 
 - **estimate S, well-specified, a pattern for it already exists** → **SOLO**: one
   coder invocation runs the story to completion in its worktree.
@@ -269,7 +284,10 @@ this section. Get freshness right first.
 - **In a PAIR story, never skip the navigator turn to save time**, and never let
   the driver write or modify a test. Either collapses the pair back into solo work
   while still paying the pair's price. One increment per driver turn, one test per
-  navigator turn.
+  navigator turn. `--fast` selecting SOLO for every task is **not** the
+  degradation this rule forbids — choosing the lane up front is the point of the
+  flag. The forbidden thing is running a story *in* PAIR and skipping its
+  navigator turns.
 - **Never continue a pair agent with `SendMessage`. Every turn is a fresh
   `Agent()`.** A live agent's context is re-sent on each of its 18–42 internal
   round trips per turn, so keeping it alive makes a story cost O(alternations²) —

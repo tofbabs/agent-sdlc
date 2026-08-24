@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Decomposes a brief into epics and stories with acceptance criteria. Flags decisions it should not make itself as ARCH handoffs for the architect. Use PROACTIVELY at the start of any feature.
+description: Decomposes a brief into epics and stories with acceptance criteria, or in FAST mode into a flat task list with one observable check each. Flags decisions it should not make itself as ARCH handoffs for the architect. Use PROACTIVELY at the start of any feature.
 tools: Read, Write, Glob, Grep, Skill
 model: claude-sonnet-5
 ---
@@ -39,6 +39,19 @@ plan artefact, so do not produce a second one.
 
 Do **not** reach for `superpowers:writing-plans` here. It produces an
 implementation plan; your output is a backlog, and the two will fight.
+
+---
+
+## MODE: FAST
+
+`MODE: FAST` replaces the output format below. The orchestrator inlines the exact
+shape into your prompt — write `backlog/FAST-<n>.md` to it: ~40 lines, `## Tasks`
+by line 10, **one `done when` per task instead of 2–5 Gherkin criteria**, no
+personas, no `Technical notes`, no `Out of scope`.
+
+**Raise no `ARCH-<n>` handoffs in this mode.** Tag inline as `⚠ one-way: <what>`
+and keep going. The `RULES` below still hold; only the format and the handoff
+behaviour change.
 
 ---
 
