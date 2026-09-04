@@ -1,5 +1,5 @@
 ---
-description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄coder TDD pair. Architect unblocks mid-build. Opens one PR. Review, and the REVISE loop that closes it, happen separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
+description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄coder TDD pair. Architect unblocks mid-build. Opens one PR. Review is `/agentic-sdlc:review`; the REVISE loop that closes its findings runs here separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
 argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast]
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
@@ -113,10 +113,11 @@ When every story is committed:
 **A single story is different.** `/build STORY-<id>` is the hotfix path: branch
 from `origin/main`, one PR to `main`, squash-merge as usual. No epic branch.
 
-**Code review is out of scope here.** It runs as a separate Claude Code routine
-against the open PR. This command's job ends at "PR is open." Closing what that
-review finds is the REVISE LOOP (below) — a separate `/build` invocation once the
-routine has posted its verdict, not part of the cascade run.
+**Code review is out of scope here.** It is `/agentic-sdlc:review <PR-n>` — run
+by hand or by the hourly routine — and posts a round comment on the PR. This
+command's job ends at "PR is open." Closing what that review finds is the
+REVISE LOOP (below) — a separate `/build` invocation once a round comment has
+landed, not part of the cascade run.
 
 ---
 
@@ -217,19 +218,20 @@ path, where there is only one scope anyway.
 
 ---
 
-## REVISE LOOP — closing the routine's review
+## REVISE LOOP — closing the reviewer's round
 
-The review routine posts one structured comment per round on the epic PR (verdict,
-reviewed sha, findings `F1..Fn`). It is a separate routine, not part of the
-cascade — so this loop runs as its own `/build` invocation after a verdict lands.
-When the latest round says `REQUEST_CHANGES`:
+The code-reviewer posts one structured comment per round on the epic PR
+(verdict, reviewed sha, findings `F1..Fn`) via `/agentic-sdlc:review`. It is
+not part of the cascade — so this loop runs as its own `/build` invocation
+after a verdict lands. When the latest round says `REQUEST_CHANGES`:
 
 ```
 1. Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: REVISE on PR <n>. Read the
-         routine's latest review comment, address EVERY finding — fix or dispute,
-         never ignore — run the full gate, push, and reply on the PR ruling on
-         each finding by ID.")
-2. The routine's next pass re-reviews the new head and rules on disputes.
+         latest `## Review — round <k>` comment, address EVERY finding — fix or
+         dispute, never ignore — run the full gate, push, and reply on the PR
+         ruling on each finding by ID.")
+2. Run `/agentic-sdlc:review <n>` again (or let the routine) to re-review the
+   new head and rule on disputes.
 3. Max 3 rounds. Still REQUEST_CHANGES → the story or a contract is probably
    wrong. Escalate to the human rather than grinding.
 ```

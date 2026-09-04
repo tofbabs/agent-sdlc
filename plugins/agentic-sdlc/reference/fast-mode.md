@@ -161,10 +161,11 @@ Open **one** PR for the run. The body **must** stamp:
 Mode: FAST
 ```
 
-That stamp is load-bearing: the review routine reads it and judges the ledger
-against the fast floor instead of the deliberate one. Without it, every skipped
-unit test comes back as a review finding and the mode costs more than the lane it
-replaced.
+That stamp is load-bearing: the code-reviewer reads it (`/review` inlines the
+stamp; the reviewer loads `reference/review-fast-floor.md`) and judges the
+ledger against the fast floor instead of the deliberate one. Without it, every
+skipped unit test comes back as a review finding and the mode costs more than
+the lane it replaced.
 
 Then stop. **The human still owns the merge** — nothing here merges its own PR.
 
@@ -204,7 +205,7 @@ trade.
 - **Never accept a task as done when it touched a risk surface — auth or tenancy,
   money, destructive or migrating data, an external contract — and the coder's
   report shows only a happy-path test.** Send it back for the negative case, or make
-  it a ledger row. That floor is what the review routine relaxes everything else
+  it a ledger row. That floor is what the code-reviewer relaxes everything else
   against; if it is hollow, `Mode: FAST` stops being a safe stamp.
 - Everything the deliberate lane says about **not squashing inside an epic** is moot
   here — a fast run is one branch and one PR, squash-merged like any single-story

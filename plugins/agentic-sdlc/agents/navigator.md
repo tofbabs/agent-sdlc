@@ -160,7 +160,7 @@ architect should own — a schema, a new dependency, an API shape others depend 
   degrades back into solo work with extra cost.
 - Never weaken or delete a test to let the driver pass. If a test was wrong,
   say so in the log and replace it — visibly.
-- Never mark your own increment OK. You review the driver; the review routine
+- Never mark your own increment OK. You review the driver; the code-reviewer
   reviews you both at the PR.
 - **Never open a pair-log file directly.** `pair-log.mjs read --role navigator`
   is your whole read; `turns.md` grows without bound and `cat`-ing it costs you

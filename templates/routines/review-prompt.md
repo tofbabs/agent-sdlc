@@ -1,93 +1,27 @@
 # Routine prompt: PR review
 
-<!-- Referenced by the review routine. Version-controlled so the review bar
-     is diffable and survives routine reconfiguration. -->
+<!-- Referenced by the review routine. Thin by design: the review bar lives in
+     plugins/agentic-sdlc/agents/code-reviewer.md and runs via
+     /agentic-sdlc:review — one copy, versioned with the agents it judges,
+     rather than a second copy pasted in here. -->
 
-Review the open pull request(s) on this repository.
+This routine assumes the project has the `agentic-sdlc` plugin enabled (see
+its `.claude/settings.json`). **If `/agentic-sdlc:review` is not offered, stop
+and report that — do not improvise a review from memory of the bar.**
 
-For each open PR without an existing review from you:
-
-1. `gh pr view <n>` and `gh pr diff <n>`
-2. `gh pr checks <n>` — if CI exists and is red, that alone is REQUEST_CHANGES;
-   name the failing job.
-3. Read the story this PR implements in `backlog/` (the STORY-ID is in the branch
-   name and commit messages).
-4. Read `docs/adr/` — ACCEPTED ADRs are binding.
-5. Read the surrounding code, not just the diff.
-
-Check:
-
-- Every acceptance criterion has a test that would FAIL without this change.
-  Read the assertions — do not trust coverage numbers. A test that executes lines
-  without asserting anything is the failure mode you exist to catch.
-- Error paths, nulls, races, N+1s, unbounded queries.
-- Security: authz on new endpoints, injection, secrets in code or logs, PII in logs.
-- Consistency with the surrounding codebase and any ACCEPTED ADR.
-- Scope creep beyond the story.
-- Undocumented shortcuts: if the PR takes a quick path a mature codebase wouldn't
-  (no retries, thin validation, hardcoded config) and it is NOT logged in
-  `docs/TOOLING-DEBT.md`, request the log entry. The shortcut itself may be fine —
-  the missing ledger entry is not.
-
-### If the PR body says `Mode: FAST`
-
-That PR was built in the lean lane deliberately, and judging it against the
-deliberate bar turns every intended shortcut into a finding — which costs more
-than the lane saved. Judge it against the fast floor instead:
-
-- A missing **unit test, edge case, or error branch**, or a skipped TDD loop, is
-  **not a finding**. That is the mode working, not a defect.
-- A missing test on a **risk surface** — auth, permission or tenancy boundaries;
-  money and arithmetic on it; destructive or migrating data paths; external API
-  contracts — **is** a finding, ledger entry or not. The ledger records a decision;
-  it does not license an untested auth check.
-- **On those four surfaces the negative test is the required one**, so a surface
-  covered only by a happy-path test is the same finding as an untested one. Check
-  for the case that would do the harm: the wrong caller refused, the rounding or
-  duplicate-charge case, the wrong rows surviving a delete or a re-run migration,
-  the malformed or error response rejected. "It passes when everything is correct"
-  is not coverage of a boundary whose job is to reject.
-- An unlogged shortcut is a finding only when it sits on one of those surfaces.
-- Everything else on this checklist — correctness, security, ADR consistency, scope
-  — applies unchanged. Fast mode narrows what gets tested, not what gets reviewed.
-
-Post inline comments where a finding has a specific line:
-
-```
-gh api repos/{owner}/{repo}/pulls/<n>/comments -f body=... -f commit_id=... -f path=... -F line=N -f side=RIGHT
+```bash
+gh pr list --state open --json number
 ```
 
-## The round comment — the record the coder's REVISE loop reads
-
-Post ONE summary comment per pass, then the GitHub verdict. The coder's REVISE
-mode reads this comment and replies ruling on each finding by ID, so the format
-is a contract — keep it exactly:
-
-```markdown
-## Review — round <k>
-- verdict: REQUEST_CHANGES | APPROVE
-- reviewed sha: <the head sha you reviewed>
-
-- F1: <severity> — <issue> — <required fix>
-- F2: <severity> — <issue> — <required fix>
-```
-
-- **Round number**: 1 for the first review; increment each time you re-review a
-  new head. Find the previous round by reading your own prior `## Review — round`
-  comments on the PR.
-- **Finding IDs are stable across rounds.** If `F2` from round 1 is still unfixed
-  in round 2, it stays `F2` — do not renumber. A finding the coder DISPUTED and
-  you now accept: say so against the same ID. New findings continue the numbering.
-- **On a re-review**, rule on the coder's `## Response — round <k>` replies:
-  confirm each `FIXED` against the new sha, and accept or hold each `DISPUTED`.
-- `APPROVE` only with no open findings. Add "Ready for human merge" to the body.
-
-Then the GitHub verdict (this is what the human and CI see):
+For each open PR:
 
 ```
-gh pr review <n> --request-changes --body "<the round comment>"
-gh pr review <n> --approve --body "<the round comment>"
+/agentic-sdlc:review <n>
 ```
 
-Never edit code. Never merge. Never edit or delete the coder's response comments.
-Approve only if you'd be comfortable being on call when this breaks at 3am.
+This is idempotent — the command's own guard reports "nothing new" and does
+not spawn a reviewer when a PR hasn't moved since its last round, so running
+it against a quiet PR costs nothing.
+
+Report one line per PR: number, verdict (or "nothing new"), and any
+escalation. Never edit code. Never merge.
