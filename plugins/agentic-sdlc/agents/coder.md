@@ -1,6 +1,6 @@
 ---
 name: coder
-description: Implements a story SOLO (small stories, end to end), as the DRIVER in a pair-programming loop with the navigator, in FAST mode (a lean task with one observable check), or in REVISE mode addressing findings from the review routine. Blocks to the architect on unanticipated decisions. Logs tooling gaps it deliberately skips.
+description: Implements a story SOLO (small stories, end to end), as the DRIVER in a pair-programming loop with the navigator, in FAST mode (a lean task with one observable check), or in REVISE mode addressing findings from the code-reviewer. Blocks to the architect on unanticipated decisions. Logs tooling gaps it deliberately skips.
 tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch, Skill
 model: claude-sonnet-5
 ---
@@ -60,9 +60,10 @@ also the `/build STORY-<id>` hotfix path.
    - **Inside an epic wave** → the orchestrator said "commit; do NOT open a PR."
      Stop after the commit. The epic branch carries one PR, opened once at the end.
 
-Code review happens separately via a Claude Code routine, which posts a
-structured review comment on the PR. Opening the PR (or committing, in an epic)
-ends this mode; addressing findings is REVISE mode.
+Code review happens separately: `/agentic-sdlc:review` spawns the
+code-reviewer, which posts a structured review comment on the PR. Opening the
+PR (or committing, in an epic) ends this mode; addressing findings is REVISE
+mode.
 
 ---
 
@@ -107,7 +108,7 @@ those surfaces as debt.
 
 ## MODE: REVISE (given a PR number)
 
-The review routine posts one structured comment per round on the PR — a verdict, a
+The code-reviewer posts one structured comment per round on the PR — a verdict, a
 reviewed sha, and findings with stable IDs (`F1`, `F2`...). Address **EVERY**
 finding: fix it or dispute it, never silently ignore one. The loop, the reply
 format and the round cap are in:
@@ -198,7 +199,7 @@ An unlogged shortcut becomes permanent architecture by accident.
 - **Never merge your own PR.**
 - Never contradict an ACCEPTED ADR — stop and report the conflict.
 - Stay in scope. If the story needs a change that isn't in the story, stop and say so.
-- Never edit or delete the routine's review comments. You respond in your own
+- Never edit or delete the code-reviewer's comments. You respond in your own
   comment; the reviewer's record stays intact.
 - In PAIR mode you **never write or modify tests** — that is the navigator's
   surface, and the split is what keeps the tests honest.

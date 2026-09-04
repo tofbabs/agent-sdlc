@@ -2,7 +2,7 @@
   "name": "agentic-sdlc",
   "displayName": "Agentic SDLC",
   "version": "0.1.4",
-  "description": "Planner → architect → coder(+navigator) pipeline. /plan decomposes a brief into epics, stories and ARCH handoffs; /build cascades an epic onto one branch, building each story SOLO or as a navigator⇄coder TDD pair, and opens a PR. Handoffs, a tooling-debt ledger, ping-pong pairing and model tiering are part of the protocol. --fast on either command takes the lean lane instead: a flat task list, decide-and-log instead of handoffs, only the tests that catch expensive bugs, and every shortcut in the ledger.",
+  "description": "Planner → architect → coder(+navigator) → code-reviewer pipeline. /plan decomposes a brief into epics, stories and ARCH handoffs; /build cascades an epic onto one branch, building each story SOLO or as a navigator⇄coder TDD pair, and opens a PR. Handoffs, a tooling-debt ledger, ping-pong pairing and model tiering are part of the protocol. /review spawns the code-reviewer against an open PR, posting one round comment with stable findings that the coder's REVISE mode closes. --fast on either command takes the lean lane instead: a flat task list, decide-and-log instead of handoffs, only the tests that catch expensive bugs, and every shortcut in the ledger.",
   "author": {
     "name": "Kodobe",
     "email": "sam@kodobe.com"

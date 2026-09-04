@@ -75,7 +75,7 @@ superpowers table in your system prompt — `verification-before-completion`
 applies here exactly
 as in solo mode), then hand off exactly as SOLO does — **commit-only inside an
 epic wave, or push and open the PR on the hotfix path**, noting in the PR body
-that it was pair-built. The review routine still runs — the navigator steered
+that it was pair-built. The code-reviewer still runs — the navigator steered
 increments, it did not review the whole.
 
 ---

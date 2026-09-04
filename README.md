@@ -1,6 +1,6 @@
 # agentic-sdlc
 
-A versioned, reusable **planner → architect → coder** pipeline for Claude Code,
+A versioned, reusable **planner → architect → coder → reviewer** pipeline for Claude Code,
 distributed as a plugin so multiple projects can pull the same protocol in at a
 pinned version and move forward deliberately instead of drifting.
 
@@ -19,9 +19,14 @@ nobody could tell what had changed or why.
                                both cascade onto one feat/EPIC-<n> branch
                                architect → unblocks mid-build
                                ends at "one PR is open"
+
+/agentic-sdlc:review <PR-n>    code-reviewer reads the PR head in its own worktree
+                               posts `## Review — round <k>` + a verdict
+                               REQUEST_CHANGES → /build's REVISE loop closes it
+                               APPROVE → the human merges
 ```
 
-Or the lean lane, on the same two commands:
+Or the lean lane, on the same commands:
 
 ```
 /agentic-sdlc:plan <brief> --fast    planner → a ~40-line task list, one `done when` each
@@ -34,6 +39,9 @@ Or the lean lane, on the same two commands:
                                      gate once, one PR, every shortcut in the ledger
 ```
 
+`/review` judges a `Mode: FAST` PR against the fast floor instead of the
+deliberate bar — same command, no flag needed.
+
 ### Two lanes
 
 The flag is per command, so they mix: `/build EPIC-3 --fast` builds a
@@ -45,7 +53,7 @@ deliberately-planned epic the lean way.
 | Decisions | `ARCH-<n>` handoff, coder blocks and waits | coder decides and logs; five one-way doors are tagged and batched, never blocking |
 | Tests | the story's criteria; PAIR stories are strict ping-pong TDD | the `done when`, plus the **negative** case on each risk surface touched — auth, money, destructive data paths, external contracts — nothing else |
 | Branching | epic branch, worktrees, dependency waves, `--no-ff` merge-backs | one branch, sequential, gate once |
-| Agents | planner, architect (Fable), coder, navigator (Opus 4.8) | planner + coder (both Sonnet 5); architect at most once, usually zero |
+| Agents | planner, architect (Fable), coder, navigator (Opus 4.8), code-reviewer (Opus 4.8) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
 | Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
 
 **Pick `--fast`** for prototypes, spikes, internal tools, and anything you would be
@@ -55,14 +63,15 @@ that those five hit the one-way-door list and get the architect even in fast mod
 
 Fast mode is a debt generator by design. That is the trade, and the condition is
 that it is written down: every shortcut is one row in `docs/TOOLING-DEBT.md`, the
-PR body stamps `Mode: FAST`, and the review routine judges the ledger against the
+PR body stamps `Mode: FAST`, and the code-reviewer judges the ledger against the
 fast floor rather than bouncing the PR for a missing unit test.
 
 > **Everything is namespaced by the plugin name.** `plugin.json`'s `name` is what
-> namespaces components, so the commands are `/agentic-sdlc:plan` and
-> `/agentic-sdlc:build`, and the agents register as `agentic-sdlc:planner`,
-> `agentic-sdlc:architect`, `agentic-sdlc:coder`, `agentic-sdlc:navigator` —
-> there are no bare `/plan`, `/build` or `planner` variants. A project moving off
+> namespaces components, so the commands are `/agentic-sdlc:plan`,
+> `/agentic-sdlc:build` and `/agentic-sdlc:review`, and the agents register as
+> `agentic-sdlc:planner`, `agentic-sdlc:architect`, `agentic-sdlc:coder`,
+> `agentic-sdlc:navigator`, `agentic-sdlc:code-reviewer` —
+> there are no bare `/plan`, `/build`, `/review` or `planner` variants. A project moving off
 > local `.claude/agents`
 > loses the unprefixed names it was used to; the docs it wrote against them need
 > updating with the pin.
@@ -95,8 +104,10 @@ roughly linear in alternations. Continuing an agent across turns instead (with
 internal round trip — 18–42 of them per turn — and it only grows. See `COST NOTE`
 and `PAIR LOG SHAPE` in `commands/build.md`.
 
-Review still runs as a separate routine against the open PR; the coder's **REVISE**
-mode closes the loop, ruling on each finding by ID.
+Review is `/agentic-sdlc:review <PR-n>`: the **code-reviewer** (Opus 4.8) reads
+the PR head in a throwaway worktree and posts one round comment. Run it by
+hand or let the hourly routine call it; the coder's **REVISE** mode closes the
+loop, ruling on each finding by ID.
 
 ---
 
@@ -154,7 +165,7 @@ agent reading a path that isn't there.
 | Path | Purpose | Required |
 |---|---|---|
 | `CLAUDE.md` | Conventions, and **the check command** the coder runs before opening a PR | yes |
-| `backlog/` | Where `/plan` writes `EPIC-<n>.md` (or `FAST-<n>.md` under `--fast`), and where `/build` reads them | yes |
+| `backlog/` | Where `/plan` writes `EPIC-<n>.md` (or `FAST-<n>.md` under `--fast`), and where `/build` and `/review` read them | yes |
 | `docs/TOOLING-DEBT.md` | The ledger. Appended to by architect and coder; triaged by the gap-scan routine. `--fast` runs write one row per shortcut here — the mode's whole justification | yes |
 | a brief, per feature | **The input to `/plan`** — the one document written by hand. Path is yours; `/plan <path>` takes it | yes, per feature |
 | `docs/adr/` | ACCEPTED ADRs are binding on every agent | created on first one-way door |
@@ -226,7 +237,11 @@ plugin components; they are pasted into the routine configuration. They live her
 so the review bar and the maturity ladder are diffable and versioned alongside
 the agents that they judge.
 
-Cloud routines see `main` on GitHub, not a working tree.
+The review routine is now a thin caller of `/agentic-sdlc:review`, so the bar
+itself lives in the agent, not the routine — the routine needs only the plugin
+enabled in the project's settings. A cloud routine starts from a checkout of
+`main`; `/agentic-sdlc:review` builds its own worktree of the PR head from
+there.
 
 ---
 
@@ -342,11 +357,12 @@ map as append-only.
 .claude-plugin/marketplace.json          catalog — the thing projects add
 plugins/agentic-sdlc/
   .claude-plugin/plugin.json             manifest — the version authority
-  agents/{planner,architect,coder,navigator}.md
-  commands/{plan,build}.md
+  agents/{planner,architect,coder,navigator,code-reviewer}.md
+  commands/{plan,build,review}.md
   reference/                             protocols loaded on demand, never by default
     pair-loop.md, coder-pair-mode.md, coder-revise-mode.md
     fast-mode.md, coder-fast-mode.md     read only when --fast is present
+    review-fast-floor.md                 read only when the PR stamps Mode: FAST
   scripts/pair-log.mjs                   the pair log's only read/write surface
 templates/
   settings.baseline.json                 universal deny-rules, copy-in
@@ -354,7 +370,7 @@ templates/
   brief.md                               the input to /plan
   ADR.md                                 house format — decision, not options paper
   backlog/{EPIC,FAST}-template.md
-  routines/{review,gap-scan}-prompt.md   cloud routine prompts
+  routines/{review,gap-scan}-prompt.md   cloud routine prompts — review delegates to /agentic-sdlc:review
 scripts/preflight.sh                     CI invariants, locally. Does not tag.
 release-please-config.json               how a commit type becomes a version
 .release-please-manifest.json  ┐ machine-written bookkeeping —

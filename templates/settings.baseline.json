@@ -8,7 +8,7 @@
       "Bash(git push:*-f *)",
       "Bash(git reset:*--hard*)",
 
-      "$c2: an agent that merges its own work is not a review process — review runs as a separate routine against the open PR",
+      "$c2: an agent that merges its own work is not a review process — review is the code-reviewer, run against the open PR by /agentic-sdlc:review",
       "Bash(gh pr merge:*)",
 
       "$c3: secrets",
