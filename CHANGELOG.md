@@ -2,6 +2,15 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.6](https://github.com/tofbabs/agent-sdlc/compare/v0.1.5...v0.1.6) (2026-09-11)
+
+
+### Documentation
+
+* reframe README around audience, quality ladder, token gains and roadmap ([2d861a2](https://github.com/tofbabs/agent-sdlc/commit/2d861a20a25c11d546887e6bf16984cf2157de86))
+* rewrite and restructure README into focused docs + add CONTRIBUTING ([50384bf](https://github.com/tofbabs/agent-sdlc/commit/50384bf7d5888f96a1a5d912fed97f1278f88934))
+* split README into focused docs and add CONTRIBUTING ([c17e84d](https://github.com/tofbabs/agent-sdlc/commit/c17e84d277265733a59b834f4b66f92f4d0edbb6))
+
 ## [0.1.5](https://github.com/tofbabs/agent-sdlc/compare/v0.1.4...v0.1.5) (2026-09-11)
 
 
