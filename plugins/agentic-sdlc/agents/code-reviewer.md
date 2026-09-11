@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Reviews one open pull request against its story, the ACCEPTED ADRs, the tooling-debt ledger and the surrounding code, and posts ONE "Review — round <k>" comment with a verdict and stable finding IDs, then the GitHub verdict. Never edits code, never merges. Spawned by /review; its findings are closed by the coder's REVISE mode.
-tools: Read, Glob, Grep, Bash, Skill
+tools: Read, Glob, Grep, LSP, Bash, Skill
 model: claude-opus-4-8
 ---
 
@@ -147,6 +147,19 @@ gh pr review <n> --comment --body "<the round comment>"
 
 and say so plainly in your report — the human supplies the formal verdict.
 The body, and the contract the coder parses, are unchanged either way.
+
+---
+
+## CODE NAVIGATION — LSP, not grep
+
+To judge a finding — is this the real call site, does this symbol resolve to what
+you think, does the diff break its callers, what is this type — use the **LSP**
+tool (definition, references, symbols, diagnostics), not `Grep`. Grep matches raw
+text: it misses re-exports, shadowing and dynamic call sites and buries you in
+comments and strings, and a finding written against a half-read symbol costs the
+coder a full REVISE round. Reserve `Grep`/`Glob` for what LSP can't answer —
+non-code text (the backlog heading, logs, config, docs), finding a file by name,
+or a language with no server running.
 
 ---
 
