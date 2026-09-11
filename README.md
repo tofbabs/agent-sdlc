@@ -88,7 +88,7 @@ buy back tokens and output quality are in **[docs/concepts.md](docs/concepts.md)
 
 ```bash
 claude plugin marketplace add tofbabs/agent-sdlc@v0.1.1
-claude plugin install agentic-sdlc@kodobe-sdlc
+claude plugin install agentic-sdlc@sanimara
 ```
 
 Better, pin it declaratively in the consuming project's `.claude/settings.json`
@@ -107,4 +107,4 @@ must provide, and the one-per-machine LSP requirement.
 
 ## License
 
-`UNLICENSED` — see `plugins/agentic-sdlc/.claude-plugin/plugin.json`.
+Released under the [MIT License](LICENSE) — Copyright (c) 2026 Sanimara.
