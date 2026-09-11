@@ -2,6 +2,27 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.6](https://github.com/tofbabs/agent-sdlc/compare/v0.1.5...v0.1.6) (2026-09-11)
+
+
+### Documentation
+
+* reframe README around audience, quality ladder, token gains and roadmap ([2d861a2](https://github.com/tofbabs/agent-sdlc/commit/2d861a20a25c11d546887e6bf16984cf2157de86))
+* rewrite and restructure README into focused docs + add CONTRIBUTING ([50384bf](https://github.com/tofbabs/agent-sdlc/commit/50384bf7d5888f96a1a5d912fed97f1278f88934))
+* split README into focused docs and add CONTRIBUTING ([c17e84d](https://github.com/tofbabs/agent-sdlc/commit/c17e84d277265733a59b834f4b66f92f4d0edbb6))
+
+## [0.1.5](https://github.com/tofbabs/agent-sdlc/compare/v0.1.4...v0.1.5) (2026-09-11)
+
+
+### Features
+
+* **agentic-sdlc:** add code-reviewer agent and /review command ([e843852](https://github.com/tofbabs/agent-sdlc/commit/e8438524b66fce968b5d4d016960de28962de08a))
+* **agentic-sdlc:** add code-reviewer agent and /review command ([994cd9d](https://github.com/tofbabs/agent-sdlc/commit/994cd9d8537a3f0eba3e591d35e03f0bb10599f5))
+* **agentic-sdlc:** add the --fast lean lane, gated by a negative-test floor ([f6c0e6e](https://github.com/tofbabs/agent-sdlc/commit/f6c0e6ea1ff18f33faf93d3adfa4adeb849c1d66))
+* **agentic-sdlc:** add the --fast lean lane, gated by a negative-test floor ([a6bab4b](https://github.com/tofbabs/agent-sdlc/commit/a6bab4bb01d9f65ec045b0a396f06969e632f558))
+* **agentic-sdlc:** make agents navigate code with LSP, not grep ([9250024](https://github.com/tofbabs/agent-sdlc/commit/925002485ca133ff42036946265a91e40a4727e4))
+* **agentic-sdlc:** make agents navigate code with LSP, not grep ([7f31742](https://github.com/tofbabs/agent-sdlc/commit/7f317420c116bfd3b9b6df049f3d1f4542a5bcb6))
+
 ## [0.1.4](https://github.com/kodobe/agent-sdlc/compare/v0.1.3...v0.1.4) (2026-08-24)
 
 
