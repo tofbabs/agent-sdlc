@@ -2,6 +2,13 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.1.7](https://github.com/tofbabs/agent-sdlc/compare/v0.1.6...v0.1.7) (2026-09-11)
+
+
+### Documentation
+
+* add LSP preflight SessionStart hook template ([39d1fa9](https://github.com/tofbabs/agent-sdlc/commit/39d1fa91e694f3da009e20d24ed9d9a8d21ba0a5))
+
 ## [0.1.6](https://github.com/tofbabs/agent-sdlc/compare/v0.1.5...v0.1.6) (2026-09-11)
 
 
