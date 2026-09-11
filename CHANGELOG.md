@@ -2,6 +2,17 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.0](https://github.com/tofbabs/agent-sdlc/compare/v0.1.7...v0.2.0) (2026-09-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* the marketplace namespace is renamed from kodobe-sdlc to sanimara. Consuming projects must update .claude/settings.json -- the extraKnownMarketplaces key (kodobe-sdlc -> sanimara) and the enabledPlugins key (agentic-sdlc@kodobe-sdlc -> agentic-sdlc@sanimara) -- and re-install. The plugin name and version pins are unchanged.
+
+### Features
+
+* relicense MIT and rebrand kodobe-sdlc -&gt; sanimara ([6638259](https://github.com/tofbabs/agent-sdlc/commit/663825946977e0391bdda58e9aabda06917ab9ab))
+
 ## [0.1.7](https://github.com/tofbabs/agent-sdlc/compare/v0.1.6...v0.1.7) (2026-09-11)
 
 
