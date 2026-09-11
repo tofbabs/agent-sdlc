@@ -198,6 +198,21 @@ skips verification. Both are bad. Put a literal line in the project's `CLAUDE.md
 
 > **Always run before opening a PR:** `<the actual command>`
 
+### Code navigation is LSP-first
+
+Every agent carries the `LSP` tool and is told to use it — not `Grep` — for
+anything semantic: where a symbol is defined, all its references, its type, what
+an edit broke. Grep matches raw text, so it misses re-exports, shadowing and
+dynamic call sites and buries the reader in comments and strings; the agents keep
+`Grep`/`Glob` only for non-code text, finding a file by name, or a language with
+no server running.
+
+The `LSP` tool needs a **code-intelligence plugin installed for the project's
+language** (TypeScript, Python, Rust, …), and it is not available in cloud
+sessions. Install that plugin once per machine and the agents navigate by the
+language's own resolution; without it they fall back to grep, correctly but more
+noisily. Nothing here enforces the install — it is one more line in the contract.
+
 ---
 
 ## What stays in the project, deliberately

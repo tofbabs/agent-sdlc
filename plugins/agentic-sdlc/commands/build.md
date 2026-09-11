@@ -1,7 +1,7 @@
 ---
 description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄coder TDD pair. Architect unblocks mid-build. Opens one PR. Review, and the REVISE loop that closes it, happen separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
 argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast]
-allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
+allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
 
 Target: `$ARGUMENTS` minus the flag — strip `--fast` if present; what remains is the target.
