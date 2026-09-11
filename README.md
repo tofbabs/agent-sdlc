@@ -222,7 +222,21 @@ The `LSP` tool needs a **code-intelligence plugin installed for the project's
 language** (TypeScript, Python, Rust, …), and it is not available in cloud
 sessions. Install that plugin once per machine and the agents navigate by the
 language's own resolution; without it they fall back to grep, correctly but more
-noisily. Nothing here enforces the install — it is one more line in the contract.
+noisily.
+
+Nothing *enforces* the install — but `templates/hooks/lsp-preflight.sh` makes the
+gap visible instead of silent. It is a `SessionStart` hook that detects the
+project's language from its manifest files, checks whether a matching language
+server is on `PATH`, and — if one is missing — feeds a note into the session so
+you and the agents both know the `LSP` tool won't resolve and navigation will
+fall back to grep. It is advisory only: detection, no installs, no network, and
+it never fails the session. In a cloud session, where LSP is unavailable
+regardless, it just says so once. Copy it in and register it:
+
+```bash
+cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
+# then merge templates/hooks/settings.hooks.json into <project>/.claude/settings.json
+```
 
 ---
 
@@ -381,6 +395,8 @@ plugins/agentic-sdlc/
   scripts/pair-log.mjs                   the pair log's only read/write surface
 templates/
   settings.baseline.json                 universal deny-rules, copy-in
+  hooks/lsp-preflight.sh                  SessionStart: warn when a language server is missing
+  hooks/settings.hooks.json              copy-in registration for the hook above
   TOOLING-DEBT.md                        empty ledger
   brief.md                               the input to /plan
   ADR.md                                 house format — decision, not options paper

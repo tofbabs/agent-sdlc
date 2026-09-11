@@ -1,0 +1,16 @@
+{
+  "$comment": "COPY-IN registration for the LSP preflight hook, not a live dependency. Merge this 'hooks' block into <project>/.claude/settings.json (alongside the permissions from settings.baseline.json). The hook runs synchronously on SessionStart — it is detection only (no installs, no network), so it costs milliseconds. See templates/hooks/lsp-preflight.sh for what it does and why.",
+
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lsp-preflight.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
