@@ -1,7 +1,7 @@
 ---
 description: Plan a feature — stories from the planner, architecture decisions from the architect. Non-blocking. `--fast` takes the lean lane: a flat task list, no handoffs.
 argument-hint: <path-to-brief.md-or-epic-description> [--fast]
-allowed-tools: Agent, Task, Read, Write, Glob, Grep, Skill, Bash(cat:*)
+allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(cat:*)
 ---
 
 Input: `$ARGUMENTS` minus the flag — strip `--fast` if present; what remains is the brief.
