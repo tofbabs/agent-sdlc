@@ -1,12 +1,38 @@
 # agentic-sdlc
 
-A versioned, reusable **planner → architect → coder → reviewer** pipeline for Claude Code,
-distributed as a plugin so multiple projects can pull the same protocol in at a
-pinned version and move forward deliberately instead of drifting.
+A versioned, reusable **planner → architect → coder → reviewer** pipeline for
+Claude Code, distributed as a plugin so many projects can pull the same protocol
+in at a pinned version and move forward deliberately instead of drifting.
 
-Extracted from `reward-fulfillment-app` (MyJara), which in turn descended from
-`sdlc-lite`. That descent is the reason this repo exists: the copy drifted, and
-nobody could tell what had changed or why.
+## Who this is for
+
+You are probably here because you have hit one of these:
+
+- **Agents that sprawl.** You hand an AI coding agent a one-line brief and get
+  back a plausible, confident, *wrong* backlog — ten epics where you wanted two,
+  a stack nobody chose, decisions buried in code that should have been decisions
+  on paper. The failure is cheap to produce and expensive to unwind.
+- **Copy-paste protocol rot.** You wrote a good `.claude/agents` setup once, then
+  copied it into three more repos. Now they have all drifted, and nobody can say
+  what changed or why. The fix that landed at 11pm in one project never came
+  back to the others.
+- **No dial between "quick" and "careful".** A throwaway spike and a payments
+  migration get the same ceremony, so you either over-engineer prototypes or
+  under-engineer the things that hold real data.
+- **Silent, unaccounted shortcuts.** The corners you cut to ship are cut in
+  people's heads, not written down, so the debt is invisible until it bites.
+- **Token bills that scale with ceremony, not value.** Long-lived agents re-send
+  their whole context on every internal round trip; protocol prose you never use
+  on this run gets paid for anyway; agents `grep` their way around a codebase and
+  drown in noise.
+
+If a team ships product with Claude Code across more than one repository, and
+wants the *how* to be reviewable, pinned, and shared rather than folklore, this
+is the shape of the answer. It is stack-agnostic and language-agnostic — the
+protocol lives in the plugin; everything a specific project learned about itself
+stays in that project (see [What stays in the project](#what-stays-in-the-project-deliberately)).
+
+## What it does, in three commands
 
 ```
 /agentic-sdlc:plan <brief>     planner → epics, stories, ARCH handoffs
@@ -42,10 +68,68 @@ Or the lean lane, on the same commands:
 `/review` judges a `Mode: FAST` PR against the fast floor instead of the
 deliberate bar — same command, no flag needed.
 
-### Two lanes
+**The one blocking gate is the human.** Nothing here merges its own PR.
 
-The flag is per command, so they mix: `/build EPIC-3 --fast` builds a
-deliberately-planned epic the lean way.
+---
+
+## The quality ladder
+
+Everything this plugin does sits on one axis: **how much rigor you spend per unit
+of work.** You pick the rung; the rung decides how many agents run, how many
+tests are required, and whether decisions get written to paper. The one thing
+that does **not** change with the rung is that **the corners you cut are always
+recorded** — every rung writes its shortcuts to `docs/TOOLING-DEBT.md`. That is
+the difference between a shortcut and drift: a shortcut you recorded is a
+decision you can pay back; one you didn't is a surprise later.
+
+From least to most rigor:
+
+### 1. `--fast` SOLO — the lean lane
+The lowest rung. Direct requirements, one observable check per task, the coder
+**decides and logs** instead of stopping for an architect, and it writes only the
+tests that would catch an expensive bug. One branch, no worktrees, one gate, one
+PR. Right for prototypes, spikes, internal tools, and anything you would be
+content to rewrite.
+**Debt recorded:** every shortcut is one row in `docs/TOOLING-DEBT.md`; the PR
+body stamps `Mode: FAST`. The mode is a debt *generator* by design — that is the
+trade, and the condition of the trade is that it is written down.
+
+### 2. Deliberate SOLO
+One coder runs a fully-specified story end to end against 2–5 Gherkin acceptance
+criteria. The default for small stories with an existing pattern to follow. Full
+test expectations, an epic branch, and the architect available to unblock.
+**Debt recorded:** the architect and coder append any deliberate gap to the
+ledger.
+
+### 3. Deliberate PAIR — ping-pong TDD
+The highest-rigor way to *write* a story. Two agents alternate one increment at a
+time: the **navigator** (Opus 4.8) writes the next failing test and reviews the
+last increment; the **coder** (Sonnet 5, the driver) makes it pass with the
+simplest thing that works. The driver *not* owning the tests is what keeps them
+honest. Chosen for M/L, novel, or previously-bounced stories, where the risk
+justifies roughly doubling the story's turns.
+**Debt recorded:** same ledger discipline; pairing narrows nothing about what
+gets written down.
+
+### 4. Reviewed — the code-reviewer gate
+The highest rung overall, and it sits *on top of* any of the three above. The
+**code-reviewer** (Opus 4.8) reads the PR head in a throwaway worktree and posts
+one round comment with stable, ID'd findings; the coder's **REVISE** mode rules
+on each finding by ID and closes the loop. A `Mode: FAST` PR is judged against
+the *fast floor* — a missing unit test is the mode working, not a defect — but
+a missing **negative** test on a risk surface (auth, money, destructive data,
+external contract) is a finding at every rung, ledger entry or not. Fast mode
+narrows what gets tested, never what gets reviewed.
+
+**Rule of thumb.** Pick the lowest rung you would be comfortable defending if the
+code outlived its intended life. Persisted data models, contracts another team
+consumes, and anything touching money, auth or PII always climb — those five hit
+the one-way-door list and pull in the architect *even in fast mode*.
+
+### The two lanes, side by side
+
+The `--fast` flag is per command, so the lanes mix: `/build EPIC-3 --fast` builds
+a deliberately-planned epic the lean way.
 
 |  | deliberate | `--fast` |
 |---|---|---|
@@ -55,59 +139,66 @@ deliberately-planned epic the lean way.
 | Branching | epic branch, worktrees, dependency waves, `--no-ff` merge-backs | one branch, sequential, gate once |
 | Agents | planner, architect (Fable), coder, navigator (Opus 4.8), code-reviewer (Opus 4.8) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
 | Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
+| Debt ledger | required | required |
 
-**Pick `--fast`** for prototypes, spikes, internal tools, and anything you would be
-content to rewrite. **Pick the deliberate lane** for a persisted data model, a
-contract another team consumes, or anything touching money, auth or PII — and note
-that those five hit the one-way-door list and get the architect even in fast mode.
+---
 
-Fast mode is a debt generator by design. That is the trade, and the condition is
-that it is written down: every shortcut is one row in `docs/TOOLING-DEBT.md`, the
-PR body stamps `Mode: FAST`, and the code-reviewer judges the ledger against the
-fast floor rather than bouncing the PR for a missing unit test.
+## Token utility and output quality
 
-> **Everything is namespaced by the plugin name.** `plugin.json`'s `name` is what
-> namespaces components, so the commands are `/agentic-sdlc:plan`,
-> `/agentic-sdlc:build` and `/agentic-sdlc:review`, and the agents register as
-> `agentic-sdlc:planner`, `agentic-sdlc:architect`, `agentic-sdlc:coder`,
-> `agentic-sdlc:navigator`, `agentic-sdlc:code-reviewer` —
-> there are no bare `/plan`, `/build`, `/review` or `planner` variants. A project moving off
-> local `.claude/agents`
-> loses the unprefixed names it was used to; the docs it wrote against them need
-> updating with the pin.
+Two recent changes — **LSP-first navigation** and the **`--fast` lean lane** —
+are both about the same thing: spending tokens where they buy quality and not
+spending them anywhere else. The mechanisms are worth understanding because they
+compound.
 
-**The one blocking gate is the human.** Nothing here merges its own PR.
+### Why the token math matters here
+An agent's system prompt and instructions are **re-sent on every internal
+tool-call round trip**, and a single build turn can be 18–42 round trips. So every
+kilobyte of protocol prose an agent carries is paid for dozens of times per turn,
+and every long-lived agent's context grows monotonically as it works. The design
+responses:
 
-### Solo vs. pair
+- **On-demand protocol loading.** PAIR, REVISE, FAST and the fast-review floor
+  live in `reference/` and are read *only* when that path is actually taken. A
+  deliberate run never pays for the fast-mode prose; a SOLO story never pays for
+  the pairing loop. The command bodies carry stubs, not the full protocol.
+- **Fresh-spawned pair agents.** Both pair agents are **re-spawned fresh every
+  turn**, and a compact pair log — a fixed header, a rewritten-in-place `STATE`
+  block, and short append-only entries — is the only thing that carries between
+  them. That holds a pair story's cost roughly *linear* in alternations.
+  Continuing one live agent across turns instead makes it *quadratic*: its context
+  is re-sent on every round trip and only grows. (See `COST NOTE` and
+  `PAIR LOG SHAPE` in `commands/build.md`.)
+- **Bounded artifacts.** An epic file is long and mostly not about any one story,
+  so the orchestrator inlines a story's criteria into the coder's prompt rather
+  than making every coder re-read the whole epic. `CLAUDE.md` is never opened by
+  agents — Claude Code already injects it, and opening it pays for the same bytes
+  twice.
 
-Every story is built one of two ways, chosen per story by `/agentic-sdlc:build`:
+### LSP-first navigation → fewer tokens, better answers
+Every agent carries the `LSP` tool and is told to use it — not `Grep` — for
+anything semantic: where a symbol is defined, all its references, its type, what
+an edit broke.
 
-- **SOLO** — one coder runs the story end to end. The default for small,
-  well-specified stories with an existing pattern to follow. This is the original
-  behaviour and remains fully supported.
-- **PAIR** — ping-pong TDD split across two agents. The **navigator** (Opus 4.8)
-  writes the next failing test and reviews the last increment; the **coder**
-  (Sonnet 5, the driver) makes it pass with the simplest thing that works. They
-  alternate one increment at a time through a shared pair log at
-  `backlog/pair/<STORY-ID>.md`. Chosen for M/L, novel, or previously-bounced
-  stories — where the driver *not* owning the tests is what keeps them honest.
+- **Token utility.** `Grep` returns raw text matches — comments, strings, unrelated
+  files — and the agent burns tokens reading and discarding them. An LSP
+  "references" query returns the *actual* call sites and nothing else, so the
+  agent reads less to learn more.
+- **Output quality.** Grep is blind to re-exports, shadowing and dynamic call
+  sites, so a grep-driven edit silently misses places it should have touched. LSP
+  navigates by the language's own resolution, so the coder finds every real use,
+  the reviewer sees the true blast radius of a change, and `diagnostics` catch what
+  an edit broke before the PR is opened. Agents keep `Grep`/`Glob` only for
+  non-code text, finding a file by name, or a language with no server running.
 
-Pairing roughly doubles a story's turns, so `/agentic-sdlc:build` sends it only
-where the risk justifies it. Mode is orthogonal to the epic cascade: a wave can
-hold SOLO and PAIR stories side by side, each in its own worktree.
-
-**Both pair agents are re-spawned fresh every turn**, and the pair log — a fixed
-header, a rewritten-in-place `STATE` block, and short append-only entries — is the
-only thing that carries between them. That is what holds a pair story's cost
-roughly linear in alternations. Continuing an agent across turns instead (with
-`SendMessage`, say) makes it quadratic: a live agent's context is re-sent on every
-internal round trip — 18–42 of them per turn — and it only grows. See `COST NOTE`
-and `PAIR LOG SHAPE` in `commands/build.md`.
-
-Review is `/agentic-sdlc:review <PR-n>`: the **code-reviewer** (Opus 4.8) reads
-the PR head in a throwaway worktree and posts one round comment. Run it by
-hand or let the hourly routine call it; the coder's **REVISE** mode closes the
-loop, ruling on each finding by ID.
+### `--fast` → quality spent where it counts
+Fast mode is not "lower quality everywhere." It removes ceremony (no handoffs, no
+worktrees, one gate) and it removes tests that would only catch cheap bugs — but
+it **keeps the negative test on every risk surface** and it **keeps full review**.
+The projected effect on a 5-task feature is roughly `~52 → ~6` agent spawns
+(projected, not yet measured), and the single largest saving is that the
+navigator — Opus 4.8, running every other turn in a PAIR story — does not run at
+all. The quality you keep is the quality that protects data, money and contracts;
+the quality you spend less on is the quality a prototype does not need.
 
 ---
 
@@ -154,6 +245,16 @@ pins the plugin transitively. One knob, not two.
 
 > A marketplace source accepts `ref` (branch or tag) but **not** `sha`. Only
 > plugin entries inside `marketplace.json` accept both. Tags are the currency here.
+
+> **Everything is namespaced by the plugin name.** `plugin.json`'s `name` is what
+> namespaces components, so the commands are `/agentic-sdlc:plan`,
+> `/agentic-sdlc:build` and `/agentic-sdlc:review`, and the agents register as
+> `agentic-sdlc:planner`, `agentic-sdlc:architect`, `agentic-sdlc:coder`,
+> `agentic-sdlc:navigator`, `agentic-sdlc:code-reviewer` —
+> there are no bare `/plan`, `/build`, `/review` or `planner` variants. A project moving off
+> local `.claude/agents`
+> loses the unprefixed names it was used to; the docs it wrote against them need
+> updating with the pin.
 
 ---
 
@@ -226,6 +327,25 @@ noisily. Nothing here enforces the install — it is one more line in the contra
 
 ---
 
+## Solo vs. pair, in one place
+
+Every story is built one of two ways, chosen per story by `/agentic-sdlc:build`:
+
+- **SOLO** — one coder runs the story end to end. The default for small,
+  well-specified stories with an existing pattern to follow. This is the original
+  behaviour and remains fully supported.
+- **PAIR** — ping-pong TDD split across two agents (navigator + coder), one
+  increment at a time through a shared pair log at `backlog/pair/<STORY-ID>.md`.
+  Chosen for M/L, novel, or previously-bounced stories.
+
+Pairing roughly doubles a story's turns, so `/agentic-sdlc:build` sends it only
+where the risk justifies it. Mode is orthogonal to the epic cascade: a wave can
+hold SOLO and PAIR stories side by side, each in its own worktree. (The token
+economics of the fresh-spawned pair agents are covered under
+[Token utility](#token-utility-and-output-quality).)
+
+---
+
 ## What stays in the project, deliberately
 
 This plugin carries the **protocol**. It does not carry anything a project
@@ -260,7 +380,44 @@ there.
 
 ---
 
-## Relationship to superpowers
+## Where this sits among other SDLC tools
+
+The AI-coding landscape splits roughly three ways, and this plugin is
+deliberately in the third:
+
+- **Inline assistants** — Copilot, Cursor's autocomplete, Cody. They complete the
+  line and answer questions in the editor. Fast, local, and stateless about your
+  process: they have no opinion about *how* a feature gets planned, tested and
+  reviewed.
+- **Autonomous single agents** — Devin, Cursor Composer/Agent, Aider, OpenAI
+  Codex, and plain Claude Code used ad hoc. You hand one agent a task and it works
+  the whole thing. Powerful, but the *process* is implicit and unversioned:
+  quality depends on the prompt you happened to write that day, and two repos
+  running "the same" agent are running whatever each person typed.
+- **Opinionated, versioned pipelines** — where this lives. The unit of reuse is
+  not a completion or a single agent but a **multi-agent protocol** with roles
+  (planner, architect, coder, navigator, reviewer), explicit handoffs, a debt
+  ledger, model tiering, and a human merge gate — shipped as a plugin and **pinned
+  by tag** so every consuming repo runs a known version.
+
+The nearest cousins to the *idea* are spec-driven kits like GitHub's **spec-kit**
+(spec → plan → tasks) and role/skill libraries like **superpowers**. The
+differences that matter:
+
+- **Spec-kit** structures the artifacts; it does not tier models, split solo/pair,
+  carry a tooling-debt ledger, or ship a review agent with a fast-floor. This is
+  the *execution* pipeline around such a spec, with cost as a first-class concern.
+- **superpowers** sits **underneath** this pipeline, not in front of it — see the
+  next section. It supplies skills; this supplies the workflow that decides when a
+  skill is worth reaching for.
+
+What distinguishes this plugin specifically: **versioning as the anti-drift
+mechanism** (pin a tag, bump with a one-line diff, changelog derived from commit
+type), a **two-lane quality dial** with the same commands, **an explicit debt
+ledger at every rung**, and **token cost treated as a design constraint** rather
+than an afterthought.
+
+### Relationship to superpowers
 
 Superpowers sits **underneath this pipeline, not in front of it.** `/plan` and
 `/build` are the entry points for product work — running the brainstorm →
@@ -271,14 +428,44 @@ Each agent has the `Skill` tool and a short section naming the superpowers skill
 that fit its role. **When to reach for one is the agent's judgment**, not a gate.
 Skipping one is a shortcut like any other, and the ledger rule applies.
 
+### Roadmap — what it should and can do next
+
+The pipeline is real and in use; these are the honest gaps and the direction,
+roughly in priority order:
+
+1. **Measure the fast-lane savings.** The `~52 → ~6` spawn figure is *projected,
+   not yet measured*. Instrument real runs and publish per-lane token/spawn
+   numbers so the trade-off is evidence, not estimate.
+2. **Automate the pin bump.** A routine that compares each consuming project's
+   pinned `ref` against the latest tag and opens a bump PR — turning "keep
+   current" from a discipline into a notification (the last of the anti-drift
+   rules, not yet built as tooling).
+3. **Close the cloud/LSP gap.** LSP navigation is unavailable in cloud sessions
+   today; agents fall back to grep silently. Detect the fallback and surface it,
+   and explore a server-backed navigation path for cloud routines.
+4. **Debt paydown as a first-class flow.** A `Mode: FAST` PR generates ledger
+   rows by design; there is no command yet that reads the ledger back and plans
+   the promotion of a fast task to the deliberate bar. A `/promote` or
+   debt-triage command would close that loop.
+5. **Broader language and skill coverage.** The contract assumes a per-language
+   code-intelligence plugin and a project-stated check command; smoothing that
+   setup (and expanding the superpowers skill hints per agent) lowers the
+   first-run cost.
+6. **Metrics surface.** Cost, review round counts, and rung distribution per
+   feature are latent in the artifacts; a lightweight report would make the
+   quality dial tunable from data.
+
+Roadmap items are candidates, not commitments — they are written here so the
+direction is diffable, same as everything else.
+
 ---
 
 ## Releasing
 
 **release-please owns the version, the tag and `CHANGELOG.md`.** Nobody bumps a
 version by hand and nobody remembers to write release notes — which is the whole
-point, because "remembering" is what produced a stale `/build` inside forty
-minutes of this repo existing.
+point, because "remembering" is what produces a stale `/build` inside forty
+minutes of a repo existing.
 
 ```
 conventional commits on main
@@ -331,10 +518,9 @@ Never put a `version` in `marketplace.json`: `plugin.json` beats it silently.
 ### Two things this repo needs configured once
 
 - **`RELEASE_PLEASE_TOKEN`** — a PAT with `repo` + `workflow` scope. The
-  `GITHUB_TOKEN` fallback cannot work: the kodobe organisation refuses "Allow
-  GitHub Actions to create and approve pull requests" org-wide, so without the PAT
+  `GITHUB_TOKEN` fallback cannot work if the organisation refuses "Allow GitHub
+  Actions to create and approve pull requests" org-wide, so without the PAT
   release-please can never open a release PR and nothing ever ships.
-  `reward-fulfillment-app` and `kdb-legacy-core` both hit this.
 - **Required status checks** — `validate`, `conventional-title` and
   `shipped-content-is-releasable`. The last one fails a PR that edits `plugins/**`
   under a type release-please ignores, which would otherwise merge, cut no
