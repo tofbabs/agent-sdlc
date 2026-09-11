@@ -173,6 +173,8 @@ plugins/agentic-sdlc/
   scripts/pair-log.mjs                   the pair log's only read/write surface
 templates/
   settings.baseline.json                 universal deny-rules, copy-in
+  hooks/lsp-preflight.sh                  SessionStart: warn when a language server is missing
+  hooks/settings.hooks.json              copy-in registration for the hook above
   TOOLING-DEBT.md                        empty ledger
   brief.md                               the input to /plan
   ADR.md                                 house format — decision, not options paper

@@ -84,6 +84,7 @@ cp templates/backlog/EPIC-template.md <project>/backlog/
 cp templates/backlog/FAST-template.md <project>/backlog/   # only if you use --fast
 cp templates/brief.md                 <project>/docs/templates/
 cp templates/ADR.md                   <project>/docs/templates/
+cp templates/hooks/lsp-preflight.sh   <project>/.claude/hooks/   # optional; see "Code navigation is LSP-first"
 ```
 
 ### The brief is part of the protocol
@@ -125,7 +126,21 @@ The `LSP` tool needs a **code-intelligence plugin installed for the project's
 language** (TypeScript, Python, Rust, …), and it is not available in cloud
 sessions. Install that plugin once per machine and the agents navigate by the
 language's own resolution; without it they fall back to grep, correctly but more
-noisily. Nothing here enforces the install — it is one more line in the contract.
+noisily.
+
+Nothing *enforces* the install — but `templates/hooks/lsp-preflight.sh` makes the
+gap visible instead of silent. It is a `SessionStart` hook that detects the
+project's language from its manifest files, checks whether a matching language
+server is on `PATH`, and — if one is missing — feeds a note into the session so
+you and the agents both know the `LSP` tool won't resolve and navigation will
+fall back to grep. It is advisory only: detection, no installs, no network, and
+it never fails the session. In a cloud session, where LSP is unavailable
+regardless, it just says so once. Copy it in and register it:
+
+```bash
+cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
+# then merge templates/hooks/settings.hooks.json into <project>/.claude/settings.json
+```
 
 ---
 
