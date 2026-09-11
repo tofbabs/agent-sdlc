@@ -14,7 +14,7 @@ Add the marketplace and enable the plugin, pinned to a tag:
 
 ```bash
 claude plugin marketplace add tofbabs/agent-sdlc@v0.1.1
-claude plugin install agentic-sdlc@kodobe-sdlc
+claude plugin install agentic-sdlc@sanimara
 ```
 
 Better, do it declaratively so the pin is checked in and reviewable. In the
@@ -23,7 +23,7 @@ consuming project's `.claude/settings.json`:
 ```json
 {
   "extraKnownMarketplaces": {
-    "kodobe-sdlc": {
+    "sanimara": {
       "source": {
         "source": "github",
         "repo": "tofbabs/agent-sdlc",
@@ -31,7 +31,7 @@ consuming project's `.claude/settings.json`:
       }
     }
   },
-  "enabledPlugins": { "agentic-sdlc@kodobe-sdlc": true }
+  "enabledPlugins": { "agentic-sdlc@sanimara": true }
 }
 ```
 
@@ -44,7 +44,7 @@ to `ref`** — reviewable, revertable, and visible in `git log`.
 > root above the repo, a git worktree, a sibling checkout — gets **nothing** until
 > it is installed there too, and the symptom is silent: `/agentic-sdlc:plan` simply
 > is not offered. Fix it from that directory with
-> `claude plugin install agentic-sdlc@kodobe-sdlc --scope local`, then restart.
+> `claude plugin install agentic-sdlc@sanimara --scope local`, then restart.
 
 The plugin is listed by relative path inside this repo, so the marketplace `ref`
 pins the plugin transitively. One knob, not two.

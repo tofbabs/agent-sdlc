@@ -32,15 +32,15 @@ jobs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.rp.outputs.tag_name }}
     steps:
-      # Learned in reward-fulfillment-app: the GITHUB_TOKEN fallback CANNOT work
-      # in this org. "Allow GitHub Actions to create and approve pull requests"
-      # is refused org-wide by kodobe policy, so without a PAT release-please
-      # can never open a release PR and nothing ever ships — surfacing as a
-      # confusing permissions error deep in the action log. Name the cause here.
+      # The GITHUB_TOKEN fallback CANNOT open a release PR when "Allow GitHub
+      # Actions to create and approve pull requests" is disabled for the repo
+      # (or org). Without a PAT, release-please can never open a release PR and
+      # nothing ever ships — surfacing as a confusing permissions error deep in
+      # the action log. Name the cause here.
       - name: Release gate is operable
         run: |
           if [ -z "${{ secrets.RELEASE_PLEASE_TOKEN }}" ]; then
-            echo "::error::RELEASE_PLEASE_TOKEN is not set, so no release PR can be opened and no version will ever ship. The GITHUB_TOKEN fallback cannot work: the kodobe organisation refuses 'Allow GitHub Actions to create and approve pull requests', and that switch is org-wide. Add a PAT with repo+workflow scope as the RELEASE_PLEASE_TOKEN secret, exactly as reward-fulfillment-app and kdb-legacy-core do."
+            echo "::error::RELEASE_PLEASE_TOKEN is not set, so no release PR can be opened and no version will ever ship. The GITHUB_TOKEN fallback cannot work when 'Allow GitHub Actions to create and approve pull requests' is disabled for this repository. Add a PAT with repo+workflow scope as the RELEASE_PLEASE_TOKEN secret."
             exit 1
           fi
 
@@ -69,10 +69,10 @@ jobs:
             echo
             echo '```json'
             echo '"extraKnownMarketplaces": {'
-            echo '  "kodobe-sdlc": {'
+            echo '  "sanimara": {'
             echo '    "source": {'
             echo '      "source": "github",'
-            echo '      "repo": "kodobe/agent-sdlc",'
+            echo '      "repo": "tofbabs/agent-sdlc",'
             echo "      \"ref\": \"$TAG\""
             echo '    }'
             echo '  }'
