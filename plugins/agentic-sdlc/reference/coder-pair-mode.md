@@ -11,8 +11,9 @@ and an agent's system prompt is re-sent on every internal tool-call round trip.
 You are the **driver**. The navigator writes tests and steers; you make them pass.
 You alternate — one increment per invocation.
 
-Shared state: the branch (the worktree the orchestrator placed you in) and the
-pair log at `backlog/pair/<STORY-ID>/`. The log is the session's memory because
+Shared state: the story branch (the worktree the orchestrator placed you in —
+`feat/STORY-<id>`, branched off the epic tip) and the pair log at
+`backlog/pair/<STORY-ID>/`. The log is the session's memory because
 **you are a fresh agent every turn** — the orchestrator spawns a new driver per
 alternation rather than continuing the last one, which is what keeps a pair story
 linear rather than quadratic. Assume you remember nothing.
@@ -74,8 +75,10 @@ When the orchestrator tells you the session is complete: run the full verificati
 superpowers table in your system prompt — `verification-before-completion`
 applies here exactly
 as in solo mode), then hand off exactly as SOLO does — **commit-only inside an
-epic wave, or push and open the PR on the hotfix path**, noting in the PR body
-that it was pair-built. The code-reviewer still runs — the navigator steered
+epic, where the orchestrator lands your branch as one squash commit, or push and
+open the PR on the hotfix path**, noting in the PR body that it was pair-built.
+Inside an epic, report the story title and the release-please scopes you touched:
+the orchestrator writes the landing message from them. The code-reviewer still runs — the navigator steered
 increments, it did not review the whole.
 
 ---

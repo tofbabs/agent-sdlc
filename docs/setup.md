@@ -75,6 +75,7 @@ agent reading a path that isn't there.
 | `docs/TOOLING-DEBT.md` | The ledger. Appended to by architect and coder; triaged by the gap-scan routine. `--fast` runs write one row per shortcut here — the mode's whole justification | yes |
 | a brief, per feature | **The input to `/plan`** — the one document written by hand. Path is yours; `/plan <path>` takes it | yes, per feature |
 | `docs/adr/` | ACCEPTED ADRs are binding on every agent | created on first one-way door |
+| `CLAUDE.md` line `**Integration branch:** <name>` | Names the branch `/build` branches from and opens its PR against. Absent → `main` | only if the project does not integrate on `main` |
 
 `templates/` has a starting point for each. Copy them in on first setup:
 
@@ -108,6 +109,19 @@ already ruled out and why.
 An ADR is for a **one-way door** only. Everything cheaper is resolved in place in
 the epic file as `ARCH-<n>` with `reversibility: TWO-WAY`.
 
+### CLAUDE.md names the integration branch, if it isn't `main`
+
+`/build` branches the epic from `origin/<base>`, merges `origin/<base>` in
+between waves, and opens the epic PR against `<base>`. It resolves `<base>` from
+a literal line in the project's `CLAUDE.md`:
+
+> **Integration branch:** `staging`
+
+No such line and `<base>` is `main`, which is why most projects need nothing
+here. A project that integrates on `staging`, `develop` or a release train needs
+the line — otherwise every epic PR is opened against the wrong branch, and the
+agents never guess.
+
 ### CLAUDE.md must state the check command
 
 `coder.md` tells the coder to run "whatever checks exist (`CLAUDE.md` lists them)".
@@ -115,6 +129,9 @@ If `CLAUDE.md` doesn't name them, the coder either invents a toolchain or skips
 verification. Both are bad. Put a literal line in the project's `CLAUDE.md`:
 
 > **Always run before opening a PR:** `<the actual command>`
+
+That and the integration-branch line are the two literal lines `/build` reads out
+of `CLAUDE.md`; everything else in the file is conventions for the agents.
 
 ### Code navigation is LSP-first
 
@@ -172,5 +189,7 @@ that they judge.
 
 The review routine is now a thin caller of `/agentic-sdlc:review`, so the bar
 itself lives in the agent, not the routine — the routine needs only the plugin
-enabled in the project's settings. A cloud routine starts from a checkout of
-`main`; `/agentic-sdlc:review` builds its own worktree of the PR head from there.
+enabled in the project's settings. A cloud routine starts from a checkout of the
+project's integration branch (`<base>` — `main` unless `CLAUDE.md` says
+otherwise); `/agentic-sdlc:review` builds its own worktree of the PR head from
+there.

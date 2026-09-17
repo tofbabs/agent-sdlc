@@ -63,6 +63,7 @@ Independently shippable. Nothing larger than L; split it.
 2–5 acceptance criteria, each testable. A criterion no test could falsify is a
 wish, not a criterion.
 
-depends_on drives the topological sort in /build. A dependent story starts on its
-parent's COMMIT, not its merge, so a whole epic runs in one go.
+depends_on drives the topological sort in /build. A dependent story starts once
+its parent has LANDED on the epic branch, not on <base> (the integration branch,
+main unless CLAUDE.md says otherwise), so a whole epic runs in one go.
 -->

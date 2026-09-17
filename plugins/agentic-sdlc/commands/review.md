@@ -23,7 +23,13 @@ gh pr checks <n>
 - CI summary: green, or red naming the job(s).
 - **Story IDs** from `[STORY-…]` / `[T<n>-…]` tags in commit subjects, and
   from the branch name (`feat/STORY-<id>`, `feat/EPIC-<n>`, `feat/FAST-<n>`)
-  → the backlog file that holds them.
+  → the backlog file that holds them. On an epic PR that is one commit per
+  story — `/build` lands each story as a single squash commit — so the tags
+  are one per story, not one per increment. `feat/STORY-<id>` appears as a PR
+  head only on the hotfix path; inside an epic it is local and already landed.
+  `fix/EPIC-<n>-round-<k>` is **never** a PR head at all — a revise round only
+  ever exists locally, landing as one `fix(...)` commit on the epic branch —
+  so there is nothing here to do for it.
 - **Previous round `k`** = the highest `## Review — round <k>` heading across
   **all** review and comment bodies, any author — the human, the routine, and
   this command may all post under one `gh` identity. Note its reviewed sha

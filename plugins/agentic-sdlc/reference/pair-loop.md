@@ -53,8 +53,9 @@ twice and letting the more expensive copy be the one that grows.
        node ${CLAUDE_PLUGIN_ROOT}/scripts/pair-log.mjs status <STORY-ID>
      session=complete  → Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR —
                          <STORY-ID> in <worktree>, session complete. Run full
-                         verification, commit the final state. Do NOT open a PR
-                         — this is an epic wave.")
+                         verification, commit the final state on the story
+                         branch. Do NOT open a PR, do NOT push — this is an epic
+                         wave. Report the story title and the scopes touched.")
                          → story done, back to the wave.
      session=blocked   → Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve
                          ARCH-<n> — a pair is blocked and waiting.") → back to 1.
@@ -80,8 +81,14 @@ session is a machine field now, and the two are decoupled.
 Do not skip navigator turns to "speed up" — the alternation is the mechanism. A
 driver running unreviewed increments is just SOLO mode with a worse name and
 double the cost. When the story finishes, its worktree is in the same committed
-state a SOLO story would be, and re-joins the cascade at THE LOOP step 4 in
-`commands/build.md`.
+state a SOLO story would be — increments on `feat/STORY-<id>`, nothing pushed —
+and re-joins the cascade at **THE LOOP step 4 (LAND)** in `commands/build.md`,
+where the orchestrator squashes the whole branch into one commit on the epic
+branch.
+
+The pair log at `backlog/pair/<STORY-ID>/` is committed on the story branch like
+any other file the story produced, so it folds into that squash and lands with
+the story — exactly as it does today.
 
 ### PAIR LOG SHAPE
 

@@ -100,11 +100,11 @@ they were resolved, new debt. If you say nothing, `/build --fast` proceeds.
 ### 1. One branch. No worktrees, no waves, no merge-back.
 
 ```bash
-git checkout -b feat/FAST-<n> origin/main
+git checkout -b feat/FAST-<n> origin/<base>   # <base> per /build's BASE BRANCH; default main
 ```
 
-The worktree cascade, the `depends_on` wave sort and the `--no-ff` merge-backs in
-`BRANCH TOPOLOGY` exist to make **parallel** stories safe. Fast mode is sequential,
+The worktree cascade, the `depends_on` wave sort and the per-story squash
+landings in `BRANCH TOPOLOGY` exist to make **parallel** stories safe. Fast mode is sequential,
 so it needs none of it and should not pay for it. Tasks run in listed order.
 
 If a run genuinely needs parallel tasks, that is a signal it wants the deliberate
@@ -151,7 +151,7 @@ escalate to the human rather than grinding.
 
 ```bash
 pnpm typecheck && pnpm lint && pnpm test && pnpm build   # or the project's claim
-git merge origin/main   # resolve, re-run the gate
+git merge origin/<base>   # resolve, re-run the gate
 git push -u origin feat/FAST-<n>
 ```
 
@@ -198,7 +198,7 @@ trade.
   `reference/pair-loop.md` — never read it in a fast run.
 - **Never open more than one PR per run**, and never merge it.
 - **Never run the full gate per task.** Once, before pushing.
-- **Never worktree, never wave-sort, never `--no-ff` merge-back** in this lane.
+- **Never worktree, never wave-sort, never land story branches** in this lane.
 - **Never let a deferred one-way item stall the remaining tasks.**
 - **One re-dispatch round, then escalate to the human.**
 - **The PR body must stamp `Mode: FAST`.**
@@ -207,10 +207,12 @@ trade.
   report shows only a happy-path test.** Send it back for the negative case, or make
   it a ledger row. That floor is what the code-reviewer relaxes everything else
   against; if it is hollow, `Mode: FAST` stops being a safe stamp.
-- Everything the deliberate lane says about **not squashing inside an epic** is moot
-  here — a fast run is one branch and one PR, squash-merged like any single-story
-  branch. If the run touched more than one release-please package scope, merge-commit
-  it instead so each scope keeps its own commit.
+- Everything the deliberate lane says about **per-story squash landings** is moot
+  here. That lane squashes *per story*, inside the epic branch, so its PR carries
+  one commit per story and must be merge-committed. A fast run has no stories to
+  land: it is one branch and one PR, squash-merged to `<base>` like any
+  single-story branch. If the run touched more than one release-please package
+  scope, merge-commit it instead so each scope keeps its own commit.
 
 ---
 

@@ -77,7 +77,7 @@ needed.
 | Artifact | `backlog/EPIC-<n>.md`, ~150 lines, 2–5 Gherkin criteria per story | `backlog/FAST-<n>.md`, ~40 lines, one `done when` per task |
 | Decisions | `ARCH-<n>` handoff, coder blocks and waits | coder decides and logs; five one-way doors are tagged and batched, never blocking |
 | Tests | the story's criteria; PAIR stories are strict ping-pong TDD | the `done when`, plus the **negative** case on each risk surface touched — auth, money, destructive data paths, external contracts — nothing else |
-| Branching | epic branch, worktrees, dependency waves, `--no-ff` merge-backs | one branch, sequential, gate once |
+| Branching | epic branch, story worktrees off the epic tip, one squash commit per story | one branch, sequential, gate once |
 | Agents | planner, architect (Fable), coder, navigator (Opus 4.8), code-reviewer (Opus 4.8) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
 | Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
 | Debt ledger | required | required |

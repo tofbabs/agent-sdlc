@@ -43,7 +43,7 @@ shape of the answer.
 /agentic-sdlc:build EPIC-<n>   per story, SOLO or PAIR:
                                  SOLO  coder builds the story end to end
                                  PAIR  navigator ⇄ coder ping-pong TDD, one increment a turn
-                               both cascade onto one feat/EPIC-<n> branch
+                               each story lands as one commit on feat/EPIC-<n>
                                architect → unblocks mid-build
                                ends at "one PR is open"
 
