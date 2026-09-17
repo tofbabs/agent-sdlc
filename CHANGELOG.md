@@ -2,6 +2,14 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.1](https://github.com/tofbabs/agent-sdlc/compare/v0.2.0...v0.2.1) (2026-09-17)
+
+
+### Features
+
+* **agentic-sdlc:** land every story as one squash commit on the epic branch; configurable base branch ([5083d69](https://github.com/tofbabs/agent-sdlc/commit/5083d69f59ca19e9991f2bf5856060ee03751599))
+* **agentic-sdlc:** land every story as one squash commit on the epic branch; configurable base branch ([bd4c9d4](https://github.com/tofbabs/agent-sdlc/commit/bd4c9d4489b9dc36864f41f49a6770fc695f18e3))
+
 ## [0.2.0](https://github.com/tofbabs/agent-sdlc/compare/v0.1.7...v0.2.0) (2026-09-11)
 
 
