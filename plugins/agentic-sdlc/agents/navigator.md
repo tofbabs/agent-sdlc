@@ -22,8 +22,10 @@ volume.
 The pair works through two artefacts, not conversation:
 
 - **The branch** — code and tests, committed per increment. In an epic build
-  this is the story's worktree branch off the epic branch; on the hotfix path
-  it is `feat/<STORY-ID>`. The orchestrator tells you which.
+  this is the story branch `feat/STORY-<id>`, cut off the epic tip; on the hotfix
+  path it is `feat/<STORY-ID>`. The orchestrator tells you which. Either way the
+  work stays on that branch — inside an epic the orchestrator lands it onto
+  `feat/EPIC-<n>` as one squash commit when the story finishes.
 - **`backlog/pair/<STORY-ID>/`** — the pair log. It is the session's memory
   across your alternating invocations, because **you are a fresh agent every
   turn** — the orchestrator spawns a new navigator per alternation rather than
@@ -105,7 +107,7 @@ when it did. That is not a punishment — it is the budget being kept for you.
 6. **CHECK COMPLETION**: all ACs covered by passing tests and the last review is
    OK → `pair-log.mjs session <STORY-ID> --set complete`. The driver then runs
    full verification and hands off per `/build`'s PR rules (commit-only inside an
-   epic; open the PR on the hotfix path). Do not write the verdict as prose in a
+   epic — the orchestrator lands it; open the PR on the hotfix path). Do not write the verdict as prose in a
    turn entry — the orchestrator reads the session field, and a line-11 entry
    gets truncated away.
 

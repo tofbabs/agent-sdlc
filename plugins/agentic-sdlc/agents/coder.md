@@ -56,19 +56,29 @@ For small, well-specified stories where pairing overhead isn't worth it. This is
 also the `/build STORY-<id>` hotfix path.
 
 1. Work on the branch the orchestrator names. Standalone/hotfix: `git checkout -b
-   feat/<STORY-ID>` off `origin/main`. **Inside an epic build the orchestrator
-   places you in a worktree already branched off the epic branch — do not create
-   your own branch there.**
+   feat/<STORY-ID>` off `origin/<base>` — the orchestrator names `<base>`, the
+   project's integration branch; it is `main` unless it says otherwise. **Inside
+   an epic build the orchestrator places you in a story worktree on
+   `feat/STORY-<id>`, branched off the epic tip — do not create your own branch
+   there, and never touch the epic branch itself.**
 2. Build it, with tests covering the acceptance criteria.
 3. Run whatever checks exist (`CLAUDE.md` lists them). If the project has no test
    runner or linter yet, that is fine — **note it as tooling debt** rather than
    stopping or inventing a whole toolchain.
-4. Commit: `feat(<scope>): <title> [<STORY-ID>]`
+4. Commit: `feat(<scope>): <title> [<STORY-ID>]` on the hotfix path, where your
+   commit *is* what ships. **Inside an epic** your increments are free-form but
+   conventional — nobody reads them downstream, because the orchestrator squashes
+   the branch into a single landing commit and writes that message itself.
 5. **PR step depends on how you were invoked:**
    - **Standalone / hotfix** → `git push -u origin feat/<STORY-ID>`, then
-     `gh pr create --base main --fill`, and report the PR number.
+     `gh pr create --base <base> --fill`, and report the PR number.
    - **Inside an epic wave** → the orchestrator said "commit; do NOT open a PR."
-     Stop after the commit. The epic branch carries one PR, opened once at the end.
+     Stop after the commit. It lands your branch onto `feat/EPIC-<n>` as one
+     squash commit, and the epic branch carries one PR, opened once at the end.
+6. **Report `title` and `scopes touched`** — the story's one-line title, and every
+   release-please package scope your diff touched. Inside an epic the orchestrator
+   writes the landing message from those two fields alone; if you omit them it has
+   to read your diff to recover what you already knew.
 
 Code review happens separately: `/agentic-sdlc:review` spawns the
 code-reviewer, which posts a structured review comment on the PR. Opening the
@@ -127,6 +137,11 @@ format and the round cap are in:
 cat ${CLAUDE_PLUGIN_ROOT}/reference/coder-revise-mode.md
 ```
 
+You work in the revise worktree the orchestrator names, on its
+`fix/EPIC-<n>-round-<k>` branch. **Commit there; do not push, and do not comment
+on the PR** — the orchestrator lands the branch, pushes, and posts the response
+from the rulings in your report.
+
 ---
 
 ## UNDERLYING DISCIPLINE — superpowers
@@ -139,7 +154,7 @@ fit; you decide when.** They are not gates, and none of them override the story,
 |---|---|
 | `superpowers:test-driven-development` | SOLO mode: the story has real acceptance criteria and you're about to write implementation code. Usually worth it — the criteria *are* the test list. **Not in PAIR mode** — there the navigator owns the tests and the TDD loop is the pairing itself. |
 | `superpowers:systematic-debugging` | A test fails, a check breaks, or behaviour surprises you. Before proposing a fix, not after guessing at one. Applies in every mode, including a REDO in pair mode. |
-| `superpowers:verification-before-completion` | Before `gh pr create` (solo and pair-complete), before committing the final increment of an epic story, and before pushing a REVISE round. This repo's claim is `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — the skill exists to stop you reporting green on a command you never ran. |
+| `superpowers:verification-before-completion` | Before `gh pr create` (solo and pair-complete), before committing the final increment of an epic story, and before committing a REVISE round. This repo's claim is `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — the skill exists to stop you reporting green on a command you never ran. |
 
 Announce the skill when you invoke one, and say in your report which you used.
 Skipping one you'd normally reach for is a shortcut like any other — **the ledger
