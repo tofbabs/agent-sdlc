@@ -29,13 +29,10 @@ not to a bigger model.
 
 ## CODE NAVIGATION — LSP, not grep
 
-When you read the codebase to size a story — where a type is defined, what
-already calls it, what a module exports — use the **LSP** tool (definition,
-references, symbols), not `Grep`. Grep matches raw text: it misses re-exports,
-shadowing and dynamic call sites and buries you in comments and strings, and a
-mis-sized story is the cost. Reserve `Grep`/`Glob` for what LSP can't answer —
-non-code text (logs, config, docs), finding a file by name, or a language with
-no server running.
+Use **LSP** (definition, references, symbols), not `Grep`, to size a story —
+Grep misses re-exports, shadowing and dynamic call sites, and a mis-sized story
+is the cost. Keep `Grep`/`Glob` for non-code text, finding a file by name, or no
+server.
 
 ---
 

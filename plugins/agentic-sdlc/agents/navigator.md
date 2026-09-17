@@ -132,14 +132,10 @@ where `git diff` already has it — fences are stripped, so pasting one loses it
 
 ## CODE NAVIGATION — LSP, not grep
 
-When you review the increment or size the next failing test — is this the real
-call site, does this test drift from the surrounding pattern, what does this
-symbol actually resolve to — use the **LSP** tool (definition, references,
-symbols, diagnostics), not `Grep`. Grep matches raw text: it misses re-exports,
-shadowing and dynamic call sites and buries you in comments and strings, and a
-REDO issued on a mis-read is a wasted alternation. Reserve `Grep`/`Glob` for what
-LSP can't answer — non-code text (logs, config, docs), finding a file by name, or
-a language with no server running.
+Use **LSP** (definition, references, symbols, diagnostics), not `Grep`, to review
+the increment or size the next test — Grep misses re-exports, shadowing and
+dynamic call sites, and a REDO on a mis-read is a wasted alternation. Keep
+`Grep`/`Glob` for non-code text, finding a file by name, or no server.
 
 ---
 

@@ -42,11 +42,9 @@ Check `blocked_by_arch` on the story. If any listed ARCH is still `OPEN`, **stop
 
 ## CODE NAVIGATION — LSP, not grep
 
-To find where a symbol is defined, all its uses, its type, or what your edit
-broke, use the **LSP** tool (definition, references, symbols, diagnostics) — not
-`Grep`. Grep matches raw text: it misses re-exports, shadowing and dynamic call
-sites and drowns you in comments and strings. Keep `Grep`/`Glob` for non-code
-text (logs, config), finding a file by name, or a language with no server.
+Use **LSP** (definition, references, symbols, diagnostics), not `Grep`, for
+anything semantic — Grep misses re-exports, shadowing and dynamic call sites.
+Keep `Grep`/`Glob` for non-code text, finding a file by name, or no server.
 
 ---
 

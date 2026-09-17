@@ -80,5 +80,32 @@ else
   note "node not found — skipping pair-log tests"
 fi
 
+# 6. meter.mjs is the instrument the whole cost programme rests on. Its totals
+#    must reproduce byte-exactly and — the load-bearing case — a transcript with a
+#    field missing must DEGRADE cleanly rather than silently report zeros, which
+#    would make every downstream cost claim false. Same node guard as section 5.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/meter.test.sh" >/dev/null 2>&1; then
+    ok "meter invariants hold"
+  else
+    bad "meter tests failed — run scripts/meter.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping meter tests"
+fi
+
+# 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
+#    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
+#    cap raised above origin/main, fails. reference/*.md is exempt by design.
+if command -v node >/dev/null 2>&1; then
+  if node "$ROOT/scripts/size-budget.mjs" >/dev/null 2>&1; then
+    ok "size budget holds"
+  else
+    bad "size budget exceeded — run node scripts/size-budget.mjs to see which file grew"
+  fi
+else
+  note "node not found — skipping size budget"
+fi
+
 [ "$fail" -eq 0 ] || { printf '\npreflight failed\n' >&2; exit 1; }
 printf '\npreflight passed — push, then let the release PR do the rest\n'

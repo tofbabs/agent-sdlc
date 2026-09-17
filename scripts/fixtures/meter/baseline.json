@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "label": "baseline",
+  "lane": "deliberate",
+  "totals": { "input": 1900, "cache_write_5m": 47000, "cache_write_1h": 5000, "cache_read": 40000, "output": 3000, "thinking": 350, "billed_input_equivalent": 100000, "usd": 1.0 },
+  "derived": { "cache_hit_ratio": 0.4, "spawns": 3, "boot_tokens_total": 50000, "boot_tokens_mean": 16667, "round_trips_per_turn_mean": 1.25, "naive_model_tokens": 130000, "overstatement_factor": 1.5, "cost_usd_reported": 1.0 },
+  "by_agent": {}, "by_model": {}, "spawns": [], "degraded": []
+}
