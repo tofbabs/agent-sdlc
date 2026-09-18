@@ -2,6 +2,14 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.2](https://github.com/tofbabs/agent-sdlc/compare/v0.2.1...v0.2.2) (2026-09-18)
+
+
+### Features
+
+* **agentic-sdlc:** add token meter + quality benchmark foundation; land no-risk cost cuts ([fb4893f](https://github.com/tofbabs/agent-sdlc/commit/fb4893f8f9b97fdc7616907a0435bc4c20d7fcd3))
+* **agentic-sdlc:** add token meter + quality benchmark foundation; land no-risk cost cuts ([462ad96](https://github.com/tofbabs/agent-sdlc/commit/462ad969ad8e8c74d93953850731844d738601c6))
+
 ## [0.2.1](https://github.com/tofbabs/agent-sdlc/compare/v0.2.0...v0.2.1) (2026-09-17)
 
 
