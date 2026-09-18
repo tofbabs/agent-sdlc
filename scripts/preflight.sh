@@ -40,16 +40,18 @@ else
   ok "version declared in exactly one place"
 fi
 
-# 3. The three version files must agree, or a release tags without moving the
-#    string Claude Code actually reads — and reaches nobody.
+# 3. The version files must agree across Claude and Antigravity manifests,
+#    or a release tags without moving the string the engines read.
+AGY_MANIFEST="$ROOT/plugins/agentic-sdlc/plugin.json"
 PLUGIN=$(python3 -c "import json;print(json.load(open('$MANIFEST'))['version'])")
+AGY_PLUGIN=$(python3 -c "import json;print(json.load(open('$AGY_MANIFEST'))['version'])")
 TXT=$(tr -d '[:space:]' < "$ROOT/version.txt")
 RPM=$(python3 -c "import json;print(json.load(open('$ROOT/.release-please-manifest.json'))['.'])")
-if [ "$PLUGIN" = "$TXT" ] && [ "$PLUGIN" = "$RPM" ]; then
+if [ "$PLUGIN" = "$TXT" ] && [ "$AGY_PLUGIN" = "$TXT" ] && [ "$PLUGIN" = "$RPM" ]; then
   ok "version files agree ($PLUGIN)"
 else
-  bad "version files disagree — plugin.json=$PLUGIN version.txt=$TXT manifest=$RPM"
-  note "all three are machine-written; check extra-files in release-please-config.json"
+  bad "version files disagree — claude plugin.json=$PLUGIN agy plugin.json=$AGY_PLUGIN version.txt=$TXT manifest=$RPM"
+  note "all are machine-written; check extra-files in release-please-config.json"
 fi
 
 # 4. Shipped content edited on this branch needs a releasable commit, or the

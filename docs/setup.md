@@ -2,6 +2,8 @@
 
 Back to the [README](../README.md).
 
+> **Note:** This document covers setup for Claude Code. For Google Gemini and Antigravity setup, see **[docs/gemini-setup.md](gemini-setup.md)**.
+
 Everything a consuming project does to adopt the pipeline: install and pin it, the
 paths the agents assume exist, what deliberately stays in the project, and the
 cloud routines.

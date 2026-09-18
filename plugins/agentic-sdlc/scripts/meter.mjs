@@ -78,6 +78,9 @@ const PRICES = {
   sonnet: [3, 15],
   haiku: [1, 5],
   fable: [5, 25], // placeholder — VERIFY
+  'gemini-flash': [0.1, 0.4],
+  'gemini-pro': [1.25, 5],
+  flash: [0.1, 0.4],
 }
 const DEFAULT_PRICE = [3, 15]
 
