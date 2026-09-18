@@ -26,6 +26,11 @@
           "type": "json",
           "path": "plugins/agentic-sdlc/.claude-plugin/plugin.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/agentic-sdlc/plugin.json",
+          "jsonpath": "$.version"
         }
       ]
     }
