@@ -41,13 +41,10 @@ someone is waiting.
 
 ## CODE NAVIGATION — LSP, not grep
 
-At step 2 — "what does this project already do?" — use the **LSP** tool
-(definition, references, symbols, diagnostics) to trace the real pattern, not
-`Grep`. Grep matches raw text: it misses re-exports, shadowing and dynamic call
-sites and buries you in comments and strings, and a decision made against a
-half-seen pattern is the expensive kind. Reserve `Grep`/`Glob` for what LSP
-can't answer — non-code text (logs, config, docs), finding a file by name, or a
-language with no server running.
+At step 2 — "what does this project already do?" — use **LSP** (definition,
+references, symbols, diagnostics), not `Grep`, to trace the real pattern; a
+decision made against a half-seen pattern is the expensive kind. Keep
+`Grep`/`Glob` for non-code text, finding a file by name, or no server.
 
 ---
 

@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "label": "fixture",
+  "session": null,
+  "harness_ref": null,
+  "lane": "deliberate",
+  "wall_clock_s": 90,
+  "totals": {
+    "input": 1900,
+    "cache_write_5m": 47000,
+    "cache_write_1h": 5000,
+    "cache_read": 40000,
+    "output": 3000,
+    "thinking": 350,
+    "billed_input_equivalent": 74650,
+    "usd": 0.83835
+  },
+  "derived": {
+    "cache_hit_ratio": 0.426,
+    "spawns": 3,
+    "boot_tokens_total": 50000,
+    "boot_tokens_mean": 16667,
+    "round_trips_per_turn_mean": 1.25,
+    "naive_model_tokens": 93900,
+    "overstatement_factor": 1.2579,
+    "cost_usd_reported": 0.812
+  },
+  "by_agent": {
+    "coder": {
+      "spawns": 2,
+      "boot_mean": 10000,
+      "output": 1900,
+      "usd": 0.1266
+    },
+    "navigator": {
+      "spawns": 1,
+      "boot_mean": 30000,
+      "output": 600,
+      "usd": 0.60975
+    }
+  },
+  "by_model": {
+    "claude-opus-4-8": {
+      "usd": 0.71175
+    },
+    "claude-sonnet-5": {
+      "usd": 0.1266
+    }
+  },
+  "spawns": [
+    {
+      "agent": "coder",
+      "seq": 1,
+      "first_call_cache_creation": 15000,
+      "cache_read_on_first_call": 0,
+      "round_trips": 2,
+      "output": 1200,
+      "usd": 0.08085
+    },
+    {
+      "agent": "navigator",
+      "seq": 2,
+      "first_call_cache_creation": 30000,
+      "cache_read_on_first_call": 0,
+      "round_trips": 1,
+      "output": 600,
+      "usd": 0.60975
+    },
+    {
+      "agent": "coder",
+      "seq": 3,
+      "first_call_cache_creation": 5000,
+      "cache_read_on_first_call": 15000,
+      "round_trips": 1,
+      "output": 700,
+      "usd": 0.04575
+    }
+  ],
+  "degraded": []
+}

@@ -246,3 +246,42 @@ this before suspecting the header strip.
 Compressing `brief.md` itself (worth a further ~0.3M), and reducing driver round
 trips by naming a working set in STATE (~0.2M). Both are real, both are smaller
 than what is here, and both are easier to judge once this design has run once.
+
+---
+
+## Correction (2026-09-17): the cost model here is missing two terms
+
+**The decisions above still stand.** The driver reading no header is still right,
+enforcement-as-code is still the principle the meter-and-benchmark work extends,
+and the *ranking* of the levers (freshness first) is unchanged. Only the
+arithmetic needs correcting, and it is corrected here rather than by rewriting the
+spec, because the numbers it produced are still the numbers this design was
+approved against.
+
+This spec prices spend as `Σ over turns of (bytes_read × round_trips)` — every
+re-sent byte at full rate. Measured against real billing (see
+`docs/superpowers/specs/2026-09-17-meter-and-benchmark-design.md` and
+`plugins/agentic-sdlc/scripts/meter.mjs`), that model is missing two terms:
+
+1. **No caching term.** Re-sent bytes are **cache reads, billed at 0.10×**, not
+   1.0×. On one long single session the naive model overstated static-content cost
+   by ~4.4×. So every "1.6M vs 5.8M vs 25.2M" figure in the variant table above is
+   in *naive* tokens; the billed-input-equivalent is far smaller, and the ratios
+   between variants compress. **But** the overstatement is lane-dependent: a PAIR
+   story is dozens of short subagent sessions on a **5-minute** TTL — the opposite
+   shape from the long conversation that produced 4.4× — so for that shape the old
+   model may be much closer to right. The meter reports
+   `derived.overstatement_factor` **per lane** rather than assuming any single
+   figure.
+
+2. **No boot term, and no output term.** The first API call of every spawn pays
+   `cache_creation` for the system prompt + tool definitions + injected `CLAUDE.md`
+   (1.25× at the 5m TTL, 2.0× at 1h) — a per-spawn cost that scales with *tool
+   count*, not prose length, and is absent from the model above entirely. Output
+   tokens are ~5× input list price and are never cached; the model above counts
+   only input-side bytes. The meter surfaces both (`derived.boot_tokens_mean`,
+   `totals.output`).
+
+The `18/42 round-trip` figures this spec flagged as load-bearing remain the right
+thing to re-measure — the meter now does, via
+`derived.round_trips_per_turn_mean`.

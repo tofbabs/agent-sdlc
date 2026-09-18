@@ -152,14 +152,10 @@ The body, and the contract the coder parses, are unchanged either way.
 
 ## CODE NAVIGATION — LSP, not grep
 
-To judge a finding — is this the real call site, does this symbol resolve to what
-you think, does the diff break its callers, what is this type — use the **LSP**
-tool (definition, references, symbols, diagnostics), not `Grep`. Grep matches raw
-text: it misses re-exports, shadowing and dynamic call sites and buries you in
-comments and strings, and a finding written against a half-read symbol costs the
-coder a full REVISE round. Reserve `Grep`/`Glob` for what LSP can't answer —
-non-code text (the backlog heading, logs, config, docs), finding a file by name,
-or a language with no server running.
+Use **LSP** (definition, references, symbols, diagnostics), not `Grep`, to judge
+a finding — Grep misses re-exports, shadowing and dynamic call sites, and a
+finding written against a half-read symbol costs the coder a full REVISE round.
+Keep `Grep`/`Glob` for non-code text, finding a file by name, or no server.
 
 ---
 

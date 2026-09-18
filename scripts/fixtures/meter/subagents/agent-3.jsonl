@@ -1,0 +1,1 @@
+{"type":"assistant","attributionAgent":"coder","message":{"model":"claude-sonnet-5","usage":{"input_tokens":250,"output_tokens":700,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":5000},"cache_read_input_tokens":15000,"thinking_tokens":0}}}

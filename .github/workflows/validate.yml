@@ -64,6 +64,25 @@ jobs:
       - name: pair-log invariants
         run: ./scripts/pair-log.test.sh
 
+      # meter.mjs is the instrument every cost claim in the programme rests on.
+      # Its totals must reproduce byte-exactly, and a transcript with an internal
+      # field missing must degrade to layer A rather than silently report zeros —
+      # silent zeros would make every downstream number a lie. That degradation
+      # case is this suite's analogue of the pair-log cap test.
+      - name: meter invariants
+        run: ./scripts/meter.test.sh
+
+      # The agent boot path is a cost surface, not a style surface: a byte added
+      # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a
+      # cost regression. The budget is ratchet-only — a file over its cap fails,
+      # and a cap raised above origin/main fails. reference/*.md is exempt by
+      # design (on-demand, never in the boot path). Fetch main so the ratchet can
+      # compare caps against it.
+      - name: size budget (ratchet-only)
+        run: |
+          git fetch --no-tags --depth=1 origin main || true
+          node scripts/size-budget.mjs
+
       # The tag is what consuming projects pin, so it must match what Claude Code
       # will report as the installed version.
       - name: Tag matches plugin.json

@@ -136,9 +136,13 @@ roughly in priority order. They are candidates, not commitments — written here
 the direction is diffable, same as everything else, and so a contributor can pick
 one up.
 
-1. **Measure the fast-lane savings.** The `~52 → ~6` spawn figure is *projected,
-   not yet measured*. Instrument real runs and publish per-lane token/spawn numbers
-   so the trade-off is evidence, not estimate.
+1. **Measure the fast-lane savings.** *(In progress.)* The `~52 → ~6` spawn figure
+   is *projected, not yet measured*. The instrument now exists —
+   `plugins/agentic-sdlc/scripts/meter.mjs` reports per-lane, per-agent token/spawn
+   numbers with a caching-aware cost model (see
+   `docs/superpowers/specs/2026-09-17-meter-and-benchmark-design.md`). Still owed:
+   run it on real runs (and the A0 cache probe, `scripts/probe-cache.mjs`) and
+   publish the measured figure with its IQR.
 2. **Automate the pin bump.** A routine that compares each consuming project's
    pinned `ref` against the latest tag and opens a bump PR — turning "keep current"
    from a discipline into a notification (rule 5 above, not yet built as tooling).
@@ -152,9 +156,12 @@ one up.
 5. **Broader language and skill coverage.** The contract assumes a per-language
    code-intelligence plugin and a project-stated check command; smoothing that setup
    (and expanding the superpowers skill hints per agent) lowers the first-run cost.
-6. **Metrics surface.** Cost, review round counts, and rung distribution per feature
-   are latent in the artifacts; a lightweight report would make the quality dial
-   tunable from data.
+6. **Metrics surface.** *(In progress.)* Cost, review round counts, and rung
+   distribution per feature are latent in the artifacts; a lightweight report would
+   make the quality dial tunable from data. `meter.mjs` (`report`/`record`/`diff`)
+   and the `templates/hooks/meter.sh` Stop/SubagentStop hook are the cost half —
+   records land in `.agentic-sdlc/meter/`. Still owed: the quality half (`bench/`,
+   designed in the 2026-09-17 spec) and a report that joins the two.
 
 ---
 
@@ -171,16 +178,22 @@ plugins/agentic-sdlc/
     fast-mode.md, coder-fast-mode.md     read only when --fast is present
     review-fast-floor.md                 read only when the PR stamps Mode: FAST
   scripts/pair-log.mjs                   the pair log's only read/write surface
+  scripts/meter.mjs                      per-lane/per-agent cost meter (report/record/diff/boot/capture)
 templates/
   settings.baseline.json                 universal deny-rules, copy-in
   hooks/lsp-preflight.sh                  SessionStart: warn when a language server is missing
-  hooks/settings.hooks.json              copy-in registration for the hook above
+  hooks/meter.sh                         Stop/SubagentStop: append a cost record (best-effort)
+  hooks/settings.hooks.json              copy-in registration for the hooks above
   TOOLING-DEBT.md                        empty ledger
   brief.md                               the input to /plan
   ADR.md                                 house format — decision, not options paper
   backlog/{EPIC,FAST}-template.md
   routines/{review,gap-scan}-prompt.md   cloud routine prompts — review delegates to /agentic-sdlc:review
 scripts/preflight.sh                     CI invariants, locally. Does not tag.
+scripts/meter.test.sh                    meter fixtures + the degradation invariant
+scripts/size-budget.{json,mjs}           ratchet-only byte caps on the agent boot path
+scripts/probe-cache.mjs                  A0 cache-prefix probe (run manually; spends API budget)
+docs/build-rationale.md                  the #77/#73/release-please reasoning, read once
 release-please-config.json               how a commit type becomes a version
 .release-please-manifest.json  ┐ machine-written bookkeeping —
 version.txt                    ┘ never hand-edit, CI checks they agree

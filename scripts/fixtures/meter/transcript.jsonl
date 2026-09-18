@@ -1,0 +1,2 @@
+{"type":"assistant","attributionAgent":"orchestrator","message":{"model":"claude-opus-4-8","usage":{"input_tokens":1000,"output_tokens":500}}}
+{"type":"assistant","attributionAgent":"orchestrator","message":{"model":"claude-opus-4-8","usage":{"input_tokens":150,"output_tokens":600}}}

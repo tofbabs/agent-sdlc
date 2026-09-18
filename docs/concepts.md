@@ -125,6 +125,17 @@ kilobyte of protocol prose an agent carries is paid for dozens of times per turn
 and every long-lived agent's context grows monotonically as it works. The design
 responses:
 
+> **A correction on the arithmetic.** Re-sent bytes are billed as **cache reads at
+> 0.10×**, not at full rate, so the raw "paid dozens of times" figure overstates
+> the cost of *static* content by a lane-dependent factor (~4.4× on one long
+> session; much less on a burst of short subagent spawns). The larger, previously
+> unpriced term is per-spawn **boot** — the system prompt + tool definitions +
+> injected `CLAUDE.md`, billed at 1.25×/2.0× on each spawn's first call, scaling
+> with *tool count*, not prose length. `plugins/agentic-sdlc/scripts/meter.mjs`
+> measures both, per lane; see
+> `docs/superpowers/specs/2026-09-17-meter-and-benchmark-design.md`. The ranking of
+> the three responses below is unchanged by the correction.
+
 - **On-demand protocol loading.** PAIR, REVISE, FAST and the fast-review floor
   live in `reference/` and are read *only* when that path is actually taken. A
   deliberate run never pays for the fast-mode prose; a SOLO story never pays for
@@ -163,7 +174,9 @@ Fast mode is not "lower quality everywhere." It removes ceremony (no handoffs, n
 worktrees, one gate) and it removes tests that would only catch cheap bugs — but
 it **keeps the negative test on every risk surface** and it **keeps full review**.
 The projected effect on a 5-task feature is roughly `~52 → ~6` agent spawns
-(projected, not yet measured), and the single largest saving is that the
+(projected, not yet measured — the meter keeps this label until the `bench/`
+benchmark replaces it with a measured figure and its IQR), and the single largest
+saving is that the
 navigator — Opus 4.8, running every other turn in a PAIR story — does not run at
 all. The quality you keep is the quality that protects data, money and contracts;
 the quality you spend less on is the quality a prototype does not need.

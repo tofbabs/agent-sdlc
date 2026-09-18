@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "label": "candidate",
+  "lane": "deliberate",
+  "totals": { "input": 1900, "cache_write_5m": 30000, "cache_write_1h": 5000, "cache_read": 40000, "output": 2500, "thinking": 300, "billed_input_equivalent": 80000, "usd": 0.8 },
+  "derived": { "cache_hit_ratio": 0.5, "spawns": 3, "boot_tokens_total": 40000, "boot_tokens_mean": 13333, "round_trips_per_turn_mean": 1.0, "naive_model_tokens": 110000, "overstatement_factor": 1.375, "cost_usd_reported": 0.8 },
+  "by_agent": {}, "by_model": {}, "spawns": [], "degraded": []
+}
