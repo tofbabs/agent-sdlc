@@ -177,6 +177,7 @@ plugins/agentic-sdlc/
     pair-loop.md, coder-pair-mode.md, coder-revise-mode.md
     fast-mode.md, coder-fast-mode.md     read only when --fast is present
     review-fast-floor.md                 read only when the PR stamps Mode: FAST
+    security-bar.md                      read only when a diff touches a security surface
   scripts/pair-log.mjs                   the pair log's only read/write surface
   scripts/meter.mjs                      per-lane/per-agent cost meter (report/record/diff/boot/capture)
 templates/
