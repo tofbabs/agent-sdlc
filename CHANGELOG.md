@@ -2,6 +2,14 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.4](https://github.com/tofbabs/agent-sdlc/compare/v0.2.3...v0.2.4) (2026-09-27)
+
+
+### Features
+
+* **agentic-sdlc:** code comments say why, never what ([ade4aad](https://github.com/tofbabs/agent-sdlc/commit/ade4aad4fd38056004e915c100a03131aefb37dc))
+* **agentic-sdlc:** code comments say why, never what ([90d57f1](https://github.com/tofbabs/agent-sdlc/commit/90d57f1f2245fb6b2f20675dd208bdd6951d16a5))
+
 ## [0.2.3](https://github.com/tofbabs/agent-sdlc/compare/v0.2.2...v0.2.3) (2026-09-27)
 
 
