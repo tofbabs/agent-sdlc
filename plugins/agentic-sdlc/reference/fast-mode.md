@@ -36,9 +36,17 @@ story) is not used at all. That last one is the largest single saving in the mod
 
 **One planner invocation. No architect pass by default.**
 
+First claim the ID — never let the planner count `backlog/` itself. Parallel
+sessions each see only their own checkout, and two of them picked the same
+`FAST-<n>` before this step existed (see `reference/plan-artifacts.md`):
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim FAST   # → backlog/FAST-<n>.md
+```
+
 ```
 Agent(subagent_type: "agentic-sdlc:planner", prompt: "MODE: FAST. Decompose this
-into a flat task list and write backlog/FAST-<n>.md. One `done when` per task, not
+into a flat task list and overwrite <claimed path>. One `done when` per task, not
 Gherkin criteria. Do NOT raise ARCH handoffs — tag anything on the one-way-door
 list inline as `⚠ one-way: <what>` and keep going.")
 ```
@@ -51,6 +59,7 @@ planner's own prompt carries only a stub, so the shape has to come from here:
 
 - Outcome: <what is true after this that isn't now>
 - Status: TODO
+- Artifacts: none   <!-- new ADRs / uncommitted brief; /build carries them -->
 
 ## Tasks
 
@@ -77,10 +86,12 @@ architect invocation:
 Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve every `⚠ one-way`
 tag in backlog/FAST-<n>.md. Read the codebase first. DECIDE — one paragraph each,
 written in place. ADR only if genuinely irreversible. Log any deliberate shortcut
-to docs/TOOLING-DEBT.md.")
+as a `### <title>` row under `## Debt` at the end of backlog/FAST-<n>.md — NOT in
+docs/TOOLING-DEBT.md, which /build ledgers on the branch.")
 ```
 
-No tags → **no architect invocation at all.** That is the expected case.
+No tags → **no architect invocation at all.** That is the expected case. If the
+architect wrote an ADR, add its path to the `- Artifacts:` line.
 
 Report, non-blocking, same as the deliberate lane: tasks, any one-way items and how
 they were resolved, new debt. If you say nothing, `/build --fast` proceeds.
@@ -101,7 +112,14 @@ they were resolved, new debt. If you say nothing, `/build --fast` proceeds.
 
 ```bash
 git checkout -b feat/FAST-<n> origin/<base>   # <base> per /build's BASE BRANCH; default main
+node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs carry FAST-<n> --from <checkout /plan ran in>
 ```
+
+`carry` makes the plan, its `Artifacts` and its `## Debt` rows the branch's first
+commit, and removes the untracked copies from the planning checkout. From here on
+the branch copy of `backlog/FAST-<n>.md` is the only one: status and one-way
+resolutions go there and ship with the PR. If `carry` refuses, stop and ask the
+human — a differing file on the branch means someone else owns that path.
 
 The worktree cascade, the `depends_on` wave sort and the per-story squash
 landings in `BRANCH TOPOLOGY` exist to make **parallel** stories safe. Fast mode is sequential,

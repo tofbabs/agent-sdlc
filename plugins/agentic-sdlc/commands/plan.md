@@ -26,15 +26,16 @@ run never reads it and never pays for it.
 
 ## STEP 1 — Decompose
 
+`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md`, then `claim EPIC` once
+per epic — never let the planner pick a number.
+
 ```
 Agent(subagent_type: "agentic-sdlc:planner", prompt: "Decompose this into epics and stories with
-acceptance criteria. Raise ARCH-<n> handoffs for anything that is genuinely an
-architecture or tooling decision — do NOT decide those yourself. Write
-backlog/EPIC-<n>.md.")
+acceptance criteria. Raise ARCH-<n> handoffs for genuine architecture or tooling
+decisions — do NOT decide those yourself. Overwrite <claimed path>.")
 ```
 
-Run in parallel across epics if the brief covers several. Planner is on Sonnet 5 —
-the cost floor — so this is cheap: go wide.
+Run in parallel across epics if the brief covers several — Sonnet 5, so go wide.
 
 ---
 
@@ -46,20 +47,18 @@ For every `ARCH-<n>` with status `OPEN`:
 Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n>. Read the codebase first
 — consistency with what exists beats cleverness. WebFetch for anything version- or
 maturity-dependent. DECIDE. Write an ADR only for genuine one-way doors; otherwise
-resolve inline in the epic file. Log any deliberate shortcut to docs/TOOLING-DEBT.md.")
+resolve inline in the epic file. Shortcuts go under ## Debt in the epic file.")
 ```
 
-Batch these — one architect invocation can handle several related handoffs and
-saves the context reload.
+Batch these — one architect invocation handles several related handoffs.
 
-**The architect decides.** It does not produce an options paper for you to
-adjudicate. Bias is toward moving.
+**The architect decides** — no options paper for you to adjudicate.
 
 ---
 
 ## STEP 3 — Review (non-blocking)
 
-Present:
+Add the `- Artifacts:` line (new ADRs, uncommitted brief). Present:
 - Epics and story count
 - Architecture decisions made, and the reasoning
 - Any ADR written
@@ -68,8 +67,8 @@ Present:
 **Skim it. Correct anything wrong.** But this doesn't block — if you say nothing,
 `/build` proceeds.
 
-*Worth actually reading though: this remains the cheapest place to catch a
-misunderstanding. A wrong story here becomes a wrong branch and a wrong PR later.*
+*Still the cheapest place to catch a misunderstanding: a wrong story here
+becomes a wrong PR later.*
 
 ---
 
