@@ -72,6 +72,12 @@ jobs:
       - name: meter invariants
         run: ./scripts/meter.test.sh
 
+      # plan-artifacts.mjs claims backlog IDs across every worktree and branch,
+      # and carries a plan onto its build branch. Without it, parallel sessions
+      # reuse FAST-<n> and plans never ship with the code they describe.
+      - name: plan-artifacts invariants
+        run: ./scripts/plan-artifacts.test.sh
+
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a
       # cost regression. The budget is ratchet-only — a file over its cap fails,

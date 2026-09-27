@@ -94,6 +94,18 @@ else
   note "node not found — skipping meter tests"
 fi
 
+# 6b. plan-artifacts.mjs keeps parallel sessions from colliding on backlog IDs
+#     and makes a plan ship with its build branch. Same node guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/plan-artifacts.test.sh" >/dev/null 2>&1; then
+    ok "plan-artifacts invariants hold"
+  else
+    bad "plan-artifacts tests failed — run scripts/plan-artifacts.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping plan-artifacts tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

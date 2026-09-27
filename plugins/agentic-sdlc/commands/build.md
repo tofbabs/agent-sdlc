@@ -83,7 +83,11 @@ waves:
 
 ```bash
 git worktree add ../wt-EPIC-<n> -b feat/EPIC-<n> origin/<base>   # integration only — never edit here
+cd ../wt-EPIC-<n> && node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs carry EPIC-<n> --from <plan checkout>
 ```
+
+`carry` commits the plan as the epic's first commit (`reference/plan-artifacts.md`);
+from then on update status in the branch copy only. It refuses → ask the human.
 
 ```
 For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
@@ -216,12 +220,9 @@ Two invariants make the cascade safe, and every rule below follows from them:
 
 1. **A story branches only from the epic tip, and only after every `depends_on`
    has landed on it.**
-2. **The epic branch is never worked on directly** — it receives story landings,
-   review-round landings, and `origin/<base>` merges, nothing else.
+2. **The epic branch is never worked on directly** — it receives the plan carry,
+   story and review-round landings, and `origin/<base>` merges, nothing else.
 
-- **Never branch a story off `origin/<base>` or off another story's branch.**
-  Only the epic tip, after its `depends_on` have landed. That stacking, not the
-  squash, is what #77 measured — so squashing inside the epic is safe here.
 - **Merge `origin/<base>` in before opening the PR, again before asking for
   review, and between waves on a long epic** — `git merge origin/<base>`, then
   re-gate. Merge, never rebase, so pushed history stays stable and review threads
@@ -235,7 +236,7 @@ Two invariants make the cascade safe, and every rule below follows from them:
   Squash stays correct for the single-story `/build STORY-<id>` path.
 
 The full #77/#74 post-mortem, the #73 gate lesson, and the release-please
-reasoning behind these four rules are in
+reasoning behind these rules are in
 [docs/build-rationale.md](../../../docs/build-rationale.md) — read once, not
 re-read on every `/build`.
 
@@ -317,8 +318,8 @@ arithmetic — is in [docs/build-rationale.md](../../../docs/build-rationale.md)
 
 ## HARD RULES
 
-- **Never commit work directly on `feat/EPIC-<n>`.** Only story landings, review-
-  round landings and `origin/<base>` merges touch it. Every story gets a branch,
+- **Never commit work directly on `feat/EPIC-<n>`.** Only the plan carry, story and
+  review-round landings and `origin/<base>` merges touch it. Every story gets a branch,
   even when the wave holds exactly one.
 - **Every story lands as one squash commit, branched from the epic tip after its
   parents landed.** Never branch a story off `origin/<base>` or off another
@@ -354,10 +355,9 @@ arithmetic — is in [docs/build-rationale.md](../../../docs/build-rationale.md)
   one line. Anything you read accumulates one copy per alternation.
 - If a coder blocks three times on one story, the **story** is probably wrong.
   Escalate to the human rather than grinding.
-- **Check the epic file's `status:` against `<base>` before starting.** Story
-  status in the backlog is hand-maintained and goes stale — EPIC-5 read `TODO` on
-  all four stories when three had already shipped. Trust merged PRs and the code,
-  not the marker; then fix the marker.
+- **Check the epic file's `status:` against `<base>` before starting.** Markers go
+  stale — EPIC-5 read `TODO` on four stories when three had shipped. Trust merged
+  PRs and the code, then fix the marker.
 
 ---
 
