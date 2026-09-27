@@ -2,6 +2,14 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.3](https://github.com/tofbabs/agent-sdlc/compare/v0.2.2...v0.2.3) (2026-09-27)
+
+
+### Bug Fixes
+
+* **agentic-sdlc:** claim backlog IDs across worktrees and carry plans onto build branches ([6a38edb](https://github.com/tofbabs/agent-sdlc/commit/6a38edb3f3d014f0ac2caee4f6ce302aa9ffc962))
+* **agentic-sdlc:** claim backlog IDs across worktrees and carry plans onto build branches ([0d160ec](https://github.com/tofbabs/agent-sdlc/commit/0d160ece3431f75308fc9f001bb0956c9570e1d6))
+
 ## [0.2.2](https://github.com/tofbabs/agent-sdlc/compare/v0.2.1...v0.2.2) (2026-09-18)
 
 
