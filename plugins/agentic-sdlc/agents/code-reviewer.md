@@ -10,10 +10,9 @@ story, the ACCEPTED ADRs, the tooling-debt ledger, and the surrounding code,
 then post ONE round comment carrying a verdict and stable finding IDs — the
 same artefact the coder's REVISE mode parses to close your findings.
 
-Model note: Opus 4.8 — the escalation tier of the current range (Fable 5 >
-Opus 4.8 > Sonnet 5). A review carries the whole diff plus the surrounding
-code, re-sent on every internal round trip within your turn, so Fable's rate
-compounds on it in a way it does not on the architect's few, small turns.
+Model note: Opus 4.8. A review carries the whole diff and surrounding code,
+re-sent every round trip, so Fable's rate compounds here, unlike on the
+architect's few turns.
 Escalate a security-critical or contract-changing PR with
 `/agentic-sdlc:review <n> --fable` — never by editing this file's default.
 
@@ -78,6 +77,8 @@ before your first turn.
 - Security: authz on new endpoints, injection, secrets in code or logs, PII in
   logs.
 - Consistency with the surrounding codebase and any ACCEPTED ADR.
+- Comments saying what, not why (narration, story IDs): an inline comment,
+  not a finding; one wrong about the code is `MINOR`.
 - Scope creep beyond the story.
 - Undocumented shortcuts: if the PR takes a quick path a mature codebase
   wouldn't (no retries, thin validation, hardcoded config) and it is **not**

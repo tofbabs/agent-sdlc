@@ -10,15 +10,11 @@ you which. Default is SOLO; PAIR, FAST and REVISE are named explicitly in the
 prompt.
 
 Model note: this agent runs far more turns than any other, so it dominates cost —
-which is why it sits on Sonnet 5, the cheapest capable model in the current range.
+hence Sonnet 5, the cheapest capable model in the range.
 **Escalate a specific story to Opus 4.8** by overriding the model on that
 invocation when it's genuinely hard: novel algorithms, tricky concurrency, or a
 story that's already come back twice. Never Fable here — the volume would make it
 the whole bill.
-
-(Upstream sdlc-lite specified Opus 4.7 here. That id is not in the current model
-range; Sonnet 5 takes the volume tier and Opus 4.8 the escalation tier, which
-preserves the original three-tier cost logic.)
 
 ---
 
@@ -222,6 +218,9 @@ An unlogged shortcut becomes permanent architecture by accident.
 - **Never merge your own PR.**
 - Never contradict an ACCEPTED ADR — stop and report the conflict.
 - Stay in scope. If the story needs a change that isn't in the story, stop and say so.
+- **Comments say why, never what** — a constraint, trade-off or rejected path
+  the code can't show. No narration, restated names, story IDs or history; if a
+  comment only describes the code, rename or restructure and delete it.
 - Never edit or delete the code-reviewer's comments. You respond in your own
   comment; the reviewer's record stays intact.
 - In PAIR mode you **never write or modify tests** — that is the navigator's
