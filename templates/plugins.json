@@ -1,0 +1,8 @@
+{
+  "$comment": "Place in <project>/.agents/plugins.json or ~/.gemini/config/plugins.json to register agentic-sdlc for Gemini / Antigravity agents.",
+  "entries": [
+    {
+      "path": "path/to/agent-sdlc/plugins/agentic-sdlc"
+    }
+  ]
+}

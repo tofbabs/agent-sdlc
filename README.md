@@ -4,7 +4,7 @@
 [![Release](https://github.com/tofbabs/agent-sdlc/actions/workflows/release-please.yml/badge.svg)](https://github.com/tofbabs/agent-sdlc/actions/workflows/release-please.yml)
 
 A versioned, reusable **planner → architect → coder → reviewer** pipeline for
-Claude Code, distributed as a plugin so many projects can pull the same protocol
+Claude Code and Google Gemini / Antigravity, distributed as a plugin so many projects can pull the same protocol
 in at a pinned version and move forward deliberately instead of drifting.
 
 It is stack- and language-agnostic: the protocol lives in the plugin, and
@@ -17,7 +17,7 @@ You are probably here because you have hit one of these:
 - **Agents that sprawl.** A one-line brief comes back as a plausible, confident,
   *wrong* backlog — ten epics where you wanted two, a stack nobody chose,
   decisions buried in code that should have been decisions on paper.
-- **Copy-paste protocol rot.** You wrote a good `.claude/agents` setup once, then
+- **Copy-paste protocol rot.** You wrote a good `.claude/agents` or `.agents/skills` setup once, then
   copied it into three more repos. Now they have all drifted and nobody can say
   what changed or why.
 - **No dial between "quick" and "careful".** A throwaway spike and a payments
@@ -29,7 +29,7 @@ You are probably here because you have hit one of these:
   their whole context on every internal round trip; agents `grep` their way
   around a codebase and drown in noise.
 
-If a team ships product with Claude Code across more than one repository and wants
+If a team ships product with Claude Code or Google Gemini across more than one repository and wants
 the *how* to be reviewable, pinned, and shared rather than folklore, this is the
 shape of the answer.
 
@@ -86,22 +86,29 @@ buy back tokens and output quality are in **[docs/concepts.md](docs/concepts.md)
 
 ## Quick install
 
+### Claude Code
 ```bash
 claude plugin marketplace add tofbabs/agent-sdlc@v0.1.1
 claude plugin install agentic-sdlc@sanimara
 ```
+*(Or pin declaratively in `.claude/settings.json` — see **[docs/setup.md](docs/setup.md)**).*
 
-Better, pin it declaratively in the consuming project's `.claude/settings.json`
-so the version is checked in and reviewable — see
-**[docs/setup.md](docs/setup.md)** for the declarative form, the paths a project
-must provide, and the one-per-machine LSP requirement.
+### Google Gemini / Antigravity
+Add to your project's `.agents/plugins.json` (or `~/.gemini/config/plugins.json` globally):
+```json
+{
+  "entries": [{ "path": "vendor/agent-sdlc/plugins/agentic-sdlc" }]
+}
+```
+*(See **[docs/gemini-setup.md](docs/gemini-setup.md)** for full Antigravity setup, model tiering, and project contract details).*
 
 ## Documentation
 
 | Doc | What's in it |
 |---|---|
 | **[docs/concepts.md](docs/concepts.md)** | The quality ladder, the two lanes, and the token-utility / output-quality story behind LSP-first navigation and `--fast` |
-| **[docs/setup.md](docs/setup.md)** | Install (declarative pin), the contract a consuming project must satisfy, what stays in the project, and the cloud routines |
+| **[docs/setup.md](docs/setup.md)** | Claude Code install (declarative pin), the contract a consuming project must satisfy, and cloud routines |
+| **[docs/gemini-setup.md](docs/gemini-setup.md)** | Google Gemini & Antigravity install, model tiering (Flash/Pro), skills, rules, and setup |
 | **[docs/positioning.md](docs/positioning.md)** | Where this sits among other SDLC tools, and its relationship to superpowers |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | How to propose changes, the release process, anti-drift rules, the repository layout, and the roadmap |
 

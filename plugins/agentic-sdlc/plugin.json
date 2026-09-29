@@ -1,0 +1,20 @@
+{
+  "name": "agentic-sdlc",
+  "displayName": "Agentic SDLC",
+  "version": "0.2.1",
+  "description": "Planner → architect → coder(+navigator) → code-reviewer pipeline. Versioned, reusable SDLC protocol for autonomous AI pair programming with two-lane quality dial, explicit tooling-debt ledger, ping-pong TDD, and human merge gate.",
+  "author": {
+    "name": "Sanimara",
+    "email": "tofunmibabatunde@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "sdlc",
+    "planning",
+    "backlog",
+    "agents",
+    "code-review",
+    "gemini",
+    "antigravity"
+  ]
+}
