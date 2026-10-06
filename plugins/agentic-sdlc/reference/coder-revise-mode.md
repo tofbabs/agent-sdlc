@@ -1,7 +1,7 @@
 # MODE: REVISE — closing the code-reviewer's findings
 
 Read by the coder **only when the orchestrator says `MODE: REVISE`**. Kept out of
-`agents/coder.md` for the same reason as PAIR mode.
+`agents/coder.md`: SOLO is the default and the majority of invocations.
 
 ---
 

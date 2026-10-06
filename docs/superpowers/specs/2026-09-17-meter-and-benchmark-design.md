@@ -203,6 +203,62 @@ before the benchmark and A0 exist.
 
 ---
 
+## 2026-10-06 — PAIR-loop cuts landed ahead of `bench/`
+
+Four cuts to the TDD pair, each removing work rather than changing a judgment the
+agents make, so they land without a bench artifact. They are the part of C1 and A1
+that is structural; the rest stays gated.
+
+1. **A slim `driver` agent** (`agents/driver.md`, ~3.2 KB) replaces "coder in
+   `MODE: PAIR`". Every driver spawn used to boot the 11.2 KB coder prompt (SOLO,
+   FAST, REVISE, superpowers table, architect protocol) and then `cat`
+   `reference/coder-pair-mode.md` (4.3 KB) — one extra round trip, and ~12 KB of
+   pair-irrelevant text re-sent on each of ~42 round trips per turn, ~20 turns per
+   story. `coder.md` loses its PAIR section too (11,220 → 9,333 B), which every
+   SOLO/FAST/REVISE spawn now saves. `WebFetch` is not on the driver's tool list
+   (A1 for this one agent: making one failing test pass does not need the web).
+2. **`pair-log.mjs read` carries the last commit** (`git log --oneline -5` plus
+   `git show HEAD`, capped at 200 lines; `--no-git` opts out). Each role's first
+   move was exactly that read — the navigator reviewing the driver's increment,
+   the driver opening the navigator's new test — so this removes 1–2 round trips
+   per turn, each of which re-sent the agent's whole context.
+3. **No closing driver turn.** On `session=complete` the old loop spawned one more
+   coder only to re-run the gate and commit. The navigator's completing turn now
+   runs the full gate, commits the pair log and reports title + scopes; a red gate
+   is routed to the driver as a REDO, so the navigator still writes no
+   implementation code. One full Sonnet spawn (boot + ~40 round trips) per PAIR
+   story is gone; on the hotfix path the orchestrator pushes and opens the PR.
+4. **`navigator.md` trimmed** 9,353 → 6,010 B: rationale already recorded in
+   `reference/pair-loop.md` and the 2026-07-31 spec was removed; the normative
+   rules are unchanged.
+
+Size ratchet re-calibrated down to the new sizes (group 63,951 → 61,902 B). Still
+**not** done, because each changes what the agents judge and needs `bench/`:
+navigator on Sonnet, more than one test per red, a lower alternation cap.
+
+## 2026-10-06 (later) — cuts from a measured epic run
+
+A real run's transcript (EPIC-10, four PAIR stories) gave the first evidence
+from the field: ~68 agent turns (36 navigator, 30 driver, 2 lost to a usage
+limit), ~75 orchestrator turns on Opus at a 1M context, and **every** real defect
+(an unused fallback query hidden by a broad mock, a vanished-then-unstyled label,
+a sign-in race overwriting a pick, an inconsistent empty name) caught by
+reviewing wiring/integration rounds. ~15 one-function rounds on pure helpers
+found nothing. That evidence justifies the behaviour-level cuts below; they are
+still estimates in turns, not billed tokens — `pair-run.mjs` now writes the
+per-turn measured cost to settle that.
+
+| Change | Turns, that run | Where |
+|---|---|---|
+| Loop scripted (`pair-run.mjs`); orchestrator makes one background call per story | ~75 orchestrator → ~4 + blocks | `scripts/pair-run.mjs`, `reference/pair-loop.md` |
+| Mode by `risk:` line, not estimate (plumbing → SOLO; data → SOLO on Opus + independent check) | ~29 → ~6 on two stories | `commands/build.md`, `agents/planner.md` |
+| One behaviour per round, wiring steps keep their own round | ~22 → ~11 on the wiring story | `agents/navigator.md` |
+| Rework prevention: log resolves the worktree root; implement only what the tests demand; check CSS when moving UI; mock one path per fact | ~7 repeats | `pair-log.mjs`, `agents/driver.md`, `agents/navigator.md` |
+| Close in the final review turn | ~5 close-only turns | `agents/navigator.md` |
+
+Kept on purpose: review on every wiring round, Opus where the data or the
+save/restore wiring is the risk, and the orchestrator's independent data check.
+
 ## Verification performed
 
 - `scripts/meter.test.sh` — 16 checks green, incl. byte-exact totals, by_agent

@@ -78,6 +78,12 @@ jobs:
       - name: pair-log invariants
         run: ./scripts/pair-log.test.sh
 
+      # pair-run.mjs drives the PAIR loop headless so the orchestrator does not
+      # spend a turn per alternation. Its stop conditions (complete, blocked, cap,
+      # failed turn, no-progress turn) are what keep it from spawning forever.
+      - name: pair-run loop invariants
+        run: ./scripts/pair-run.test.sh
+
       # meter.mjs is the instrument every cost claim in the programme rests on.
       # Its totals must reproduce byte-exactly, and a transcript with an internal
       # field missing must degrade to layer A rather than silently report zeros —

@@ -1,7 +1,7 @@
 # MODE: FAST — decide, build, log
 
 Read by the coder **only when the orchestrator says `MODE: FAST`**. Kept out of
-`agents/coder.md` for the same reason as PAIR and REVISE: SOLO is the default and
+`agents/coder.md` for the same reason as REVISE: SOLO is the default and
 an agent's system prompt is re-sent on every internal tool-call round trip.
 
 ---
