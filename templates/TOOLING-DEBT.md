@@ -65,6 +65,7 @@ the tables above; do not leave them loose.
 - Raised: <date> by <architect | coder> (<ARCH-n | STORY-id>)
 - Current: <what we did instead>
 - Risk: LOW | MEDIUM | HIGH
+- Category: <debt_category> (run-report-categories.mjs)
 - Address when: <concrete, observable trigger>
 ```
 

@@ -153,10 +153,11 @@ are for things where a competent engineer would want a conversation.
 
 - status: OPEN
 - blocks: [STORY-IDs]
+- category: <arch_category> (run-report-categories.mjs)
 
 **Context:** <why this comes up>
 **Why I'm not deciding:** <what makes this bigger than one story>
 ```
 
-Under-raising is worse than over-raising. A planner that never hands anything off
-is one that quietly made a load-bearing decision inside a story's technical notes.
+Under-raising is worse than over-raising: silence hides a load-bearing call in
+a story's technical notes.
