@@ -136,6 +136,7 @@ export const DEGRADED_INPUT = Object.freeze([
   'debt_ledger',
   'gate_history',
   'plugin_version',
+  'decision_store',
 ])
 
 const ALL = Object.freeze({ ...CLOSED, ...OPEN, degraded_input: DEGRADED_INPUT })

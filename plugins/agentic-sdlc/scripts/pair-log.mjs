@@ -263,6 +263,9 @@ if (command === 'append') {
   if (role !== 'navigator' && role !== 'driver') {
     die(2, `append needs --role navigator|driver\n${USAGE}`)
   }
+  // Checked before turns.md is touched: a refused append that still wrote its
+  // entry would advance the next role and duplicate the turn on retry.
+  if (flags.rejected && role !== 'navigator') die(2, '--rejected is a navigator flag')
 
   const { text, original, truncated, strippedFence } = clamp(readStdin(), ENTRY_MAX_LINES)
   if (!text.trim()) die(2, 'refusing to append an empty entry')
@@ -276,7 +279,6 @@ if (command === 'append') {
   // alternations. The count lives here rather than in STATE's prose so it cannot
   // drift, and so STATE keeps the line for `constraints in play` at no net cost.
   const session = readSession()
-  if (flags.rejected && role !== 'navigator') die(2, '--rejected is a navigator flag')
   if (role === 'navigator') {
     session.alternation += 1
     // Tagged at the source, never parsed from the entry: the 10-line clamp

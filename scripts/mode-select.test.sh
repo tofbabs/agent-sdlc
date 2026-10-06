@@ -241,6 +241,10 @@ node --input-type=module -e "
   if (story.code !== 0) { console.error('story CLI must exit 0, got ' + story.code); process.exit(1) }
   const sj = JSON.parse(story.stdout)
   if (sj.mode !== 'PAIR' || sj.score !== 5 || sj.floor !== null || sj.rubric === undefined) { console.error('story CLI JSON wrong: ' + story.stdout); process.exit(1) }
+  // --line takes the same dispatch choices as --file: SOLO_OPUS yes, a lane token no.
+  const opus = run(['story', '--line', mk({}), '--chosen', 'SOLO_OPUS'])
+  if (opus.code !== 0 || JSON.parse(opus.stdout).choice !== 'SOLO_OPUS') { console.error('story --line must accept --chosen SOLO_OPUS: ' + opus.stdout); process.exit(1) }
+  if (run(['story', '--line', mk({}), '--chosen', 'FAST']).code === 0) { console.error('story --line must reject a lane token as --chosen'); process.exit(1) }
 
   // lane --file: every '- select:' line read, prose ignored, decideLane printed.
   const dir = mkdtempSync(join(tmpdir(), 'ms-'))
@@ -725,7 +729,7 @@ node --input-type=module -e "
 #     the line + record idempotently and refuses a bad trigger or mode.
 node --input-type=module -e "
   import { spawnSync, execFileSync } from 'node:child_process'
-  import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
+  import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, existsSync, rmSync } from 'node:fs'
   import { tmpdir } from 'node:os'
   import { join } from 'node:path'
   const fail = (m) => { console.error(m); process.exit(1) }
@@ -764,6 +768,18 @@ node --input-type=module -e "
   o = obs('STORY-O', '--declared', 'src/b.js', '--base', 'main'); if (o.escalate) fail('exact declared file must pass')
   o = obs('STORY-X', '--declared', 'docs/', '--base', 'main')
   if (!o.escalate || o.trigger !== 'edited_outside_declared' || !o.outside.includes('src/b.js')) fail('stray edit must fire: ' + JSON.stringify(o))
+  // Uncommitted work counts too: the check runs before LAND, edits may not be committed yet.
+  writeFileSync(join(repo, 'stray-untracked.js'), 'x')
+  o = obs('STORY-U', '--declared', 'src/', '--base', 'main')
+  if (!o.escalate || !o.outside.includes('stray-untracked.js')) fail('an untracked stray file must fire: ' + JSON.stringify(o))
+  git(repo, 'add', 'stray-untracked.js')
+  o = obs('STORY-S', '--declared', 'src/', '--base', 'main')
+  if (!o.escalate || !o.outside.includes('stray-untracked.js')) fail('a staged stray file must fire: ' + JSON.stringify(o))
+  git(repo, 'rm', '-q', '--cached', 'stray-untracked.js'); rmSync(join(repo, 'stray-untracked.js'))
+  writeFileSync(join(repo, 'src', 'a.js'), 'edited')
+  o = obs('STORY-W', '--declared', 'docs/', '--base', 'main')
+  if (!o.outside?.includes('src/a.js')) fail('an unstaged edit must count: ' + JSON.stringify(o))
+  git(repo, 'checkout', '-q', '--', 'src/a.js')
 
   // correct: line + record, idempotent, appended not replaced.
   const file = join(repo, 'backlog.md')

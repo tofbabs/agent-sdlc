@@ -148,6 +148,8 @@ node --input-type=module -e "
   mk('$R', 'S-NEVER', 'score', 'SOLO')
   const stale = mk('$R', 'S-STALE', 'score', 'SOLO'); ev('$R', stale, 'build', '2026-01-05T00:00:00Z')
   const fresh = mk('$R', 'S-FRESH', 'score', 'SOLO', { created_at: '2026-02-25T00:00:00Z' })
+  const replaced = mk('$R', 'S-REPLACED', 'score', 'SOLO'); ev('$R', replaced, 'abandoned', '2026-01-02T00:00:00Z'); ev('$R', replaced, 'merged', '2026-02-20T00:00:00Z')
+  const early = mk('$R', 'S-EARLY', 'score', 'SOLO', { created_at: '2026-02-25T00:00:00Z' }); ev('$R', early, 'abandoned', '2026-02-26T00:00:00Z')
 "
 out=$(verdicts "$R")
 st() { node --input-type=module -e "import { by } from '$TMP/lib.mjs'; const d = by('$R', '$1'); console.log(d.state, d.verdict ?? d.orphan_reason ?? '-')"; }
@@ -157,6 +159,8 @@ check "an abandoned PR orphans as pr_deleted" "$(st S-GONE)" "orphaned pr_delete
 check "no events past the window: orphaned subject_missing" "$(st S-NEVER)" "orphaned subject_missing"
 check "built but never merged past the window: orphaned other" "$(st S-STALE)" "orphaned other"
 check "an unmerged decision younger than the window stays open" "$(st S-FRESH)" "open -"
+check "an abandoned PR replaced by one that merged is judged on the merge" "$(st S-REPLACED)" "open -"
+check "an abandoned PR inside the window does not orphan yet" "$(st S-EARLY)" "open -"
 
 echo "layer stacking"
 R=$(new_repo stacking)
@@ -234,6 +238,37 @@ out=$(OUTCOMES_GH="$TMP/no-such-gh" node "$S/outcomes.mjs" sweep --cwd "$R" --no
 check "a missing gh binary degrades to exit 0" "$rc $(echo "$out" | q r.swept)" "0 false"
 verdicts "$R" >/dev/null
 check "the swept fixes feed the verdict: SOLO story that needed fixes closes missed" "$(v STORY-2-9)" "closed missed 1"
+
+echo "sweep across runs, run stamping, failed commits read"
+R=$(new_repo rerun)
+GH2="$TMP/gh2"; mkdir -p "$GH2"
+cat > "$GH2/gh" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = pr ]; then cat "$GH2/prs.json"; exit 0; fi
+[ -e "$GH2/fail-api" ] && exit 1
+echo '[]'
+STUB
+chmod +x "$GH2/gh"
+cat > "$GH2/prs.json" <<'JSON'
+[
+ {"number":20,"title":"feat(x): first attempt [EPIC-5]","body":"","state":"MERGED","createdAt":"2026-01-02T00:00:00Z","mergedAt":"2026-01-05T00:00:00Z","closedAt":"2026-01-05T00:00:00Z","mergeCommit":{"oid":"a20"}},
+ {"number":21,"title":"fix(x): rebuild the story [STORY-5-1]","body":"","state":"MERGED","createdAt":"2026-02-11T00:00:00Z","mergedAt":"2026-02-12T00:00:00Z","closedAt":"2026-02-12T00:00:00Z","mergeCommit":{"oid":"a21"}}
+]
+JSON
+node --input-type=module -e "
+  import { mk } from '$TMP/lib.mjs'
+  mk('$R', 'STORY-5-1', 'score', 'SOLO', { run_id: '$RUN2', created_at: '2026-02-10T00:00:00Z' })
+"
+touch "$GH2/fail-api"
+out=$(OUTCOMES_GH="$GH2/gh" node "$S/outcomes.mjs" settle --cwd "$R" --run-id $RUN2 --now $NOW); rc=$?
+check "a failed commits read is a failed sweep, and settle defers the verdicts" "$rc $(echo "$out" | q 'r.swept+" "+r.settled')" "0 false false"
+got=$(node --input-type=module -e "import { by } from '$TMP/lib.mjs'; const d = by('$R', 'STORY-5-1'); console.log(d.state, d.outcome_events.map((e) => e.event + ':' + e.ref + ':' + e.run_id).join(' '))")
+check "a rebuilt story joins the PR that merged after its decision, not an earlier run's; sweep events carry the run" "$got" "open merged:pr:21:$RUN2"
+rm "$GH2/fail-api"
+out=$(OUTCOMES_GH="$GH2/gh" node "$S/outcomes.mjs" settle --cwd "$R" --run-id $RUN2 --now $NOW)
+check "once the sweep succeeds, settle runs the verdict pass" "$(echo "$out" | q 'r.settled+" "+r.verdicts.closed.length')" "true 1"
+got=$(node --input-type=module -e "import { by } from '$TMP/lib.mjs'; const d = by('$R', 'STORY-5-1'); console.log(d.state, d.verdict, d.settled_run_id)")
+check "the verdict names the run that settled it" "$got" "closed held $RUN2"
 
 # -------------------------------------------------------------- accounting
 echo "accounting (AC4)"

@@ -58,11 +58,12 @@ needs it. Agents do not resolve it themselves.
 (Under `--fast` this does not run: every task is SOLO.)
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs story --file backlog/EPIC-<n>.md --id <STORY-ID> --record [--chosen <mode>]
+node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs story --file backlog/EPIC-<n>.md --id <STORY-ID> [--chosen <mode>]
 ```
 
-Dispatch exactly `choice`. On `fallback: true`, `cat ${CLAUDE_PLUGIN_ROOT}/reference/mode-selection.md`
-and follow it.
+On `fallback: true`, `cat ${CLAUDE_PLUGIN_ROOT}/reference/mode-selection.md`
+to resolve the mode. Then re-run with `--record --chosen <mode>` (keeping any
+human override) and dispatch exactly that.
 
 ---
 
@@ -113,7 +114,6 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
 
             Watch it: BLOCKED, gate failures, and edits outside the files you
             named may escalate it to PAIR — `reference/runtime-correction.md`.
-            At LAND and run start, record outcomes: `reference/outcomes.md`.
 
      SOLO with data risk → same, plus `model: opus` on the call; check the
             data yourself before LAND (see MODE SELECTION).
@@ -131,6 +131,7 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
          git merge --squash feat/STORY-<id>
          → resolve → FULL gate →
          git commit -m "feat(<scope>): <story title> [STORY-<id>]"
+         → build event, any mode: `reference/outcomes.md`
 
      One conventional header per release-please scope the story touched — see
      MULTI-SCOPE LANDINGS. **The story's report names its scopes and title; do
@@ -266,6 +267,7 @@ the PR comment; the coder owns only the judgment.** When the latest round says
        git merge --squash fix/EPIC-<n>-round-<k>
        → resolve → FULL gate →
        git commit -m "fix(<scope>): address review round <k> [EPIC-<n>]"
+       → revise event per story changed: `reference/outcomes.md`
        git merge origin/<base>   # if behind; re-gate after any resolution
        git push
 

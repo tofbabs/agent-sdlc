@@ -7,7 +7,10 @@
 # same resolution of run-report.mjs:
 #
 #   UserPromptSubmit — a pipeline slash command (/agentic-sdlc:plan, :build or
-#   :review) writes or continues the marker (`run-report.mjs mark`). Anything
+#   :review) writes or continues the marker (`run-report.mjs mark`), then
+#   spawns `outcomes.mjs settle` (the sweep and verdict pass) DETACHED beside
+#   it: every run start is the one boundary all three commands share, and its
+#   gh calls must not hold up the prompt. Anything
 #   else exits 0 immediately on a cheap prefix check, before any JSON parsing
 #   of the rest of the payload. UserPromptSubmit's stdout is injected straight
 #   into the model's context (documented), so this path writes ABSOLUTELY
@@ -107,6 +110,16 @@ case "$event" in
     printf '%s' "$prompt" > "$promptfile"
     node "$run_report" mark --project "$cwd" --prompt-file "$promptfile" --session "$session" >/dev/null 2>&1
     rm -f "$promptfile"
+
+    # After mark, so settle stamps the run that just started.
+    outcomes="$(dirname "$run_report")/outcomes.mjs"
+    if [ -f "$outcomes" ]; then
+      if command -v setsid >/dev/null 2>&1; then
+        (cd "$cwd" && setsid nohup node "$outcomes" settle --cwd "$cwd" </dev/null >/dev/null 2>&1 &)
+      else
+        (cd "$cwd" && nohup node "$outcomes" settle --cwd "$cwd" </dev/null >/dev/null 2>&1 &)
+      fi
+    fi
     ;;
 
   SessionEnd)

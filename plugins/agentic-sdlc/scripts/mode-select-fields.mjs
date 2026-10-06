@@ -33,9 +33,11 @@ import { pathToFileURL } from 'node:url'
 // is STORY-2-3's rubric, not this module's concern — this is vocabulary only.
 const RISK_CLASS = Object.freeze(['none', 'money', 'auth', 'destructive_data'])
 
-// risk_kind splits a non-"none" risk_class into a code change or a data
-// change — the brief's existing data_risk/code_risk distinction, carried
-// here as a field of its own so a reader never has to infer it from prose.
+// risk_kind says whether the risk is in code or data — the brief's existing
+// data_risk/code_risk distinction, carried here as a field of its own so a
+// reader never has to infer it from prose. Independent of risk_class: "none"
+// with "data" is the non-destructive sourcing/seeding story that goes SOLO on
+// Opus, since every floor class forces PAIR before data risk is consulted.
 const RISK_KIND = Object.freeze(['code', 'data'])
 
 const BOOLEAN_YES_NO = Object.freeze(['yes', 'no'])

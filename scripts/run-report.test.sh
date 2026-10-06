@@ -603,7 +603,7 @@ got=$(node --input-type=module -e '
     if (spec.type === "pattern") patterns.push(path)
   }
   walk(REPORT_SCHEMA, "$")
-  if (patterns.join() !== "$.run.run_id,$.run.plugin_version,$.run.ended_at,$.decisions[].decision_id,$.outcome_events[].decision_id") fails.push(`patterns: ${patterns}`)
+  if (patterns.join() !== "$.run.run_id,$.run.plugin_version,$.run.ended_at,$.decisions[].decision_id,$.outcome_events[].decision_id,$.settlements[].decision_id") fails.push(`patterns: ${patterns}`)
   if (Object.keys(PATTERNS).length !== 4) fails.push("patterns whitelist is not exactly four (ADR-0002: decision_id is the fourth)")
   if (validate(base).length) fails.push(`base invalid: ${validate(base)}`)
   // Stuff a long string into every field of the run, plan and cost sections.
@@ -674,7 +674,7 @@ got=$(node --input-type=module -e '
 
   const el = {
     decision_id: "0123456789abcdef", layer: "score",
-    rubric: 4, floor: null, score: 7,
+    rubric: 4, score: 7,
     choice: "PAIR", alternative: "SOLO", overridden: false, fallback: false,
   }
 
@@ -683,9 +683,20 @@ got=$(node --input-type=module -e '
   ok(clone(), "a report without a decisions section must stay valid")
 
   { const r = clone(); r.decisions = [el]; ok(r, "a well-formed score decision must validate") }
-  { const r = clone(); r.decisions = [{ ...el, layer: "floor", rubric: null, floor: "money", score: null }]; ok(r, "a floor-layer decision with a floor token and null rubric/score must validate") }
+  { const r = clone(); const e = { ...el, layer: "floor", floor: "money" }; delete e.rubric; delete e.score; r.decisions = [e]; ok(r, "a floor-layer decision with a floor token and no rubric/score must validate") }
   { const r = clone(); r.decisions = [{ ...el, layer: "lane", choice: "deliberate", alternative: "fast" }]; ok(r, "a lane decision with lane-token choice/alternative must validate") }
-  { const r = clone(); r.decisions = [{ ...el, alternative: null }]; ok(r, "a null alternative (no road-not-taken) must validate") }
+  { const r = clone(); const e = { ...el }; delete e.alternative; r.decisions = [e]; ok(r, "an omitted alternative (no road-not-taken) must validate") }
+  // Absent means omitted: a present null is rejected even when some unrelated
+  // input is named in degraded, which would otherwise excuse it.
+  for (const k of ["rubric", "floor", "score", "alternative", "verdict", "verdict_rubric", "trigger"]) {
+    const r = clone(); r.degraded = ["pr_comments"]; r.decisions = [{ ...el, [k]: null }]
+    no(r, `a null ${k} must be rejected even with a degraded entry`)
+  }
+  { const r = clone(); r.decisions = [{ ...el, layer: "correction", trigger: "blocked_twice" }]; ok(r, "a correction carries its trigger token") }
+  { const r = clone(); r.decisions = [{ ...el, layer: "correction", trigger: "src/secret.js" }]; no(r, "a trigger outside correction_trigger must be rejected") }
+  { const r = clone(); r.settlements = [{ decision_id: "0123456789abcdef", verdict: "held", verdict_rubric: 1 }]; ok(r, "a settlement of an earlier decision must validate") }
+  { const r = clone(); r.settlements = [{ decision_id: "0123456789abcdef", verdict: "held" }]; no(r, "a settlement without its rubric must be rejected") }
+  { const r = clone(); r.settlements = [{ decision_id: "STORY-2-8", verdict: "held", verdict_rubric: 1 }]; no(r, "a settlement keyed by a story ID must be rejected") }
   { const r = clone(); r.decisions = [{ ...el, overridden: true, fallback: true }]; ok(r, "boolean overridden/fallback must validate") }
   { const r = clone(); r.decisions = []; ok(r, "an empty decisions array must validate") }
 
@@ -1027,5 +1038,25 @@ got=$(q "$(OUT "$P")" 'r.outcome_events.length+" "+JSON.stringify(Object.keys(r.
   && ok "only this run's events; only whitelisted measures reach the report (no subject, no free text)" || bad "outcome_events: $got"
 got=$(q "$(OUT "$P")" 'r.decisions.filter(d=>d.verdict).map(d=>d.verdict+"@"+d.verdict_rubric).join(",")')
 [ "$got" = "earned@1" ] && ok "a closed decision reports its verdict and rubric stamp" || bad "verdict projection: $got"
+
+echo "settlements, correction triggers, unreadable store"
+node --input-type=module -e "
+  import { readAllDecisions, closeDecision, recordCorrection } from '$ROOT/plugins/agentic-sdlc/scripts/decisions.mjs'
+  const earlier = readAllDecisions({ cwd: '$P' }).find((d) => d.run_id !== '$RUN_ID')
+  closeDecision(earlier.decision_id, { verdict: 'held', rubric: 1, at: '2026-02-02T00:00:00Z', run_id: '$RUN_ID' }, { cwd: '$P' })
+  recordCorrection({ run_id: '$RUN_ID', subject: 'STORY-B', seq: 1, trigger: 'navigator_no_rejections', from: 'PAIR', to: 'SOLO' }, { cwd: '$P' })
+"
+report --project "$P" >/dev/null
+node "$R" validate "$(OUT "$P")" >/dev/null 2>&1 && ok "report with settlements and a correction validates" || bad "report with settlements is invalid"
+got=$(q "$(OUT "$P")" 'r.settlements.map(s=>s.verdict+"@"+s.verdict_rubric).join(",")')
+[ "$got" = "held@1" ] && ok "a verdict this run settled on an earlier run's decision reaches this run's report" || bad "settlements: $got"
+got=$(q "$(OUT "$P")" 'r.decisions.filter(d=>d.layer==="correction").map(d=>d.trigger).join(",")')
+[ "$got" = "navigator_no_rejections" ] && ok "a correction reports the trigger that fired it" || bad "correction trigger: $got"
+echo '{ not json' > "$P/.git/agentic-sdlc/decisions/ffffffffffffffff.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'r.degraded.includes("decision_store")+" "+("decisions" in r)')
+[ "$got" = "true false" ] && ok "an unreadable store is named in degraded, not reported as a run with no decisions" || bad "unreadable store: $got"
+node "$R" validate "$(OUT "$P")" >/dev/null 2>&1 && ok "report with a degraded store validates" || bad "degraded-store report is invalid"
+rm "$P/.git/agentic-sdlc/decisions/ffffffffffffffff.json"
 
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }

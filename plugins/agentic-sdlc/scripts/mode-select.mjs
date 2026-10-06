@@ -382,11 +382,18 @@ function observeFile(cwd, run_id, id) {
 }
 
 // A declared entry covers itself, or everything under it when it ends in `/`.
+// Uncommitted work counts: the check runs before LAND, while the story's last
+// edits may still be staged, unstaged or untracked in its worktree.
 function outsideDeclared(cwd, base, declared) {
-  const changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { cwd, encoding: 'utf8' })
-    .split('\n')
-    .filter(Boolean)
-  return changed.filter((f) => !declared.some((d) => (d.endsWith('/') ? f.startsWith(d) : f === d)))
+  const names = (...args) =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' }).split('\n').filter(Boolean)
+  const changed = new Set([
+    ...names('diff', '--name-only', `${base}...HEAD`),
+    ...names('diff', '--name-only', '--cached'),
+    ...names('diff', '--name-only'),
+    ...names('ls-files', '--others', '--exclude-standard'),
+  ])
+  return [...changed].filter((f) => !declared.some((d) => (d.endsWith('/') ? f.startsWith(d) : f === d)))
 }
 
 // Reports an escalation once, at the crossing: later calls on an already-escalated
@@ -567,28 +574,30 @@ export function evaluateDecision(record, all, now, rubricData = RUBRIC) {
   }
 
   const f = outcomeFacts(record.outcome_events)
-  if (f.abandoned) return { action: 'orphan', reason: 'pr_deleted' }
   const anchor = f.merged_at ?? Date.parse(record.created_at)
+  // The window comes first: an abandoned PR can still be replaced by one that
+  // merges, and a settled record would refuse that merge event.
   if (now < anchor + rubricData.outcome_window_days * DAY_MS) return { action: 'open' }
   if (record.outcome_events.length === 0) return { action: 'orphan', reason: 'subject_missing' }
-  if (f.merged_at === null) return { action: 'orphan', reason: 'other' }
+  if (f.merged_at === null) return { action: 'orphan', reason: f.abandoned ? 'pr_deleted' : 'other' }
 
   const right = choiceWasRight(choice, f, rubricData.verdict)
   if (record.layer === 'override') return { action: 'close', verdict: right ? 'better' : 'worse' }
   return { action: 'close', verdict: right ? RIGHT[choice] : WRONG[choice] }
 }
 
-function verdicts(flags) {
+export function verdicts(flags) {
   const cwd = resolve(flags.cwd ?? process.cwd())
   const now = flags.now === undefined ? Date.now() : Date.parse(flags.now)
   if (!Number.isFinite(now)) throw new Error('mode-select.mjs: --now must be an ISO timestamp')
   const at = new Date(now).toISOString()
+  const run_id = resolveRunIdFrom(flags, cwd)
   const all = readAllDecisions({ cwd })
   const out = { closed: [], orphaned: [], open: 0 }
   for (const record of all) {
     const r = evaluateDecision(record, all, now)
     if (r.action === 'close') {
-      closeDecision(record.decision_id, { verdict: r.verdict, rubric: RUBRIC.version, at }, { cwd })
+      closeDecision(record.decision_id, { verdict: r.verdict, rubric: RUBRIC.version, at, run_id }, { cwd })
       out.closed.push({ decision_id: record.decision_id, verdict: r.verdict })
     } else if (r.action === 'orphan') {
       orphanDecision(record.decision_id, { reason: r.reason, at }, { cwd })
@@ -607,7 +616,7 @@ function runCli(argv) {
 
   if (command === 'story' && flags.line !== undefined) {
     const result = decideStory(parse(flags.line))
-    return { ...result, ...recordChoice(result.mode, flags.chosen, CLOSED.mode) }
+    return { ...result, ...recordChoice(result.mode, flags.chosen, DISPATCH_MODES) }
   }
   if (command === 'story' && flags.file !== undefined && flags.id !== undefined) {
     const recording = flags.record === true
@@ -684,7 +693,7 @@ function runCli(argv) {
       'observe --id <story> [--block] [--gate-fail <AC>] [--declared <f,..> --base <branch>] [--run-id <uuid>] | ' +
       'lane-check --deferred-one-way <n> --redispatch-rounds <n> | ' +
       'correct --file <backlog> --id <story|lane> --from <mode> --to <mode> --trigger <token> [--run-id <uuid>] | ' +
-      'verdicts [--cwd <dir>] [--now <iso>]',
+      'verdicts [--cwd <dir>] [--now <iso>] [--run-id <uuid>]',
   )
 }
 

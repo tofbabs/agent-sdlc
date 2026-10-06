@@ -83,16 +83,23 @@ this record's.
 
 ### Fit with ADR-0001 (the amendment)
 
-Schema 1 gains two **optional, always-omittable** top-level sections, no bump,
-lockstep with 02's edge validator per ADR-0001's versioning policy:
+Schema 1 gains three **optional, always-omittable** top-level sections, no bump,
+lockstep with 02's edge validator per ADR-0001's versioning policy. An absent
+value is an omitted key, never a null:
 
-- `decisions`: array of `{ decision_id, layer, rubric (number|null),
-  floor (token|null), score (number|null), choice (mode|lane token),
-  alternative (mode|lane token|null), overridden (bool), fallback (bool) }` —
-  decisions this run made.
+- `decisions`: array of `{ decision_id, layer, rubric?, floor?, score?,
+  choice (mode|lane token), alternative?, overridden (bool), fallback (bool),
+  verdict?, verdict_rubric?, trigger? (correction_trigger, corrections only) }`
+  — decisions this run made.
 - `outcome_events`: array of `{ decision_id, event (outcome_event token),
   ...numeric measures }` — events this run appended, including to decisions
   from earlier runs' reports.
+- `settlements`: array of `{ decision_id, verdict, verdict_rubric }` — verdicts
+  this run's verdict pass settled, including on earlier runs' decisions, whose
+  reports are already written.
+
+A decision store that exists but cannot be read is named in `degraded`
+(`decision_store`), never reported as a run with no decisions.
 
 This amends exactly one sentence of ADR-0001: "exactly three pattern-bounded
 string fields exist in the whole schema" becomes "every pattern-bounded string

@@ -1,7 +1,7 @@
 ---
 description: Review an open PR — the code-reviewer reads it in its own worktree and posts one "Review — round <k>" comment with findings F1..Fn, then the GitHub verdict. Never edits, never merges. Closing its findings is /build's REVISE loop. --fable escalates the model for a security-critical or contract-changing PR.
 argument-hint: <PR-number> [--fable]
-allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
+allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*), Bash(node:*)
 ---
 
 Target: `$ARGUMENTS` minus the flag — strip `--fable` if present; what remains
@@ -88,9 +88,7 @@ Always, whether the reviewer succeeded or blocked:
 git worktree remove ../wt-review-<n>
 ```
 
-Note the removal in your report in one line — this is the first command in
-this repo's pipeline that removes a worktree rather than merging it or
-leaving it for a human, so say so rather than diverging silently.
+Note the removal in your report in one line.
 
 ---
 
@@ -99,7 +97,7 @@ leaving it for a human, so say so rather than diverging silently.
 | PR | Round | Verdict | Reviewed sha | Findings | Escalate |
 |----|-------|---------|--------------|----------|----------|
 
-Then the next step:
+Record a review event per story ID (`reference/outcomes.md`), then the next step:
 
 - `REQUEST_CHANGES` → `/agentic-sdlc:build` REVISE on PR `<n>`.
 - `APPROVE` → "Ready for human merge — the human owns the merge."

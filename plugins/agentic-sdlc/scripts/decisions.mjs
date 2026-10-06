@@ -67,6 +67,16 @@ export function writeDecision(fields, { cwd = process.cwd() } = {}) {
   return record
 }
 
+// False when there is nothing to read — not a git checkout, or no decision
+// written yet — so a reader can tell an absent store from a broken one.
+export function decisionStoreExists({ cwd = process.cwd() } = {}) {
+  try {
+    return existsSync(storeDir(cwd))
+  } catch {
+    return false
+  }
+}
+
 function readFile(file) {
   return JSON.parse(readFileSync(file, 'utf8'))
 }
@@ -106,9 +116,21 @@ export function appendEvent(decision_id, event, { cwd = process.cwd() } = {}) {
   return { appended: true, record: writeRecord(record, cwd) }
 }
 
-export function closeDecision(decision_id, { verdict, rubric, at }, { cwd = process.cwd() } = {}) {
+// settled_run_id names the run whose verdict pass closed it: often a later run
+// than the one that decided, and the only report the verdict can still reach.
+export function closeDecision(decision_id, { verdict, rubric, at, run_id }, { cwd = process.cwd() } = {}) {
   const record = readOne(decision_id, cwd)
-  return writeRecord({ ...record, state: 'closed', verdict, verdict_rubric: rubric, closed_at: at }, cwd)
+  return writeRecord(
+    {
+      ...record,
+      state: 'closed',
+      verdict,
+      verdict_rubric: rubric,
+      closed_at: at,
+      ...(run_id != null && { settled_run_id: run_id }),
+    },
+    cwd,
+  )
 }
 
 export function orphanDecision(decision_id, { reason, at }, { cwd = process.cwd() } = {}) {

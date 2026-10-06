@@ -34,10 +34,12 @@ only the field-by-field judgment call of what value to write.
 - **review_bounced** — `yes` only when this exact story/task already came
   back from code review once (a REVISE round). Always `no` for a story's
   first pass.
-- **risk_kind** — when `risk_class` is not `none`, whether the risk lives in
-  *code* (logic, control flow) or *data* (sourcing, seeding, migration).
-  Irrelevant but still required when `risk_class` is `none` — write
-  `code` and cite the same evidence as `risk_class`.
+- **risk_kind** — whether the risk lives in *code* (logic, control flow) or
+  *data* (sourcing, seeding, migration content), independent of `risk_class`.
+  `none` with `data` is the non-destructive data story — sourcing or seeding
+  that touches no floor — and is the only combination that routes a SOLO
+  coder onto Opus; every other `risk_class` already forces PAIR. Write `code`
+  when the work is logic.
 
 ## Evidence
 

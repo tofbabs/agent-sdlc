@@ -143,8 +143,11 @@ echo "- REDO: x" | node "$PL" append STORY-E --role navigator --rejected 2>/dev/
 for i in 2 3 4 5 6; do echo "- n$i" | node "$PL" append STORY-E --role navigator 2>/dev/null; done
 node "$PL" status STORY-E | grep -q 'rejections=1 deescalate=no' \
   && ok "one recorded rejection keeps the pair" || bad "rejection ignored: $(node "$PL" status STORY-E)"
+before=$(cat backlog/pair/STORY-E/turns.md)
 echo "- x" | node "$PL" append STORY-E --role driver --rejected >/dev/null 2>&1
 [ $? -eq 2 ] && ok "driver cannot record a rejection" || bad "driver --rejected accepted"
+[ "$(cat backlog/pair/STORY-E/turns.md)" = "$before" ] \
+  && ok "a refused append leaves the turn log unchanged" || bad "refused driver --rejected still wrote a turn"
 grep -q '"rejections": 1' .git/agentic-sdlc/pair/STORY-E/session.json \
   && ok "rejections are mirrored to the common-dir session" || bad "rejections not mirrored"
 

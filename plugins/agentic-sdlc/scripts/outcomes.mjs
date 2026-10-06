@@ -4,7 +4,8 @@
 // and review runs call `event`; the run start calls `sweep` for what only GitHub
 // knows (merge, post-merge fix, revert); `account` is the check that every
 // decision is closed, still inside its window, or orphaned with a reason.
-// Verdicts themselves are `mode-select.mjs verdicts`, next to the scoring rules.
+// Verdicts themselves are `mode-select.mjs verdicts`, next to the scoring rules;
+// `settle` is the run-start pair of the two.
 //
 // Telemetry never fails a build: every error path here exits 0 with a reason.
 //
@@ -16,7 +17,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { OUTCOME_MEASURES, CLOSED } from './run-report-categories.mjs'
 import { readAllDecisions, appendEvent } from './decisions.mjs'
-import { evaluateDecision, resolveRunIdFrom } from './mode-select.mjs'
+import { evaluateDecision, resolveRunIdFrom, verdicts } from './mode-select.mjs'
 
 const GH_TIMEOUT_MS = 15000
 const DAY_MS = 86_400_000
@@ -155,9 +156,12 @@ function sweep(flags) {
   ])
   if (prs === null) return { swept: false, reason: 'gh_unavailable' }
 
+  // Stamped on every event, as `event` does: the report exports only the
+  // events its own run appended, so an unstamped sweep event reaches no report.
+  const run_id = resolveRunIdFrom(flags, cwd)
   const appended = []
   const add = (record, ev) => {
-    const r = appendEvent(record.decision_id, ev, { cwd })
+    const r = appendEvent(record.decision_id, { ...ev, ...(run_id !== null && { run_id }) }, { cwd })
     if (r.appended) appended.push({ decision_id: record.decision_id, event: ev.event })
     return r.record
   }
@@ -166,7 +170,13 @@ function sweep(flags) {
   const prTags = (pr) => tagsOf(pr.title, pr.body)
   for (const target of targets) {
     const refs = refsFor(target)
-    const mine = prs.filter((pr) => overlaps(prTags(pr), refs))
+    // A PR that merged or closed before this decision existed delivered an
+    // earlier run's attempt at the same story; joining it would anchor the
+    // window on a date that predates the decision.
+    const decidedAt = Date.parse(target.created_at)
+    const mine = prs.filter(
+      (pr) => overlaps(prTags(pr), refs) && !(Date.parse(pr.mergedAt ?? pr.closedAt) < decidedAt),
+    )
     // The PR that delivered the work is not a fix to it: a fix PR naming the
     // story is a candidate only when nothing else does. Then a PR naming the
     // story itself outranks one naming only its epic.
@@ -191,8 +201,10 @@ function sweep(flags) {
   if (anchors.size === 0) return { swept: true, appended }
 
   const earliest = Math.min(...[...anchors.values()].map((a) => a.at))
-  const commits =
-    gh(cwd, ['api', `repos/{owner}/{repo}/commits?since=${new Date(earliest).toISOString()}&per_page=100`]) ?? []
+  // A failed read is not an empty one: a verdict settled without the direct
+  // fixes and reverts would be final, since a closed record takes no events.
+  const commits = gh(cwd, ['api', `repos/{owner}/{repo}/commits?since=${new Date(earliest).toISOString()}&per_page=100`])
+  if (commits === null) return { swept: false, reason: 'gh_unavailable', appended }
   const prMergeShas = new Set(prs.map((pr) => pr.mergeCommit?.oid).filter(Boolean))
 
   const candidates = [
@@ -255,6 +267,22 @@ function runCli(argv) {
       return { swept: false, reason: 'sweep_failed' }
     }
   }
+  // Verdicts wait for a successful sweep: a record closed without the
+  // fixes and reverts the sweep would have found can never take them later.
+  if (command === 'settle') {
+    let swept
+    try {
+      swept = sweep(flags)
+    } catch {
+      swept = { swept: false, reason: 'sweep_failed' }
+    }
+    if (!swept.swept) return { ...swept, settled: false }
+    try {
+      return { ...swept, settled: true, verdicts: verdicts(flags) }
+    } catch {
+      return { ...swept, settled: false, reason: 'store_unavailable' }
+    }
+  }
   if (command === 'account') {
     const result = account(flags)
     if (result.unaccounted.length > 0) process.exitCode = 1
@@ -262,7 +290,7 @@ function runCli(argv) {
   }
   throw new Error(
     'usage: outcomes.mjs event --subject <ID> --event <token> [--from-session] [--tokens N --wall-s N --alternations N --rejections N --gate-failures N --blocks N --findings N --revise-rounds N] [--run-id <uuid>] [--ref <key>] [--now <iso>] | ' +
-      'sweep [--cwd <dir>] [--now <iso>] | account [--cwd <dir>] [--now <iso>]',
+      'sweep [--cwd <dir>] [--now <iso>] [--run-id <uuid>] | settle [--cwd <dir>] [--now <iso>] [--run-id <uuid>] | account [--cwd <dir>] [--now <iso>]',
   )
 }
 

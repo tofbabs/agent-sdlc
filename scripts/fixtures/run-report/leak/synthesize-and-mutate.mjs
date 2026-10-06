@@ -147,7 +147,7 @@ if (baseViolations.length) {
 const leaves = []
 collectLeaves(REPORT_SCHEMA, [], '$', leaves)
 const patternPaths = leaves.filter((l) => l.spec.type === 'pattern').map((l) => l.label).sort()
-const wantPatternPaths = ['$.decisions[0].decision_id', '$.outcome_events[0].decision_id', '$.run.ended_at', '$.run.plugin_version', '$.run.run_id'].sort()
+const wantPatternPaths = ['$.decisions[0].decision_id', '$.outcome_events[0].decision_id', '$.settlements[0].decision_id', '$.run.ended_at', '$.run.plugin_version', '$.run.run_id'].sort()
 if (JSON.stringify(patternPaths) !== JSON.stringify(wantPatternPaths)) {
   fails.push(`pattern leaves are ${JSON.stringify(patternPaths)}, want exactly ${JSON.stringify(wantPatternPaths)} (ADR 0002)`)
 }

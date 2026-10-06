@@ -93,7 +93,7 @@ import { join, dirname, resolve, isAbsolute, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { readAllDecisions, readDecisions } from './decisions.mjs'
+import { readAllDecisions, decisionStoreExists } from './decisions.mjs'
 import { CLOSED, OPEN, DEGRADED_INPUT, OUTCOME_MEASURES, PATTERNS, isMember, toCategory } from './run-report-categories.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -137,8 +137,9 @@ const deepFreeze = (o) => {
 // numbers only: the subject that feeds decision_id never reaches the report.
 // rubric/floor/score/alternative are omittable: a floor decision has no score and
 // most have no alternative, and an explicit null would demand a degraded entry
-// for a gap that is not one.
-const omittable = (spec) => ({ ...spec, optional: true })
+// for a gap that is not one. Absent means omitted, so a present null is rejected
+// outright rather than excused by some unrelated degraded entry.
+const omittable = (spec) => ({ ...spec, optional: true, nullable: false })
 
 const decisionElement = () =>
   T.object({
@@ -155,6 +156,17 @@ const decisionElement = () =>
     // one has no verdict, and a null would demand a degraded entry.
     verdict: omittable(T.enum('decision_verdict')),
     verdict_rubric: omittable(T.number({ int: true, min: 1 })),
+    // Corrections only: what fired them, so exported corrections stay comparable.
+    trigger: omittable(T.enum('correction_trigger')),
+  })
+
+// A verdict this run settled, possibly on an earlier run's decision: that run's
+// report is already written, so the settling run is the only place it can surface.
+const settlementElement = () =>
+  T.object({
+    decision_id: required(T.pattern('decision_id')),
+    verdict: required(T.enum('decision_verdict')),
+    verdict_rubric: required(T.number({ int: true, min: 1 })),
   })
 
 // An event this run appended to a decision, possibly an earlier run's. The
@@ -231,6 +243,7 @@ export const REPORT_SCHEMA = deepFreeze(
       // entirely, and a null would be an unnamed gap the degraded rule rejects.
       decisions: { ...T.array(required(decisionElement())), optional: true, nullable: false },
       outcome_events: { ...T.array(required(outcomeEventElement())), optional: true, nullable: false },
+      settlements: { ...T.array(required(settlementElement())), optional: true, nullable: false },
     }),
   ),
 )
@@ -1125,39 +1138,38 @@ export const SECTION_BUILDERS = Object.freeze({
 // reads as SOLO here. Null fields are omitted: a null is an unnamed gap.
 const reportChoice = (token) => (token === 'SOLO_OPUS' ? 'SOLO' : token)
 
-function buildDecisions(ctx) {
-  const run_id = ctx.marker?.run_id
-  if (!run_id) return []
-  let records
+// One read serves all three decision sections. No store (not a git checkout,
+// or no decision ever written) is no decisions; a store that exists but cannot
+// be read is a gap, named in degraded, never passed off as an empty run.
+function readStore(ctx) {
+  if (!ctx.marker?.run_id || !decisionStoreExists({ cwd: ctx.project })) return { records: [], degraded: [] }
   try {
-    records = readDecisions(run_id, { cwd: ctx.project })
+    return { records: readAllDecisions({ cwd: ctx.project }), degraded: [] }
   } catch {
-    // Not a git checkout, or an unreadable store: the report is still valid without it.
-    return []
+    return { records: [], degraded: ['decision_store'] }
   }
-  return records.map((r) => ({
-    decision_id: r.decision_id,
-    layer: r.layer,
-    ...(r.rubric != null && { rubric: r.rubric }),
-    ...(isMember('decision_floor', r.floor) && { floor: r.floor }),
-    ...(r.score != null && { score: r.score }),
-    choice: reportChoice(r.choice),
-    ...(r.alternative != null && { alternative: reportChoice(r.alternative) }),
-    overridden: r.overridden,
-    fallback: r.fallback,
-    ...(isMember('decision_verdict', r.verdict) && { verdict: r.verdict, verdict_rubric: r.verdict_rubric }),
-  }))
 }
 
-function buildOutcomeEvents(ctx) {
-  const run_id = ctx.marker?.run_id
-  if (!run_id) return []
-  let records
-  try {
-    records = readAllDecisions({ cwd: ctx.project })
-  } catch {
-    return []
-  }
+function buildDecisions(records, run_id) {
+  return records
+    .filter((r) => r.run_id === run_id)
+    .map((r) => ({
+      decision_id: r.decision_id,
+      layer: r.layer,
+      ...(r.rubric != null && { rubric: r.rubric }),
+      ...(isMember('decision_floor', r.floor) && { floor: r.floor }),
+      ...(r.score != null && { score: r.score }),
+      choice: reportChoice(r.choice),
+      ...(r.alternative != null && { alternative: reportChoice(r.alternative) }),
+      overridden: r.overridden,
+      fallback: r.fallback,
+      ...(isMember('decision_verdict', r.verdict) && { verdict: r.verdict, verdict_rubric: r.verdict_rubric }),
+      ...(r.layer === 'correction' &&
+        isMember('correction_trigger', r.inputs?.trigger) && { trigger: r.inputs.trigger }),
+    }))
+}
+
+function buildOutcomeEvents(records, run_id) {
   return records.flatMap((r) =>
     r.outcome_events
       .filter((e) => e.run_id === run_id && isMember('outcome_event', e.event))
@@ -1169,6 +1181,12 @@ function buildOutcomeEvents(ctx) {
   )
 }
 
+function buildSettlements(records, run_id) {
+  return records
+    .filter((r) => r.settled_run_id === run_id && r.state === 'closed' && isMember('decision_verdict', r.verdict))
+    .map((r) => ({ decision_id: r.decision_id, verdict: r.verdict, verdict_rubric: r.verdict_rubric }))
+}
+
 export function buildReport(ctx) {
   const report = { schema: 1 }
   const named = new Set()
@@ -1177,12 +1195,17 @@ export function buildReport(ctx) {
     report[key] = section
     for (const d of degraded) named.add(d)
   }
+  const store = readStore(ctx)
+  for (const d of store.degraded) named.add(d)
   // Vocabulary order, so two builds of the same artifacts are byte-identical.
   report.degraded = DEGRADED_INPUT.filter((d) => named.has(d))
-  const decisions = buildDecisions(ctx)
+  const run_id = ctx.marker?.run_id
+  const decisions = buildDecisions(store.records, run_id)
   if (decisions.length > 0) report.decisions = decisions
-  const outcomeEvents = buildOutcomeEvents(ctx)
+  const outcomeEvents = buildOutcomeEvents(store.records, run_id)
   if (outcomeEvents.length > 0) report.outcome_events = outcomeEvents
+  const settlements = buildSettlements(store.records, run_id)
+  if (settlements.length > 0) report.settlements = settlements
   return report
 }
 

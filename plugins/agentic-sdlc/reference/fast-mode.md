@@ -192,6 +192,9 @@ ledger against the fast floor instead of the deliberate one. Without it, every
 skipped unit test comes back as a review finding and the mode costs more than
 the lane it replaced.
 
+Record the lane's build outcome: `outcomes.mjs event --subject lane --event build`
+(`reference/outcomes.md`).
+
 Then stop. **The human still owns the merge** — nothing here merges its own PR.
 
 Before the report, run `mode-select.mjs lane-check --deferred-one-way <n>
