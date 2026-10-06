@@ -154,6 +154,20 @@ else
   note "node not found — skipping plan-artifacts tests"
 fi
 
+# 6c. mode-select-fields.mjs is the single source of truth for selection-field
+#     enums and evidence rules; mode-select.mjs (STORY-2-3+) and the planner
+#     both read it instead of hardcoding a value a second time. Same node
+#     guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/mode-select-fields.test.sh" >/dev/null 2>&1; then
+    ok "mode-select-fields invariants hold"
+  else
+    bad "mode-select-fields tests failed — run scripts/mode-select-fields.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping mode-select-fields tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.
