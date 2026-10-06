@@ -52,7 +52,7 @@ gets written down.
 
 ### 4. Reviewed — the code-reviewer gate
 The highest rung overall, and it sits *on top of* any of the three above. The
-**code-reviewer** (Opus 4.8) reads the PR head in a throwaway worktree and posts
+**code-reviewer** (Opus) reads the PR head in a throwaway worktree and posts
 one round comment with stable, ID'd findings; the coder's **REVISE** mode rules
 on each finding by ID and closes the loop. A `Mode: FAST` PR is judged against the
 *fast floor* — a missing unit test is the mode working, not a defect — but a
@@ -80,7 +80,7 @@ needed.
 | Decisions | `ARCH-<n>` handoff, coder blocks and waits | coder decides and logs; five one-way doors are tagged and batched, never blocking |
 | Tests | the story's criteria; PAIR stories are strict ping-pong TDD | the `done when`, plus the **negative** case on each risk surface touched — auth, money, destructive data paths, external contracts — nothing else |
 | Branching | epic branch, story worktrees off the epic tip, one squash commit per story | one branch, sequential, gate once |
-| Agents | planner, architect (Opus 4.8), coder, driver, navigator (Sonnet 5), code-reviewer (Opus 4.8) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
+| Agents | planner, architect (Opus), coder, driver, navigator (Sonnet 5), code-reviewer (Opus) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
 | Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
 | Debt ledger | required | required |
 

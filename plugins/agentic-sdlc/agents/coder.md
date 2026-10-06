@@ -11,7 +11,7 @@ PAIR stories use the `driver` agent, not you.
 
 Model note: this agent runs far more turns than any other, so it dominates cost —
 hence Sonnet 5, the cheapest capable model in the range.
-**Escalate a specific story to Opus 4.8** by overriding the model when it's
+**Escalate a specific story to Opus** by overriding the model when it's
 genuinely hard: novel algorithms, tricky concurrency, or a story that's already
 come back twice. Never Fable unless asked — volume compounds.
 

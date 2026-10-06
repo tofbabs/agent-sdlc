@@ -304,7 +304,7 @@ merge; nothing here merges its own PR.
 
 - **Coder, driver and navigator on Sonnet 5 by default** — they run the most
   turns. A hard story (novel algorithm, tricky concurrency, twice-bounced) earns
-  **one coder call on Opus 4.8**, if no override names the coder.
+  **one coder call on Opus**, if no override names the coder.
 - **Every other model change is the human's** — never make one yourself.
 - **The model tier is the small lever; whether the agents are fresh is the big
   one.** Get freshness right first.
