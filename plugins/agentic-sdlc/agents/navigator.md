@@ -42,7 +42,7 @@ Write through the same script:
 pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
 ```
 
-`append` truncates at 10 lines and strips code fences, warning on stderr.
+`append` truncates at 10 lines and strips code fences.
 
 ---
 
@@ -59,7 +59,8 @@ pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
      inconsistently; a moved or restyled element whose CSS selector no longer
      matches it; a query the code makes that no test needed.
    - Verdict: `OK` or `REDO: <specific reason>`. **REDO means the driver redoes
-     that increment before anything new** — write no new test this turn.
+     that increment before anything new** — write no new test this turn, and
+     append with `--rejected` (the only record of a rejection).
 
 3. **WRITE THE FAILING TESTS FOR THE NEXT BEHAVIOUR** (last was OK, ACs remain):
    - **One behaviour per round, not one function.** Small helpers that serve one
@@ -94,8 +95,8 @@ pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
    - Run the **full gate** `CLAUDE.md` lists (typecheck, lint, test, build — run
      it, don't recall it). **Red → not complete**: route the failure into STATE
      as `REDO: <gate failure>` for the driver and end the turn normally.
-   - Green → commit the pair log (`chore(<scope>): pair log [<STORY-ID>]`), then
-     `pair-log.mjs session <STORY-ID> --set complete`.
+   - Green → `pair-log.mjs session <STORY-ID> --set complete`. Never commit
+     the log: local scaffolding, it dies with the worktree.
    - Report the story's one-line **title** and every release-please **scope** the
      branch touched (`git diff --stat <base-or-epic>...HEAD`) — the orchestrator
      writes the landing message from them. Never push, never open a PR.
@@ -108,8 +109,7 @@ pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
 - steer: <one line — intent, trap ahead, refactor to fold into green>
 ```
 
-That template is the budget. Plans and foreseen reds go in STATE, written once and
-overwritten; code goes on the branch. Never write the verdict as prose — the
+That template is the budget. Plans go in STATE; code goes on the branch. Never write the verdict as prose — the
 orchestrator reads the session field.
 
 Use **LSP**, not `Grep`, to review the increment or size the next test — a REDO on

@@ -4,10 +4,10 @@ argument-hint: <path-to-brief.md-or-epic-description> [--fast] [--model <agent>=
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(cat:*)
 ---
 
-Input: `$ARGUMENTS` minus `--fast` and `--model <agent>=<m>`.
-**Models:** `--model` or an `**Agent models:**` line in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
+Input: `$ARGUMENTS` minus flags.
+**Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
-Build a backlog. **Delegate — you write no stories yourself.**
+Build a backlog. **Delegate — you write no stories.**
 
 ---
 
@@ -35,7 +35,7 @@ acceptance criteria. Raise ARCH-<n> handoffs for genuine architecture or tooling
 decisions — do NOT decide those yourself. Overwrite <claimed path>.")
 ```
 
-Run in parallel across epics if the brief covers several — Sonnet 5, so go wide.
+Several epics in the brief → run them in parallel.
 
 ---
 
@@ -52,13 +52,15 @@ resolve inline in the epic file. Shortcuts go under ## Debt in the epic file.")
 
 Batch these — one architect invocation handles several related handoffs.
 
-**The architect decides** — no options paper for you to adjudicate.
+**The architect decides** — no options paper to adjudicate.
 
 ---
 
 ## STEP 3 — Review (non-blocking)
 
-Add the `- Artifacts:` line (new ADRs, uncommitted brief). Present:
+Add the `- Artifacts:` line (new ADRs, uncommitted brief). Record the lane:
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen deliberate`.
+Present:
 - Epics and story count
 - Architecture decisions made, and the reasoning
 - Any ADR written

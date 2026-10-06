@@ -15,8 +15,9 @@
 // Resumable: the next role comes from `pair-log.mjs status`, so re-running after a
 // crash or a usage limit continues where the story stopped.
 //
-// Exit codes: 0 complete · 10 blocked on an ARCH · 4 alternation cap · 5 a turn
-// failed (stderr says which; re-run to resume) · 2 usage.
+// Exit codes: 0 complete · 10 blocked on an ARCH · 6 de-escalate (the navigator
+// rejected nothing across N alternations; /build hands the story to SOLO) · 4
+// alternation cap · 5 a turn failed (stderr says which; re-run to resume) · 2 usage.
 //
 // Zero dependencies, Node 22.
 
@@ -133,6 +134,7 @@ const finish = (code, s) => {
         story: storyId,
         session: s.session,
         arch: s.arch,
+        deescalate: s.deescalate === 'yes',
         alternation: s.alternation,
         agent_turns: totals.turns,
         cost_usd: Number(totals.cost_usd.toFixed(4)),
@@ -150,6 +152,7 @@ for (;;) {
   const s = status()
   if (s.session === 'complete') finish(0, s)
   if (s.session === 'blocked') finish(10, s)
+  if (s.deescalate === 'yes') finish(6, s)
   // A turn that exits cleanly but never appends leaves `next` unchanged; without
   // this the loop would re-spawn the same role forever at full price.
   if (ran && s.next === ran) die(5, `${ran} turn made no pair-log entry — inspect, then re-run to resume`)

@@ -1,11 +1,11 @@
 ---
 description: Review an open PR — the code-reviewer reads it in its own worktree and posts one "Review — round <k>" comment with findings F1..Fn, then the GitHub verdict. Never edits, never merges. Closing its findings is /build's REVISE loop. --fable escalates the model for a security-critical or contract-changing PR.
 argument-hint: <PR-number> [--fable] [--model <agent>=<m>]
-allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
+allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*), Bash(node:*)
 ---
 
-Target: `$ARGUMENTS` minus `--fable` and `--model <agent>=<m>`.
-**Models:** `--fable`, `--model` or an `**Agent models:**` line in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
+Target: `$ARGUMENTS` minus flags.
+**Models:** `--fable`, `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
 Delegate the judgment; do the bookkeeping yourself.
 
@@ -97,7 +97,7 @@ Note the removal in your report in one line.
 | PR | Round | Verdict | Reviewed sha | Findings | Escalate |
 |----|-------|---------|--------------|----------|----------|
 
-Then the next step:
+Record a review event per story ID (`reference/outcomes.md`), then the next step:
 
 - `REQUEST_CHANGES` → `/agentic-sdlc:build` REVISE on PR `<n>`.
 - `APPROVE` → "Ready for human merge — the human owns the merge."

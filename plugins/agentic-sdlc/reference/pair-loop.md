@@ -33,6 +33,8 @@ in the worktree; you make **one call per story**:
      0  complete → LAND (epic), or push + `gh pr create --base <base> --fill`
                    noting "pair-built" (hotfix).
      10 blocked  → architect resolves the ARCH → re-run the same command.
+     6  deescalate → the navigator rejected nothing in N alternations: PAIR→SOLO
+                   handoff (reference/runtime-correction.md); do not re-run.
      4  cap      → split the story; do not raise the cap.
      5  a turn failed or made no progress (usage limit, crash) → read stderr,
                    fix the cause, re-run: it resumes at the role that is owed.
@@ -139,9 +141,14 @@ and re-joins the cascade at **THE LOOP step 4 (LAND)** in `commands/build.md`,
 where the orchestrator squashes the whole branch into one commit on the epic
 branch.
 
-The pair log at `backlog/pair/<STORY-ID>/` is committed on the story branch like
-any other file the story produced, so it folds into that squash and lands with
-the story — exactly as it does today.
+The pair log at `backlog/pair/<STORY-ID>/` is **local scaffolding, never
+committed**: `backlog/pair/` is gitignored, nothing of it lands in the squash, and
+it dies with the story worktree. The one fact that must outlive it — that the
+story was paired, and how many alternations it took — survives because
+`pair-log.mjs` mirrors every `session.json` write to
+`<git common dir>/agentic-sdlc/pair/<STORY-ID>/session.json`, a machine-local
+store every worktree shares. `run-report.mjs` reads the mirror, falling back to
+the in-tree path for pair logs committed before this change.
 
 ### PAIR LOG SHAPE
 

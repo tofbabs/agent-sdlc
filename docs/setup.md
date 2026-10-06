@@ -91,6 +91,9 @@ cp templates/hooks/run-report.sh      <project>/.claude/hooks/   # optional; one
 # then merge templates/hooks/settings.hooks.json into <project>/.claude/settings.json
 # and add .agentic-sdlc/ to <project>/.gitignore — meter.sh, run-report.sh and the
 # marker they share all write under it, and none of it belongs in the repo
+# and add backlog/pair/ to <project>/.gitignore — a PAIR story's pair log is
+# scaffolding for its worktree; pair-log.mjs keeps the session record run-report
+# needs under <git common dir>/agentic-sdlc/, so nothing of it is committed
 ```
 
 > **Where `meter.sh` finds `meter.mjs`.** `${CLAUDE_PLUGIN_ROOT}` does not expand in
