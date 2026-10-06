@@ -35,4 +35,8 @@ fi
 rej=""
 [ "$role" = navigator ] && [ -n "${FAKE_REJECT:-}" ] && rej="--rejected"
 echo "- turn by $role" | node "$PL" append "$story" --role "$role" $rej >/dev/null
+if [ "$role" = driver ] && [ -n "${FAKE_DENIAL:-}" ]; then
+  echo '{"is_error":false,"result":"ok","total_cost_usd":0.25,"num_turns":3,"permission_denials":[{"tool_name":"Bash","tool_use_id":"tu_1","tool_input":{"command":"rm -rf /secret-payload"}}]}'
+  exit 0
+fi
 echo '{"is_error":false,"result":"ok","total_cost_usd":0.25,"num_turns":3}'

@@ -13,7 +13,7 @@
 
 | Gap | Risk | Why now | Effort |
 |-----|------|---------|--------|
-| | | | |
+| `templates/hooks/meter.sh:80` expands an empty `"${sub_arg[@]}"` under `set -u`; macOS `/bin/bash` 3.2 aborts with "unbound variable", so the hook silently records nothing on macOS and `scripts/meter.test.sh` fails 3 cases (pre-existing on `main`, found during EPIC-3). | MEDIUM | Production metering is dark on macOS; `preflight` is red locally | S — `${sub_arg[@]+"${sub_arg[@]}"}`, as its own `fix:` PR |
 
 > If this table exceeds 5 entries, the gap scan says so at the top of the file:
 > **recommend pausing feature work.**

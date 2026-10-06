@@ -106,13 +106,27 @@ const runTurn = (role) => {
   totals.turns += 1
   totals.cost_usd += cost
 
+  // tool_input (and tool_use_id) can carry the full denied command, body included —
+  // never write those to the meter file. Only the tool name and a count are safe.
+  const denials = Array.isArray(out?.permission_denials) ? out.permission_denials : []
+  const denied_tools = denials.map((d) => d?.tool_name).filter((name) => typeof name === 'string')
+
   // One line per turn, so a run's measured cost is on disk without anyone having
   // to read a transcript — the evidence later cost cuts are argued from.
   try {
     mkdirSync(meterDir, { recursive: true })
     appendFileSync(
       join(meterDir, `pair-run-${storyId}.jsonl`),
-      `${JSON.stringify({ story: storyId, role, cost_usd: cost, num_turns: out?.num_turns ?? null, ms: Date.now() - started, ok: r.status === 0 && !out?.is_error })}\n`,
+      `${JSON.stringify({
+        story: storyId,
+        role,
+        cost_usd: cost,
+        num_turns: out?.num_turns ?? null,
+        ms: Date.now() - started,
+        ok: r.status === 0 && !out?.is_error,
+        denied_count: denials.length,
+        denied_tools,
+      })}\n`,
     )
   } catch {
     // Metering is advisory; a read-only tree must not stop the story.

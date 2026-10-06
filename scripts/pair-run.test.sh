@@ -41,6 +41,19 @@ grep -q '"agent_turns": 5' <<<"$out" && grep -q '"cost_usd": 1.5' <<<"$out" \
 grep -q 'scopes: web' <<<"$out" && ok "navigator's closing report is relayed" || bad "closing report lost"
 [ "$(wc -l < .agentic-sdlc/meter/pair-run-STORY-R.jsonl)" -eq 5 ] \
   && ok "one meter line per turn" || bad "meter lines wrong"
+grep -c '"denied_count":0,"denied_tools":\[\]' .agentic-sdlc/meter/pair-run-STORY-R.jsonl | grep -q '^5$' \
+  && ok "a clean turn's meter line has an explicit zero count and empty tool list" \
+  || bad "clean-turn denial shape wrong: $(cat .agentic-sdlc/meter/pair-run-STORY-R.jsonl)"
+
+# 1b. A turn with a permission denial records the count and tool name, never the
+#     denied command text.
+fresh
+FAKE_DENIAL=1 run >/dev/null 2>&1
+line=$(grep '"role":"driver"' .agentic-sdlc/meter/pair-run-STORY-R.jsonl | head -1)
+grep -q '"denied_count":1,"denied_tools":\["Bash"\]' <<<"$line" \
+  && ok "a denied turn's meter line carries the count and tool name" || bad "denial shape wrong: $line"
+grep -q 'rm -rf' .agentic-sdlc/meter/pair-run-STORY-R.jsonl \
+  && bad "meter file leaked denied command text" || ok "no denied command text reaches the meter file"
 
 # 2. Blocked stops for the architect.
 fresh
