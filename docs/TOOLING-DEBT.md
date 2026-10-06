@@ -76,3 +76,32 @@ Never "soon", "when mature", or a calendar quarter.
 Do not inflate risk. Crying HIGH on everything is how a ledger gets ignored, and
 an ignored ledger is worse than none.
 -->
+
+### Gate runs and failures have no recorder
+- Raised: 2026-10-06 by architect (ARCH-1)
+- Current: schema 1 carries `build.gate_runs`/`build.gate_failures` as `null`
+  with `gate_history` in `degraded`; nothing records gate executions, and
+  wrapping the gate just for counting was judged not worth the build-path
+  change now
+- Risk: LOW
+- Category: observability
+- Address when: 03-signal-routine defines a signal that needs gate data
+
+### Per-story architect-block attribution is lost on unblock
+- Raised: 2026-10-06 by architect (ARCH-3)
+- Current: `pair-log.mjs` clears `session.json`'s `arch` field on resume, so
+  mid-build blocks are counted at build level from the run marker's
+  start-of-run handoff snapshot, not per story
+- Risk: LOW
+- Category: observability
+- Address when: an optimisation question actually needs to know WHICH story
+  a resolved block belonged to, not just how many blocks of which category
+
+### Wall clock across sessions is approximate
+- Raised: 2026-10-06 by architect (ARCH-4)
+- Current: `run.wall_clock_s` sums (session end − command start) per session
+  from the run marker, so idle time between the command finishing and the
+  session closing counts in
+- Risk: LOW
+- Category: robustness
+- Address when: a duration-based signal in 03 misleads because of idle tails
