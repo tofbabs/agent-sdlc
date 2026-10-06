@@ -31,11 +31,17 @@
     "SessionStart": [
       { "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/templates/hooks/lsp-preflight.sh" } ] }
     ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "RUN_REPORT_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/run-report.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/run-report.sh" } ] }
+    ],
     "SubagentStop": [
       { "hooks": [ { "type": "command", "command": "METER_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/meter.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/meter.sh" } ] }
     ],
     "Stop": [
       { "hooks": [ { "type": "command", "command": "METER_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/meter.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/meter.sh" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "RUN_REPORT_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/run-report.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/run-report.sh" } ] }
     ]
   }
 }

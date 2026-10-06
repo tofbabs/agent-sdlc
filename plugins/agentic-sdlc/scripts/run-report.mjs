@@ -42,8 +42,15 @@
 //                                          project or absolute; null if unknown
 //   }
 //
-// run.wall_clock_s = wall_clock_s_prior + (now − started_at). A missing, unreadable
-// or incomplete marker puts `run_state` in `degraded` and nulls what it fed.
+// run.wall_clock_s: for an OPEN session (session_open true or absent),
+// wall_clock_s_prior + (now − started_at) — and producing this report BANKS
+// that session, persisting the sum back as wall_clock_s_prior and closing
+// session_open to false in the marker, so a later rebuild of the same session
+// never adds (now − started_at) again. For a CLOSED session, wall_clock_s_prior
+// alone. The SessionEnd hook finalises a run by spawning this report command
+// detached, which is why the fold lives here rather than in a separate step. A
+// missing, unreadable or incomplete marker puts `run_state` in `degraded` and
+// nulls what it fed.
 //
 // BACKLOG FILE RESOLUTION, in order: --backlog; marker.backlog; an EPIC-<n> /
 // FAST-<n> ID in marker.target → backlog/<ID>.md; for a plan run, the backlog
@@ -69,13 +76,22 @@
 //     0 unless --out is given. Degraded inputs always exit 0; a report that fails
 //     its own schema is never written (exit 1, violations on stderr). --now pins
 //     the clock for tests.
+//   run-report.mjs mark --project <dir> --prompt-file <f> --session <id> [--now <ISO-8601>]
+//     The UserPromptSubmit hook's counterpart: the hook does a cheap prefix
+//     check in shell and hands the pipeline prompt to this subcommand, which
+//     owns the parsing (command / lane / target) and writes the run marker
+//     above. The prompt is read from --prompt-file, never argv or stdin — it
+//     can carry anything a user typed. A fresh run (no marker yet) gets a new
+//     uuid v4 run_id, sessions 1 and a zero prior clock; --now pins started_at
+//     for tests.
 //   run-report.mjs validate <file>
 //
 // Zero dependencies, Node 22 (the repo floor).
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs'
-import { join, dirname, resolve, isAbsolute } from 'node:path'
+import { join, dirname, resolve, isAbsolute, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { CLOSED, OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
 
@@ -302,6 +318,9 @@ function readMarker(project) {
     started_ms: Number.isFinite(startedMs) ? startedMs : null,
     sessions: Number.isInteger(raw.sessions) && raw.sessions >= 1 ? raw.sessions : null,
     wall_clock_s_prior: nonNegative(raw.wall_clock_s_prior) ? raw.wall_clock_s_prior : null,
+    // Absent (older markers, fresh single-session runs) reads as open: there is
+    // nothing yet to have closed.
+    session_open: raw.session_open === false ? false : true,
     arch_snapshot:
       Array.isArray(raw.arch_snapshot) && raw.arch_snapshot.every((id) => /^ARCH-\d+$/.test(id))
         ? new Set(raw.arch_snapshot)
@@ -496,10 +515,12 @@ export function buildRun(ctx) {
   degraded.push(...outcome.degraded)
 
   const nowMs = ctx.now.getTime()
-  const wall_clock_s =
-    m && m.wall_clock_s_prior !== null && m.started_ms !== null
-      ? Math.round(m.wall_clock_s_prior + Math.max(0, nowMs - m.started_ms) / 1000)
-      : null
+  const complete = m && m.wall_clock_s_prior !== null && m.started_ms !== null
+  const wall_clock_s = complete
+    ? m.session_open === false
+      ? m.wall_clock_s_prior
+      : Math.round(m.wall_clock_s_prior + Math.max(0, nowMs - m.started_ms) / 1000)
+    : null
 
   return {
     section: {
@@ -897,6 +918,124 @@ export function buildCost(ctx) {
   return { section: { schema: rec.schema, totals: rec.totals, derived: rec.derived }, degraded: [] }
 }
 
+// ------------------------------------------------------------------- mark
+
+// The prompt's first line names the slash command: "/agentic-sdlc:<command>
+// <raw arg>". Lane and target come out of the raw arg, never the command
+// name, so "--fast" anywhere in it flips the lane and is stripped from the
+// target left behind.
+const PROMPT_COMMAND = /^\/agentic-sdlc:(\w[\w-]*)\s*(.*)$/
+
+function parsePrompt(text) {
+  const line = text.trim().split('\n')[0] ?? ''
+  const m = PROMPT_COMMAND.exec(line)
+  if (!m) return null
+  const rest = m[2]
+  const fast = /--fast\b/.test(rest)
+  const target = rest.replace(/--fast\b/, '').trim().replace(/\s+/g, ' ')
+  return { command: m[1], lane: fast ? 'fast' : 'deliberate', target }
+}
+
+// Builds and writes the report for whatever run is CURRENTLY on disk — the
+// same path the `report` CLI command and the SessionEnd hook use — before
+// mark() overwrites the marker with a new run. Used only by supersession: a
+// different command/target means the old run's own SessionEnd never got the
+// chance to close it (the prompt moved on first), so mark is the only place
+// left to fold its clock and write its report. Silent no-op on anything that
+// would make `report` itself write nothing (no marker, invalid report) —
+// mark must never fail the prompt over a previous run's report.
+function finalizeRun(root, now) {
+  const ctx = loadContext({ project: root, now })
+  if (!ctx.marker) return
+  const report = buildReport(ctx)
+  if (validate(report).length || !report.run.run_id) return
+  banksSession(ctx, report.run.wall_clock_s)
+  const out = join(root, RUNS_DIR, `${report.run.run_id}.json`)
+  mkdirSync(dirname(out), { recursive: true })
+  writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`)
+}
+
+// Continuation (same command+target) and same-session re-prompts are handled
+// here per ARCH-4: mark never folds elapsed time — that is the SessionEnd
+// path's job (see the "mark section (continuation across sessions)" test
+// block for the rule this encodes). Supersession (a different command or
+// target) finalizes the old run first — see finalizeRun above.
+function mark({ project, promptFile, session, now }) {
+  const promptText = readFileSync(promptFile, 'utf8')
+  const parsed = parsePrompt(promptText)
+  if (!parsed || !isMember('command', parsed.command)) return null
+  const root = resolve(project)
+
+  const existing = readJson(join(root, MARKER))
+  if (isPlainObject(existing) && existing.command === parsed.command && existing.target === parsed.target) {
+    // Same session AND still open: a re-prompt mid-session, not a boundary.
+    // Same session but CLOSED (SessionEnd already ran — e.g. `claude --resume`
+    // reuses a session id) is treated exactly like a new session: it reopens.
+    if (existing.session_id === session && existing.session_open !== false) return existing
+    const marker = {
+      ...existing,
+      started_at: isoSeconds(now),
+      sessions: (Number.isInteger(existing.sessions) ? existing.sessions : 1) + 1,
+      session_id: session,
+      session_open: true,
+    }
+    mkdirSync(join(root, '.agentic-sdlc'), { recursive: true })
+    writeFileSync(join(root, MARKER), `${JSON.stringify(marker, null, 2)}\n`)
+    return marker
+  }
+
+  // A different command or target while a marker exists: finalize the
+  // superseded run (fold its clock, write its report) before claiming a
+  // fresh run_id for this one.
+  if (isPlainObject(existing)) finalizeRun(root, now)
+
+  // Same resolution the report uses (resolveBacklogPath), called with no prior
+  // marker.backlog so a plan run's own Artifacts-line lookup still applies.
+  const path = resolveBacklogPath(root, { command: parsed.command, target: parsed.target, backlog: null }, undefined)
+  let arch_snapshot = []
+  let backlog = null
+  if (path && existsSync(path)) {
+    let text
+    try {
+      text = readFileSync(path, 'utf8')
+    } catch {
+      text = null
+    }
+    const parsedBacklog = text === null ? null : parseBacklog(text, path)
+    if (parsedBacklog) {
+      arch_snapshot = [...parsedBacklog.arch.keys()]
+      backlog = isAbsolute(path) && !path.startsWith(root) ? path : relative(root, path)
+    }
+  }
+
+  let debt_snapshot = null
+  try {
+    const ledgerText = readFileSync(join(root, LEDGER_REL), 'utf8')
+    const entries = debtLedgerEntries(ledgerText)
+    debt_snapshot = entries === null ? null : entries.length
+  } catch {
+    debt_snapshot = null
+  }
+
+  const marker = {
+    run_id: randomUUID(),
+    command: parsed.command,
+    lane: parsed.lane,
+    target: parsed.target,
+    started_at: isoSeconds(now),
+    sessions: 1,
+    wall_clock_s_prior: 0,
+    arch_snapshot,
+    debt_snapshot,
+    backlog,
+    session_id: session,
+    session_open: true,
+  }
+  mkdirSync(join(root, '.agentic-sdlc'), { recursive: true })
+  writeFileSync(join(root, MARKER), `${JSON.stringify(marker, null, 2)}\n`)
+  return marker
+}
+
 // ----------------------------------------------------------------- report
 
 export const SECTION_BUILDERS = Object.freeze({
@@ -921,6 +1060,23 @@ export function buildReport(ctx) {
   return report
 }
 
+// Producing a report finalises whatever session was open when it ran (ARCH-4):
+// the SessionEnd hook spawns `report` detached to close out a run, so this is
+// the only place the fold can happen. Folds wall_clock_s (already prior +
+// elapsed) back into the marker as the new prior and closes session_open, so a
+// later rebuild of this same session reports the banked prior alone. A no-op
+// on a closed session, an incomplete marker, or no marker at all.
+function banksSession(ctx, wall_clock_s) {
+  const m = ctx.marker
+  if (!m || m.session_open === false) return
+  if (m.wall_clock_s_prior === null || m.started_ms === null) return
+  const markerPath = join(ctx.project, MARKER)
+  const raw = readJson(markerPath)
+  if (!isPlainObject(raw)) return
+  const updated = { ...raw, wall_clock_s_prior: wall_clock_s, session_open: false }
+  writeFileSync(markerPath, `${JSON.stringify(updated, null, 2)}\n`)
+}
+
 // -------------------------------------------------------------------- CLI
 
 function main(argv) {
@@ -941,12 +1097,28 @@ function main(argv) {
   const USAGE = `usage:
   run-report.mjs report --project <dir> [--out <file>] [--backlog <file>] [--meter <record.json>]
                         [--pr-comments <comments.json>] [--now <ISO-8601>]
+  run-report.mjs mark --project <dir> --prompt-file <f> --session <id> [--now <ISO-8601>]
   run-report.mjs validate <file>`
   const die = (code, msg) => {
     process.stderr.write(`run-report: ${msg}\n`)
     process.exit(code)
   }
   const str = (k) => (typeof flags[k] === 'string' ? flags[k] : undefined)
+
+  if (command === 'mark') {
+    const project = str('project')
+    const promptFile = str('prompt-file')
+    const session = str('session')
+    if (!project || !promptFile || !session) die(2, USAGE)
+    let now = new Date()
+    if (str('now')) {
+      now = new Date(str('now'))
+      if (!Number.isFinite(now.getTime())) die(2, `--now is not a date: ${str('now')}`)
+    }
+    const marker = mark({ project, promptFile, session, now })
+    if (!marker) die(1, `prompt does not name a known command: ${promptFile}`)
+    process.exit(0)
+  }
 
   if (command === 'validate') {
     if (!positional[0]) die(2, USAGE)
@@ -975,6 +1147,7 @@ function main(argv) {
     const v = validate(report)
     if (v.length) die(1, `refusing to write an invalid report:\n  ${v.join('\n  ')}`)
     if (report.degraded.length) process.stderr.write(`run-report: degraded: ${report.degraded.join(', ')}\n`)
+    banksSession(ctx, report.run.wall_clock_s)
     const out = str('out') ?? (report.run.run_id ? join(ctx.project, RUNS_DIR, `${report.run.run_id}.json`) : null)
     if (!out) {
       process.stderr.write('run-report: no run marker, so no run_id to name the report; nothing written\n')

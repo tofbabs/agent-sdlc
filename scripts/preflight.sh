@@ -126,6 +126,22 @@ else
   note "node not found — skipping run-report tests"
 fi
 
+# 6a-hook. run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
+#     run-report.mjs: its stdout must stay empty on every path (UserPromptSubmit's
+#     stdout is injected into the model's context), SessionEnd must return well
+#     under its shared 1.5s budget by spawning the report build detached, and a
+#     missing node or run-report.mjs must degrade to exit 0 exactly like meter.sh.
+#     Run under /bin/bash explicitly — macOS's bash 3.2 is the one that matters.
+if command -v node >/dev/null 2>&1; then
+  if /bin/bash "$ROOT/scripts/run-report-hook.test.sh" >/dev/null 2>&1; then
+    ok "run-report hook invariants hold"
+  else
+    bad "run-report hook tests failed — run scripts/run-report-hook.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping run-report hook tests"
+fi
+
 # 6b. plan-artifacts.mjs keeps parallel sessions from colliding on backlog IDs
 #     and makes a plan ship with its build branch. Same node guard as above.
 if command -v node >/dev/null 2>&1; then

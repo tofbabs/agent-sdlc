@@ -559,4 +559,220 @@ else
   printf '%s\n' "$LEAK_OUT" >&2
 fi
 
+# ===== mark (STORY-1-6): the UserPromptSubmit marker, written in Node ======
+#
+# The hook does a cheap prefix check in shell and then hands the pipeline prompt
+# to this subcommand, which owns the parsing (command / lane / target) and the
+# marker it writes to <project>/.agentic-sdlc/run-state.json. A fresh run — no
+# marker yet — gets a new uuid v4 run_id, sessions 1 and a zero prior clock.
+
+echo "mark section (fresh run)"
+mkprompt() { local f="$TMP/prompt-$1.txt"; printf '%s' "$2" > "$f"; printf '%s' "$f"; }
+MARK_OUT() { printf '%s/.agentic-sdlc/run-state.json' "$1"; }
+
+P=$(mkproj mark-fresh-build)
+PF=$(mkprompt build '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$NOW" >/dev/null 2>&1; rc=$?
+M=$(MARK_OUT "$P")
+[ "$rc" -eq 0 ] && [ -f "$M" ] && ok "mark writes .agentic-sdlc/run-state.json" || bad "mark rc=$rc, no marker at $M"
+node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r.run_id)?0:1)' "$M" \
+  && ok "run_id is a fresh uuid v4" || bad "run_id is not a uuid v4: $(q "$M" 'r.run_id')"
+got=$(q "$M" '[r.command,r.lane,r.target,r.sessions,r.wall_clock_s_prior,r.started_at].join(" ")')
+[ "$got" = "build deliberate EPIC-7 1 0 $NOW" ] \
+  && ok "fresh build marker: command/lane/target, sessions 1, prior clock 0, started_at = now" || bad "fresh marker fields: $got"
+
+P=$(mkproj mark-fresh-fast)
+PF=$(mkprompt plan '/agentic-sdlc:plan docs/briefs/fixture.md --fast')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$NOW" >/dev/null 2>&1
+got=$(q "$(MARK_OUT "$P")" '[r.command,r.lane,r.target].join(" ")')
+[ "$got" = "plan fast docs/briefs/fixture.md" ] \
+  && ok "--fast → fast lane, and the target is the raw arg with --fast stripped" || bad "lane/target parse: $got"
+
+# A fresh marker freezes the world at run start: every ARCH id in the resolved
+# backlog, the resolved backlog path, and the ledger's entry count — so the
+# later report can diff against exactly what was there when the run began.
+echo "mark section (run-start snapshots)"
+
+P=$(mkproj mark-snapshot)
+mkdir -p "$P/docs"
+cp "$F/debt/ledger.md" "$P/docs/TOOLING-DEBT.md"
+PF=$(mkprompt snap '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$NOW" >/dev/null 2>&1
+M=$(MARK_OUT "$P")
+RID=$(q "$M" 'r.run_id')
+
+got=$(q "$M" '[...r.arch_snapshot].sort().join(",")')
+[ "$got" = "ARCH-1,ARCH-2,ARCH-3,ARCH-4,ARCH-5" ] \
+  && ok "arch_snapshot captures every ARCH id in the resolved backlog" || bad "arch_snapshot: $got"
+
+node -e 'const fs=require("fs"),path=require("path");const r=JSON.parse(fs.readFileSync(process.argv[1]));const b=r.backlog;const p=b&&(path.isAbsolute(b)?b:path.join(process.argv[2],b));process.exit(p&&fs.existsSync(p)&&path.basename(p)==="EPIC-7.md"?0:1)' "$M" "$P" \
+  && ok "backlog resolves to the EPIC-7 file" || bad "backlog did not resolve: $(q "$M" 'String(r.backlog)')"
+
+# The snapshot must use the SAME counting as the report: with nothing appended
+# between mark and report, rows_logged is 0 (a null snapshot would make it null).
+node "$R" report --project "$P" --now "$NOW" >/dev/null 2>&1
+rl=$(q "$P/.agentic-sdlc/runs/$RID.json" 'String(r.debt.rows_logged)')
+[ "$rl" = "0" ] \
+  && ok "debt_snapshot matches the ledger at run start — report shows no spurious rows_logged" || bad "rows_logged after mark: $rl"
+
+# No ARCH-/FAST-/EPIC- id and no brief that any backlog claims → the backlog is
+# unknown at run start, and there is no ledger: arch_snapshot [], both null.
+P=$(mkproj mark-degrade)
+PF=$(mkprompt degrade '/agentic-sdlc:plan docs/briefs/absent.md')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$NOW" >/dev/null 2>&1
+got=$(q "$(MARK_OUT "$P")" '[JSON.stringify(r.arch_snapshot),String(r.backlog),String(r.debt_snapshot)].join(" ")')
+[ "$got" = "[] null null" ] \
+  && ok "no resolvable backlog and no ledger → arch_snapshot [], backlog null, debt_snapshot null" || bad "degrade snapshot: $got"
+
+# ARCH-4: run.wall_clock_s is the SUM over sessions of (session end − command
+# start), and a session's end is known only at SessionEnd. So mark NEVER folds
+# elapsed time — folding belongs to the SessionEnd path. A second prompt naming
+# the SAME command and target continues the run: run_id kept; a NEW session
+# bumps sessions, resets started_at to now and reopens the session, while
+# wall_clock_s_prior is carried through UNCHANGED (whatever an earlier
+# SessionEnd banked). Folding at mark time would charge the idle gap between
+# sessions — a run resumed the next morning would book the whole night.
+echo "mark section (continuation across sessions)"
+
+T0="2020-01-01T00:00:00Z"   # first session's command starts here
+T1="2020-01-01T00:10:00Z"   # second prompt, 600s later
+
+# Predecessor closed by SessionEnd: its elapsed time is already banked in
+# wall_clock_s_prior, so a new session must carry that prior through untouched —
+# never fold again, never reset it — and only open a fresh session.
+P=$(mkproj mark-continue-closed)
+PF=$(mkprompt cont '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$T0" >/dev/null 2>&1
+M=$(MARK_OUT "$P")
+RID0=$(q "$M" 'r.run_id')
+# Stand in for the SessionEnd fold: sess-A ended 600s in, elapsed banked, closed.
+node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1]));m.wall_clock_s_prior=600;m.session_open=false;fs.writeFileSync(process.argv[1],JSON.stringify(m,null,2)+"\n")' "$M"
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-B --now "$T1" >/dev/null 2>&1
+[ "$(q "$M" 'r.run_id')" = "$RID0" ] \
+  && ok "new session, same command+target → run_id kept" || bad "continuation changed run_id: $(q "$M" 'r.run_id') (was $RID0)"
+got=$(q "$M" '[r.sessions,r.wall_clock_s_prior,r.started_at,r.session_open].join(" ")')
+[ "$got" = "2 600 $T1 true" ] \
+  && ok "new session after a closed one → sessions bumped, banked prior carried through unfolded, started_at reset, session reopened" || bad "continuation (closed) fields: $got"
+
+# Predecessor never closed (SessionEnd missed — a crash): its end is unknown, so
+# the conservative rule folds nothing. The clock stays put; only the session
+# count and started_at move.
+P=$(mkproj mark-continue-crashed)
+PF=$(mkprompt crash '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$T0" >/dev/null 2>&1
+M=$(MARK_OUT "$P")
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-B --now "$T1" >/dev/null 2>&1
+got=$(q "$M" '[r.sessions,r.wall_clock_s_prior,r.started_at,r.session_open].join(" ")')
+[ "$got" = "2 0 $T1 true" ] \
+  && ok "new session after an unclosed one → no fold, clock untouched, session reopened" || bad "continuation (crashed) fields: $got"
+
+P=$(mkproj mark-reprompt-samesession)
+PF=$(mkprompt resume '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$T0" >/dev/null 2>&1
+M=$(MARK_OUT "$P")
+RID0=$(q "$M" 'r.run_id')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$T1" >/dev/null 2>&1
+[ "$(q "$M" 'r.run_id')" = "$RID0" ] \
+  && ok "same session re-prompt → run_id kept" || bad "same-session re-prompt changed run_id"
+got=$(q "$M" '[r.sessions,r.wall_clock_s_prior,r.started_at].join(" ")')
+[ "$got" = "1 0 $T0" ] \
+  && ok "same session re-prompt is not a boundary: sessions and clock untouched" || bad "same-session fields: $got"
+
+# A session id can outlive the marker that closed it: `claude --resume` hands
+# the hook the SAME session_id after an earlier SessionEnd already banked and
+# closed it. mark must not treat that as the same open prompt — it reopens
+# exactly like a brand-new session (sessions bumped, clock not folded again).
+P=$(mkproj mark-reopen-closed-session)
+PF=$(mkprompt reopen '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$T0" >/dev/null 2>&1
+M=$(MARK_OUT "$P")
+RID0=$(q "$M" 'r.run_id')
+node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync(process.argv[1]));m.wall_clock_s_prior=600;m.session_open=false;fs.writeFileSync(process.argv[1],JSON.stringify(m,null,2)+"\n")' "$M"
+node "$R" mark --project "$P" --prompt-file "$PF" --session sess-A --now "$T1" >/dev/null 2>&1
+[ "$(q "$M" 'r.run_id')" = "$RID0" ] \
+  && ok "same session id, reopened after close → run_id kept" || bad "reopen changed run_id: $(q "$M" 'r.run_id') (was $RID0)"
+got=$(q "$M" '[r.sessions,r.wall_clock_s_prior,r.started_at,r.session_open].join(" ")')
+[ "$got" = "2 600 $T1 true" ] \
+  && ok "same session id reopened after close → sessions bumped, banked prior carried unfolded, started_at reset, session reopened" \
+  || bad "reopen fields: $got"
+
+echo "mark section (supersession)"
+
+# A different command or target while a marker exists means the previous run's
+# own SessionEnd never fired — the prompt moved on to something else first.
+# mark must finalize that run (same path `report` uses: fold + write its
+# report) before starting a new one, so one run never silently loses its report.
+P=$(mkproj mark-supersede)
+PF_BUILD=$(mkprompt super-build '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF_BUILD" --session sess-A --now "$T0" >/dev/null 2>&1
+OLD_RID=$(q "$(MARK_OUT "$P")" 'r.run_id')
+PF_REVIEW=$(mkprompt super-review '/agentic-sdlc:review 42')
+node "$R" mark --project "$P" --prompt-file "$PF_REVIEW" --session sess-B --now "$T1" >/dev/null 2>&1
+[ -f "$P/.agentic-sdlc/runs/$OLD_RID.json" ] \
+  && ok "superseded run's report is written before the new marker is" || bad "no report written for superseded run $OLD_RID"
+got=$(q "$P/.agentic-sdlc/runs/$OLD_RID.json" 'r.run.command+" "+r.run.wall_clock_s')
+[ "$got" = "build 600" ] \
+  && ok "superseded run's report reflects its own command and folded clock (0 → 600)" || bad "superseded report: $got"
+NEW_RID=$(q "$(MARK_OUT "$P")" 'r.run_id')
+[ "$NEW_RID" != "$OLD_RID" ] && ok "a different command/target gets a fresh run_id" || bad "new marker kept the old run_id"
+got=$(q "$(MARK_OUT "$P")" '[r.command,r.target,r.sessions,r.wall_clock_s_prior,r.started_at].join(" ")')
+[ "$got" = "review 42 1 0 $T1" ] \
+  && ok "fresh marker for the new command/target: sessions 1, prior clock 0" || bad "fresh marker after supersession: $got"
+
+# A different target under the same command (build EPIC-7 → build EPIC-9) is
+# supersession too — only an EXACT command+target match continues a run.
+P=$(mkproj mark-supersede-target)
+PF_A=$(mkprompt super-a '/agentic-sdlc:build EPIC-7')
+node "$R" mark --project "$P" --prompt-file "$PF_A" --session sess-A --now "$T0" >/dev/null 2>&1
+OLD_RID=$(q "$(MARK_OUT "$P")" 'r.run_id')
+PF_B=$(mkprompt super-b '/agentic-sdlc:build EPIC-9')
+node "$R" mark --project "$P" --prompt-file "$PF_B" --session sess-A --now "$T1" >/dev/null 2>&1
+[ -f "$P/.agentic-sdlc/runs/$OLD_RID.json" ] \
+  && ok "a different target under the same command still finalizes the old run" || bad "no report for old target's run"
+[ "$(q "$(MARK_OUT "$P")" 'r.target')" = "EPIC-9" ] \
+  && ok "new marker carries the new target" || bad "target not updated after supersession"
+
+# ARCH-4: a session's contribution (end − command start) can be banked only when
+# that session ends, and the SessionEnd hook finalises a run by spawning
+# `report`. So producing the report for an OPEN session folds its elapsed time
+# into wall_clock_s_prior and closes the session in the marker. That fold is what
+# stops the clock double-counting: a later rebuild (a supersession finalising the
+# superseded run, a SessionEnd firing twice) sees a CLOSED session and reports
+# the banked prior ALONE, never prior + (now − started) again.
+echo "report section (session fold — ARCH-4 clock banking)"
+
+TA="2020-01-01T00:00:00Z"   # this session's command start
+TB="2020-01-01T00:10:00Z"   # report runs 600s later — the session's end
+TC="2020-01-01T00:30:00Z"   # a later rebuild, long after the session ended
+
+# <project> <session_open-json> <prior> — an open or closed single-session marker.
+foldmarker() {
+  cat > "$1/.agentic-sdlc/run-state.json" <<EOF
+{ "run_id": "$RUN_ID", "command": "build", "lane": "deliberate", "target": "EPIC-7",
+  "started_at": "$TA", "sessions": 1, "wall_clock_s_prior": $3,
+  "arch_snapshot": [], "debt_snapshot": 0, "backlog": null,
+  "session_id": "sess-A", "session_open": $2 }
+EOF
+}
+
+P=$(mkproj report-fold-open)
+foldmarker "$P" true 100
+node "$R" report --project "$P" --now "$TB" >/dev/null 2>&1
+got=$(q "$(OUT "$P")" 'r.run.wall_clock_s')
+[ "$got" = "700" ] \
+  && ok "open session: report clock = prior (100) + end − start (600)" || bad "fold-open report clock: $got"
+got=$(q "$(MARK_OUT "$P")" '[r.wall_clock_s_prior,r.session_open].join(" ")')
+[ "$got" = "700 false" ] \
+  && ok "producing the report banks the session: prior folded to 700, session closed" || bad "fold not persisted to marker: $got"
+
+# A later rebuild of a now-closed session must report the banked prior alone;
+# re-adding now − start would charge this session twice.
+node "$R" report --project "$P" --now "$TC" >/dev/null 2>&1
+got=$(q "$(OUT "$P")" 'r.run.wall_clock_s')
+[ "$got" = "700" ] \
+  && ok "closed session: a later rebuild reports the banked prior alone — no double count" || bad "rebuild double-counted: $got"
+got=$(q "$(MARK_OUT "$P")" '[r.wall_clock_s_prior,r.session_open].join(" ")')
+[ "$got" = "700 false" ] \
+  && ok "rebuilding a closed session leaves the banked clock untouched" || bad "rebuild mutated the banked clock: $got"
+
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }

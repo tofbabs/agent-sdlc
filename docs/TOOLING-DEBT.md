@@ -182,3 +182,19 @@ an ignored ledger is worse than none.
 - Address when: the orchestrator writes a per-story "started" marker (or the
   run marker records the epic PR number), or a report under-counts stories
   against a build's own summary table
+
+### Supersession in `mark` can block UserPromptSubmit on a slow `gh`
+- Raised: 2026-10-06 by coder (STORY-1-6)
+- Current: a different command/target while a marker exists makes `mark`
+  finalize the superseded run inline — same path `report` uses — before
+  writing the new marker. For a superseded build/review run that still needs
+  `gh pr view` for its review section, that is a synchronous `gh` call (capped
+  at 5s, see the existing "gh timeout path is untested" entry above) inside the
+  UserPromptSubmit hook, which otherwise does none. In practice this only
+  fires at a command boundary (plan→build, build→review, …), not on every
+  prompt, and `gh` failing or timing out still degrades to exit 0 — but the
+  user-visible latency on that one prompt is new
+- Risk: LOW
+- Category: robustness
+- Address when: a user reports a slow prompt at a pipeline command boundary,
+  or `gh pr view`'s 5s cap is made configurable (ties to the entry above)
