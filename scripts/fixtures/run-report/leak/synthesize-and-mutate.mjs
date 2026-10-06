@@ -51,7 +51,8 @@ function vocabExists(name) {
   }
 }
 
-const patternSample = (name) => ({ uuid_v4: '3f2b8c1e-9a4d-4e7f-8b21-6c5d4e3f2a10', semver: '1.2.3', iso_utc_seconds: '2020-01-01T00:00:00Z' })[name]
+const patternSample = (name) =>
+  ({ uuid_v4: '3f2b8c1e-9a4d-4e7f-8b21-6c5d4e3f2a10', semver: '1.2.3', iso_utc_seconds: '2020-01-01T00:00:00Z', decision_id: '0123456789abcdef' })[name]
 
 // A minimal valid value for one schema node. Doubles as the "every spec is
 // one of the bounded types" assertion (AC1): a spec type or vocab name this
@@ -70,6 +71,8 @@ function synth(spec) {
     }
     case 'number':
       return spec.min !== undefined ? spec.min : 0
+    case 'bool':
+      return false
     case 'pattern':
       return patternSample(spec.name)
     case 'object': {
@@ -112,6 +115,7 @@ function collectLeaves(spec, keys, label, out) {
     case 'const':
     case 'enum':
     case 'number':
+    case 'bool':
     case 'pattern':
     case 'countMap':
     case 'numericRecord':
@@ -138,15 +142,16 @@ if (baseViolations.length) {
   fails.push(`synthesized base report is not itself valid: ${baseViolations.join('; ')}`)
 }
 
-// AC2: exactly three pattern-bounded strings, at exactly these paths.
+// ADR-0002 amends ADR-0001's "exactly three patterns": decision_id is the
+// fourth, at the two paths that carry the join key.
 const leaves = []
 collectLeaves(REPORT_SCHEMA, [], '$', leaves)
 const patternPaths = leaves.filter((l) => l.spec.type === 'pattern').map((l) => l.label).sort()
-const wantPatternPaths = ['$.run.ended_at', '$.run.plugin_version', '$.run.run_id'].sort()
+const wantPatternPaths = ['$.decisions[0].decision_id', '$.outcome_events[0].decision_id', '$.settlements[0].decision_id', '$.run.ended_at', '$.run.plugin_version', '$.run.run_id'].sort()
 if (JSON.stringify(patternPaths) !== JSON.stringify(wantPatternPaths)) {
-  fails.push(`pattern leaves are ${JSON.stringify(patternPaths)}, want exactly ${JSON.stringify(wantPatternPaths)} (ADR 0001)`)
+  fails.push(`pattern leaves are ${JSON.stringify(patternPaths)}, want exactly ${JSON.stringify(wantPatternPaths)} (ADR 0002)`)
 }
-if (Object.keys(PATTERNS).length !== 3) fails.push(`PATTERNS exports ${Object.keys(PATTERNS).length} patterns, want exactly 3`)
+if (Object.keys(PATTERNS).length !== 4) fails.push(`PATTERNS exports ${Object.keys(PATTERNS).length} patterns, want exactly 4`)
 
 const LONG = 'A'.repeat(4096)
 const PATH_LIKE = `/etc/passwd/${'A'.repeat(4096)}`

@@ -93,7 +93,8 @@ import { join, dirname, resolve, isAbsolute, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { CLOSED, OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
+import { readAllDecisions, decisionStoreExists } from './decisions.mjs'
+import { CLOSED, OPEN, DEGRADED_INPUT, OUTCOME_MEASURES, PATTERNS, isMember, toCategory } from './run-report-categories.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PLUGIN_JSON = join(HERE, '..', '.claude-plugin', 'plugin.json')
@@ -103,12 +104,7 @@ const RUNS_DIR = join('.agentic-sdlc', 'runs')
 
 // ------------------------------------------------------------------- schema
 
-// The only three string patterns the whole schema admits (ADR 0001).
-export const PATTERNS = Object.freeze({
-  uuid_v4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  semver: /^\d+\.\d+\.\d+$/,
-  iso_utc_seconds: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
-})
+export { PATTERNS }
 
 // numericRecord keys come from meter.mjs, not a vocabulary, so they are bounded
 // by shape instead: short snake_case cannot carry a path, branch or sentence.
@@ -127,6 +123,7 @@ export const T = Object.freeze({
   array: (items) => ({ type: 'array', items }),
   countMap: (vocab) => ({ type: 'countMap', vocab }),
   numericRecord: () => ({ type: 'numericRecord' }),
+  bool: () => ({ type: 'bool' }),
 })
 const required = (spec) => ({ ...spec, nullable: false })
 const count = () => T.number({ int: true, min: 0 })
@@ -135,6 +132,51 @@ const deepFreeze = (o) => {
   for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v)
   return Object.freeze(o)
 }
+
+// One lane/floor/score/override/correction decision (ADR 0002). Tokens and
+// numbers only: the subject that feeds decision_id never reaches the report.
+// rubric/floor/score/alternative are omittable: a floor decision has no score and
+// most have no alternative, and an explicit null would demand a degraded entry
+// for a gap that is not one. Absent means omitted, so a present null is rejected
+// outright rather than excused by some unrelated degraded entry.
+const omittable = (spec) => ({ ...spec, optional: true, nullable: false })
+
+const decisionElement = () =>
+  T.object({
+    decision_id: required(T.pattern('decision_id')),
+    layer: required(T.enum('decision_layer')),
+    rubric: omittable(T.number({ int: true, min: 1 })),
+    floor: omittable(T.enum('decision_floor')),
+    score: omittable(T.number({ int: true, min: 0 })),
+    choice: required(T.enum('decision_choice')),
+    alternative: omittable(T.enum('decision_choice')),
+    overridden: required(T.bool()),
+    fallback: required(T.bool()),
+    // Present once the outcome window closed the decision; an open or orphaned
+    // one has no verdict, and a null would demand a degraded entry.
+    verdict: omittable(T.enum('decision_verdict')),
+    verdict_rubric: omittable(T.number({ int: true, min: 1 })),
+    // Corrections only: what fired them, so exported corrections stay comparable.
+    trigger: omittable(T.enum('correction_trigger')),
+  })
+
+// A verdict this run settled, possibly on an earlier run's decision: that run's
+// report is already written, so the settling run is the only place it can surface.
+const settlementElement = () =>
+  T.object({
+    decision_id: required(T.pattern('decision_id')),
+    verdict: required(T.enum('decision_verdict')),
+    verdict_rubric: required(T.number({ int: true, min: 1 })),
+  })
+
+// An event this run appended to a decision, possibly an earlier run's. The
+// measures are a closed key list, so the element stays tokens and integers.
+const outcomeEventElement = () =>
+  T.object({
+    decision_id: required(T.pattern('decision_id')),
+    event: required(T.enum('outcome_event')),
+    ...Object.fromEntries(OUTCOME_MEASURES.map((k) => [k, omittable(count())])),
+  })
 
 export const REPORT_SCHEMA = deepFreeze(
   required(
@@ -197,6 +239,11 @@ export const REPORT_SCHEMA = deepFreeze(
         derived: required(T.numericRecord()),
       }),
       degraded: required(T.array(required(T.enum('degraded_input')))),
+      // Omittable, not nullable: a run that makes no decisions leaves the key out
+      // entirely, and a null would be an unnamed gap the degraded rule rejects.
+      decisions: { ...T.array(required(decisionElement())), optional: true, nullable: false },
+      outcome_events: { ...T.array(required(outcomeEventElement())), optional: true, nullable: false },
+      settlements: { ...T.array(required(settlementElement())), optional: true, nullable: false },
     }),
   ),
 )
@@ -249,6 +296,9 @@ function walk(spec, value, path, out, state) {
       if (spec.int && !Number.isInteger(value)) out.push(`${path}: must be an integer`)
       if (spec.min !== undefined && value < spec.min) out.push(`${path}: must be ≥ ${spec.min}`)
       return
+    case 'bool':
+      if (typeof value !== 'boolean') out.push(`${path}: must be a boolean`)
+      return
     case 'pattern':
       if (typeof value !== 'string' || !PATTERNS[spec.name].test(value)) out.push(`${path}: does not match ${spec.name}`)
       return
@@ -258,7 +308,9 @@ function walk(spec, value, path, out, state) {
         if (!Object.hasOwn(spec.fields, k)) out.push(`${path}[${keyLabel(k)}]: unknown field`)
       }
       for (const [k, sub] of Object.entries(spec.fields)) {
-        if (!Object.hasOwn(value, k)) out.push(`${path}.${k}: missing`)
+        if (!Object.hasOwn(value, k)) {
+          if (!sub.optional) out.push(`${path}.${k}: missing`)
+        }
         else walk(sub, value[k], `${path}.${k}`, out, state)
       }
       return
@@ -421,6 +473,28 @@ function resolveBacklogPath(project, marker, override) {
   return best?.p ?? null
 }
 
+// pair-log.mjs mirrors each session.json into the git common dir, because the
+// in-tree pair log is gitignored and vanishes with the story worktree.
+function pairStore(root) {
+  const r = spawnSync('git', ['-C', root, 'rev-parse', '--git-common-dir'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  if (r.status !== 0 || typeof r.stdout !== 'string' || !r.stdout.trim()) return null
+  return join(resolve(root, r.stdout.trim()), 'agentic-sdlc', 'pair')
+}
+
+// The mirror first; the in-tree path still answers for pair logs committed
+// before the log was gitignored.
+function pairSessionPath(ctx, id) {
+  if (ctx.pairStore) {
+    const mirrored = join(ctx.pairStore, id, 'session.json')
+    if (existsSync(mirrored)) return mirrored
+  }
+  const inTree = join(ctx.project, 'backlog', 'pair', id, 'session.json')
+  return existsSync(inTree) ? inTree : null
+}
+
 export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSON, backlog, meter, prComments } = {}) {
   const root = resolve(project ?? process.cwd())
   const marker = readMarker(root)
@@ -439,6 +513,7 @@ export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSO
     pluginJson,
     marker,
     meterOverride: meter ?? null,
+    pairStore: pairStore(root),
     ...loadPrComments(root, marker, prComments),
     backlog: {
       path,
@@ -488,13 +563,9 @@ function isBlocked(ctx) {
   // not mark this run blocked. With no readable backlog there is no way to tell
   // which sessions are ours, and the completion check already degrades.
   if (!p) return { blocked: false, degraded }
-  const pairDir = join(ctx.project, 'backlog', 'pair')
-  if (!existsSync(pairDir)) return { blocked: false, degraded }
-  const ours = new Set(p.stories.map((s) => s.id))
-  for (const name of readdirSync(pairDir)) {
-    if (!ours.has(name)) continue
-    const sessionPath = join(pairDir, name, 'session.json')
-    if (!existsSync(sessionPath)) continue
+  for (const { id } of p.stories) {
+    const sessionPath = pairSessionPath(ctx, id)
+    if (!sessionPath) continue
     const s = readJson(sessionPath)
     if (!isPlainObject(s)) {
       if (!degraded.includes('pair_sessions')) degraded.push('pair_sessions')
@@ -594,7 +665,9 @@ export function buildPlan(ctx) {
 // TOUCHED BY THE BUILD — a story appears in build.stories only on evidence that
 // survives the run, never on its mere presence in the backlog file (an untouched
 // story is absent, not zeroed). Any one of:
-//   1. a pair session: backlog/pair/<STORY-ID>/session.json exists;
+//   1. a pair session: its session.json exists, mirrored at
+//      <git common dir>/agentic-sdlc/pair/<STORY-ID>/ or, for history that
+//      predates the mirror, in-tree at backlog/pair/<STORY-ID>/;
 //   2. its `- status:` is set and no longer TODO (IN_PROGRESS, DONE, BLOCKED…);
 //   3. a commit subject on the current branch carries its `[<ID>]` tag — the
 //      only evidence a FAST task leaves, since fast task blocks have no status.
@@ -633,8 +706,8 @@ function buildStories(ctx, p) {
   const subjects = commitSubjects(ctx.project)
   const stories = []
   for (const unit of buildUnits(ctx, p)) {
-    const sessionPath = join(ctx.project, 'backlog', 'pair', unit.id, 'session.json')
-    const paired = existsSync(sessionPath)
+    const sessionPath = pairSessionPath(ctx, unit.id)
+    const paired = sessionPath !== null
     const statusMoved = Boolean(unit.status) && unit.status.toUpperCase() !== 'TODO'
     const tagged = subjects.includes(`[${unit.id}]`)
     if (!paired && !statusMoved && !tagged) continue
@@ -1060,6 +1133,60 @@ export const SECTION_BUILDERS = Object.freeze({
   cost: buildCost,
 })
 
+// The store record keeps the exact tokens and the identity tuple; the report
+// gets only enum tokens and numbers. SOLO_OPUS is a dispatch detail, so it
+// reads as SOLO here. Null fields are omitted: a null is an unnamed gap.
+const reportChoice = (token) => (token === 'SOLO_OPUS' ? 'SOLO' : token)
+
+// One read serves all three decision sections. No store (not a git checkout,
+// or no decision ever written) is no decisions; a store that exists but cannot
+// be read is a gap, named in degraded, never passed off as an empty run.
+function readStore(ctx) {
+  if (!ctx.marker?.run_id || !decisionStoreExists({ cwd: ctx.project })) return { records: [], degraded: [] }
+  try {
+    return { records: readAllDecisions({ cwd: ctx.project }), degraded: [] }
+  } catch {
+    return { records: [], degraded: ['decision_store'] }
+  }
+}
+
+function buildDecisions(records, run_id) {
+  return records
+    .filter((r) => r.run_id === run_id)
+    .map((r) => ({
+      decision_id: r.decision_id,
+      layer: r.layer,
+      ...(r.rubric != null && { rubric: r.rubric }),
+      ...(isMember('decision_floor', r.floor) && { floor: r.floor }),
+      ...(r.score != null && { score: r.score }),
+      choice: reportChoice(r.choice),
+      ...(r.alternative != null && { alternative: reportChoice(r.alternative) }),
+      overridden: r.overridden,
+      fallback: r.fallback,
+      ...(isMember('decision_verdict', r.verdict) && { verdict: r.verdict, verdict_rubric: r.verdict_rubric }),
+      ...(r.layer === 'correction' &&
+        isMember('correction_trigger', r.inputs?.trigger) && { trigger: r.inputs.trigger }),
+    }))
+}
+
+function buildOutcomeEvents(records, run_id) {
+  return records.flatMap((r) =>
+    r.outcome_events
+      .filter((e) => e.run_id === run_id && isMember('outcome_event', e.event))
+      .map((e) => ({
+        decision_id: r.decision_id,
+        event: e.event,
+        ...Object.fromEntries(OUTCOME_MEASURES.filter((k) => Number.isInteger(e[k]) && e[k] >= 0).map((k) => [k, e[k]])),
+      })),
+  )
+}
+
+function buildSettlements(records, run_id) {
+  return records
+    .filter((r) => r.settled_run_id === run_id && r.state === 'closed' && isMember('decision_verdict', r.verdict))
+    .map((r) => ({ decision_id: r.decision_id, verdict: r.verdict, verdict_rubric: r.verdict_rubric }))
+}
+
 export function buildReport(ctx) {
   const report = { schema: 1 }
   const named = new Set()
@@ -1068,8 +1195,17 @@ export function buildReport(ctx) {
     report[key] = section
     for (const d of degraded) named.add(d)
   }
+  const store = readStore(ctx)
+  for (const d of store.degraded) named.add(d)
   // Vocabulary order, so two builds of the same artifacts are byte-identical.
   report.degraded = DEGRADED_INPUT.filter((d) => named.has(d))
+  const run_id = ctx.marker?.run_id
+  const decisions = buildDecisions(store.records, run_id)
+  if (decisions.length > 0) report.decisions = decisions
+  const outcomeEvents = buildOutcomeEvents(store.records, run_id)
+  if (outcomeEvents.length > 0) report.outcome_events = outcomeEvents
+  const settlements = buildSettlements(store.records, run_id)
+  if (settlements.length > 0) report.settlements = settlements
   return report
 }
 

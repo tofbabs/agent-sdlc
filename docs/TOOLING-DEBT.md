@@ -80,13 +80,15 @@ an ignored ledger is worse than none.
 
 ### Gate runs and failures have no recorder
 - Raised: 2026-10-06 by architect (ARCH-1)
-- Current: schema 1 carries `build.gate_runs`/`build.gate_failures` as `null`
-  with `gate_history` in `degraded`; nothing records gate executions, and
-  wrapping the gate just for counting was judged not worth the build-path
-  change now
+- Current: `mode-select.mjs observe --gate-fail AC<n>` now tallies per-AC gate
+  failures for runtime correction, but only the failures a coder reports; gate
+  executions are still not counted and `build.gate_runs`/`build.gate_failures`
+  stay `null` in schema 1 with `gate_history` in `degraded`
 - Risk: LOW
 - Category: observability
-- Address when: 03-signal-routine defines a signal that needs gate data
+- Address when: 03-signal-routine defines a signal that needs gate run counts
+  (the observe store under `<git common dir>/agentic-sdlc/observe/` is the
+  place to feed the report from)
 
 ### Per-story architect-block attribution is lost on unblock
 - Raised: 2026-10-06 by architect (ARCH-3)
@@ -187,3 +189,89 @@ an ignored ledger is worse than none.
 - Category: robustness
 - Address when: a user reports a slow prompt at a pipeline command boundary,
   or `gh pr view`'s 5s cap is made configurable (ties to the entry above)
+
+### Rubric v1 weights are transliterated prose, not fitted
+- Raised: 2026-10-06 by architect (ARCH-2)
+- Current: weights/band encode build.md's existing rule; evidence base is one
+  pair log and 35 PRs
+- Risk: LOW
+- Address when: 03's routine has ≥20 closed decisions to fit against
+
+### Unnamed post-merge fixes escape attribution
+- Raised: 2026-10-06 by architect (ARCH-2)
+- Current: fix/revert attribution is by story/epic ID in the commit subject or
+  PR body only; a fix that names nothing counts against no decision
+- Risk: LOW
+- Address when: >20% of swept fix commits carry no ID
+
+### No counterfactual measurement in v1
+- Raised: 2026-10-06 by architect (ARCH-2)
+- Current: no forced-exploration rate; SOLO review findings by risk class are
+  the only counterfactual signal
+- Risk: LOW
+- Address when: 02's cross-repo export is live and decision volume supports a
+  sample
+
+### `/build`'s MODE SELECTION still reads the prose `risk:` line
+- Raised: 2026-10-06 by coder (STORY-2-2)
+- Current: the planner now emits `- select: ...` instead of `risk:`, and
+  `backlog/EPIC-2.md` scopes reading/scoring that line (`mode-select.mjs`) and
+  wiring it into `/build`'s MODE SELECTION to STORY-2-3/2-5, which this story
+  must not touch. Until those land, every newly planned story/task also
+  carries no `risk:` line for `/build` to fall back to, so `/build`'s existing
+  "no `risk:` line → infer from ACs" path is doing double duty
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: STORY-2-3 (`mode-select.mjs`) and STORY-2-5 (`/build` wiring)
+  land — both already scoped in `backlog/EPIC-2.md`
+
+### Decision store is machine-local
+- Raised: 2026-10-06 by architect (ARCH-1 / ADR-0002)
+- Current: cross-machine decision→outcome joins close as orphaned
+  (`machine_local`); the gh sweep narrows but does not remove the gap
+- Risk: MEDIUM
+- Address when: 02's central storage is live (ADR-0002 "Revisit if")
+
+### Pair-session mirror is never pruned, and is machine-local
+- Raised: 2026-10-06 by coder (STORY-2-10)
+- Current: `pair-log.mjs` writes `<git common dir>/agentic-sdlc/pair/<STORY-ID>/session.json`
+  and nothing deletes it (a few hundred bytes per paired story); a run report
+  built on another machine or a fresh clone, with no in-tree log, reports a
+  paired story as SOLO. STORY-1-6's committed pair log stays tracked as the
+  in-tree fallback for EPIC-1 history
+- Risk: LOW
+- Category: robustness
+- Address when: the store holds more than ~500 story directories, or run
+  reports start being built somewhere other than the machine that ran the
+  build (02's central storage — same trigger as "Decision store is machine-local")
+
+
+### Outcome verdict thresholds are first guesses
+- Raised: 2026-10-06 by coder (STORY-2-9)
+- Current: the rubric's `verdict` block (any miss signal → SOLO/FAST missed; one
+  navigator rejection → PAIR earned) is a transliteration of ARCH-2's intent, not
+  fitted; `findings` counts every finding the caller passes, severity-blind
+- Risk: MEDIUM
+- Category: hardcoded_value
+- Address when: 03 has a month of closed verdicts to retune against, or a
+  nit-only review marks SOLO stories `missed` in practice
+
+### Lane decisions cannot be attributed by the sweep, and tokens/wall time are caller-supplied
+- Raised: 2026-10-06 by coder (STORY-2-9)
+- Current: a `lane` decision carries no `[EPIC-n]`/`[STORY-x-y]` tag, so the gh
+  sweep skips it (it closes on the events /build and /review append, or orphans);
+  build `tokens`/`wall_s` are passed as flags rather than read from the meter,
+  which is keyed by session not story; `machine_local` orphans are never
+  assigned, since a record this machine lacks cannot be seen from here
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: lane orphan rate shows in `account` output, or the meter gains
+  a per-story key
+
+### Sweep reads the latest 200 PRs and 100 commits
+- Raised: 2026-10-06 by coder (STORY-2-9)
+- Current: one `gh pr list --limit 200` and one unpaginated commits page, so a
+  busy repo can push a merge or fix out of view and the decision closes `held`
+- Risk: LOW
+- Category: robustness
+- Address when: the repo merges more than ~100 commits per window

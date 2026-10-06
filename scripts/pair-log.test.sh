@@ -109,6 +109,61 @@ seq 1 500 > big.txt && git add -A && git commit -qm "feat(x): big"
 node "$PL" read STORY-G --role navigator > nav.txt 2>/dev/null
 grep -q 'more lines' nav.txt && ! grep -q '^+500$' nav.txt \
   && ok "a large last commit is capped" || bad "large last commit was not capped"
+
+# 10. The in-tree log is gitignored and dies with the worktree, so every session
+#     write is mirrored into the git common dir, which all worktrees share.
+M=.git/agentic-sdlc/pair/STORY-G/session.json
+[ -f "$M" ] && cmp -s "$M" backlog/pair/STORY-G/session.json \
+  && ok "init mirrors session.json into the git common dir" || bad "no mirror after init"
+node "$PL" session STORY-G --set blocked --arch ARCH-9 >/dev/null 2>&1
+grep -q '"blocked"' "$M" && cmp -s "$M" backlog/pair/STORY-G/session.json \
+  && ok "session --set keeps the mirror in sync" || bad "mirror drifted after session --set"
+echo "- steer: y" | node "$PL" append STORY-G --role navigator 2>/dev/null
+cmp -s "$M" backlog/pair/STORY-G/session.json \
+  && ok "navigator append keeps the mirror in sync" || bad "mirror drifted after append"
+git worktree add -q ../wt-g -b feat/g 2>/dev/null
+( cd ../wt-g && node "$PL" init STORY-W --brief ../brief-src.md >/dev/null 2>&1 )
+[ -f .git/agentic-sdlc/pair/STORY-W/session.json ] \
+  && ok "a worktree's session lands in the shared common-dir store" || bad "worktree session not mirrored to the common dir"
+cd ..
+
+# 11. Rejections are a structural counter and drive de-escalation at N=5; only
+#     navigator appends may carry the flag.
+mkdir -p dz && cd dz && git init -q . && git config user.email t@t && git config user.name t
+git commit -q --allow-empty -m base && git branch -q base
+node "$PL" init STORY-D --brief ../brief-src.md >/dev/null 2>&1
+for i in 1 2 3 4; do echo "- n$i" | node "$PL" append STORY-D --role navigator 2>/dev/null; done
+node "$PL" status STORY-D | grep -q 'rejections=0 deescalate=no' \
+  && ok "four clean alternations do not de-escalate" || bad "early deescalate: $(node "$PL" status STORY-D)"
+echo "- n5" | node "$PL" append STORY-D --role navigator 2>/dev/null
+node "$PL" status STORY-D | grep -q 'alternation=5/20.*rejections=0 deescalate=yes' \
+  && ok "five alternations with zero rejections de-escalate" || bad "no deescalate: $(node "$PL" status STORY-D)"
+node "$PL" init STORY-E --brief ../brief-src.md >/dev/null 2>&1
+echo "- REDO: x" | node "$PL" append STORY-E --role navigator --rejected 2>/dev/null
+for i in 2 3 4 5 6; do echo "- n$i" | node "$PL" append STORY-E --role navigator 2>/dev/null; done
+node "$PL" status STORY-E | grep -q 'rejections=1 deescalate=no' \
+  && ok "one recorded rejection keeps the pair" || bad "rejection ignored: $(node "$PL" status STORY-E)"
+before=$(cat backlog/pair/STORY-E/turns.md)
+echo "- x" | node "$PL" append STORY-E --role driver --rejected >/dev/null 2>&1
+[ $? -eq 2 ] && ok "driver cannot record a rejection" || bad "driver --rejected accepted"
+[ "$(cat backlog/pair/STORY-E/turns.md)" = "$before" ] \
+  && ok "a refused append leaves the turn log unchanged" || bad "refused driver --rejected still wrote a turn"
+grep -q '"rejections": 1' .git/agentic-sdlc/pair/STORY-E/session.json \
+  && ok "rejections are mirrored to the common-dir session" || bad "rejections not mirrored"
+
+# 12. Handoff freezes the navigator's tests by content; changing one is caught.
+git checkout -q -b feat/h
+mkdir -p tests && echo a > tests/a.test.js && echo b > src.js && git add -A && git commit -q -m t
+node "$PL" handoff STORY-D --base base | grep -q '1 test file' \
+  && ok "handoff freezes test files only" || bad "handoff froze the wrong set"
+node "$PL" frozen-tests STORY-D >/dev/null && ok "untouched frozen tests pass" || bad "false frozen-tests failure"
+node "$PL" status STORY-D | grep -q 'deescalate=no' && ok "handed-off story no longer de-escalates" || bad "deescalate after handoff"
+echo c >> src.js
+node "$PL" frozen-tests STORY-D >/dev/null && ok "editing non-test code is allowed" || bad "src edit flagged"
+echo c >> tests/a.test.js
+out=$(node "$PL" frozen-tests STORY-D); code=$?
+[ $code -eq 1 ] && grep -q 'tests/a.test.js' <<<"$out" \
+  && ok "an edited frozen test is refused" || bad "frozen edit not caught ($code)"
 cd ..
 
 [ "$fail" -eq 0 ] || { printf '\npair-log tests failed\n' >&2; exit 1; }

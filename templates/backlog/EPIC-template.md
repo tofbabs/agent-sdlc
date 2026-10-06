@@ -37,7 +37,7 @@ A ONE-WAY door gets docs/adr/<NNNN>-<slug>.md as well — and still gets decided
 
 - status: TODO
 - estimate: S | M | L
-- risk: <where a bug would hide — rules, wiring, data, or "none: follows <pattern>">
+- select: <see reference/selection-fields.md>
 - depends_on: []
 - blocked_by_arch: [ARCH-n]
 

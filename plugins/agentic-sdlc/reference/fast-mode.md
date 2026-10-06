@@ -65,6 +65,7 @@ planner's own prompt carries only a stub, so the shape has to come from here:
 
 ### T<n>-1: <imperative title>   [S|M]
 - files: <paths this task owns>
+- select: <see reference/selection-fields.md>
 - done when: <one observable check>
 - notes: <only if genuinely non-obvious — usually omit>
 - ⚠ one-way: <only if this hits the five below>
@@ -92,6 +93,12 @@ docs/TOOLING-DEBT.md, which /build ledgers on the branch.")
 
 No tags → **no architect invocation at all.** That is the expected case. If the
 architect wrote an ADR, add its path to the `- Artifacts:` line.
+
+Record the lane, same script the deliberate lane uses:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen fast
+```
 
 Report, non-blocking, same as the deliberate lane: tasks, any one-way items and how
 they were resolved, new debt. If you say nothing, `/build --fast` proceeds.
@@ -185,7 +192,15 @@ ledger against the fast floor instead of the deliberate one. Without it, every
 skipped unit test comes back as a review finding and the mode costs more than
 the lane it replaced.
 
+Record the lane's build outcome: `outcomes.mjs event --subject lane --event build`
+(`reference/outcomes.md`).
+
 Then stop. **The human still owns the merge** — nothing here merges its own PR.
+
+Before the report, run `mode-select.mjs lane-check --deferred-one-way <n>
+--redispatch-rounds <n>`. If it recommends `deliberate`, record it with
+`correct --id lane` and tell the human to plan the next run deliberately — see
+`reference/runtime-correction.md`. Never switch this run's lane.
 
 ### 5. Record the run in the ledger
 

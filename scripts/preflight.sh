@@ -69,8 +69,11 @@ fi
 #    against the PR title, which is what gets squashed onto main.
 if git -C "$ROOT" rev-parse --verify -q origin/main >/dev/null; then
   CHANGED=$(git -C "$ROOT" diff --name-only origin/main...HEAD || true)
-  if printf '%s\n' "$CHANGED" | grep -q '^plugins/'; then
-    if git -C "$ROOT" log --format=%s origin/main..HEAD | grep -qE '^(feat|fix)(\([^)]*\))?!?:|^[a-z]+(\([^)]*\))?!:'; then
+  # grep -q with a pipe under pipefail causes SIGPIPE if grep finds a match and closes the pipe
+  # before the producer finishes, making the whole pipeline fail. Capture first, then grep the output.
+  if grep -q '^plugins/' <<< "$CHANGED"; then
+    COMMITS=$(git -C "$ROOT" log --format=%s origin/main..HEAD)
+    if grep -qE '^(feat|fix)(\([^)]*\))?!?:|^[a-z]+(\([^)]*\))?!:' <<< "$COMMITS"; then
       ok "plugins/ edited, and a feat/fix commit will cut a release"
     else
       bad "plugins/ edited with no feat: or fix: commit — this would ship to nobody"
@@ -152,6 +155,61 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not found — skipping plan-artifacts tests"
+fi
+
+# 6c. mode-select-fields.mjs is the single source of truth for selection-field
+#     enums and evidence rules; mode-select.mjs (STORY-2-3+) and the planner
+#     both read it instead of hardcoding a value a second time. Same node
+#     guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/mode-select-fields.test.sh" >/dev/null 2>&1; then
+    ok "mode-select-fields invariants hold"
+  else
+    bad "mode-select-fields tests failed — run scripts/mode-select-fields.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping mode-select-fields tests"
+fi
+
+# 6d. mode-select.mjs applies hard floors first, then the versioned ARCH-2
+#     rubric, so the same inputs always produce the same decision and thresholds
+#     retune without a code change. A floor a retune could remove, or a decision
+#     that drifts between identical runs, is the failure this guards. Same node
+#     guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/mode-select.test.sh" >/dev/null 2>&1; then
+    ok "mode-select invariants hold"
+  else
+    bad "mode-select tests failed — run scripts/mode-select.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping mode-select tests"
+fi
+
+# 6b. Decision records: the ID is the join key every later outcome hangs off, so
+#     its derivation and the store's idempotency on the identity tuple are
+#     contract, not detail. Same node guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/decisions.test.sh" >/dev/null 2>&1; then
+    ok "decision-record invariants hold"
+  else
+    bad "decisions tests failed — run scripts/decisions.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping decisions tests"
+fi
+
+# 6c. Outcome events, the gh sweep and the verdict rules: a verdict is only as
+#     trustworthy as its fixture, and the accounting check is the proof that
+#     every decision ends in exactly one state.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/outcomes.test.sh" >/dev/null 2>&1; then
+    ok "outcome events, sweep and verdict invariants hold"
+  else
+    bad "outcomes tests failed — run scripts/outcomes.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping outcomes tests"
 fi
 
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
