@@ -8,13 +8,49 @@ never uses, on every invocation.
 
 ## PAIR LOOP — navigator ⇄ driver, for one story
 
-Subagents run to completion — they cannot pause mid-story — so **the orchestrator
-drives the alternation**. The pairing IS this loop; it is not something the driver
-does internally. Shared state is the worktree branch plus
+Subagents run to completion — they cannot pause mid-story — so something outside
+them drives the alternation. The pairing IS this loop; it is not something the
+driver does internally. Shared state is the worktree branch plus
 `backlog/pair/<STORY-ID>/`, which is read and written **only** through
 `pair-log.mjs` (see PAIR LOG SHAPE).
 
-### Every turn is a FRESH agent. Never `SendMessage`.
+### Default: `pair-run.mjs` drives it, not you
+
+Driven by hand, every alternation costs you two turns over your own growing
+conversation — on a measured 68-agent-turn epic, ~75 orchestrator turns on the
+most expensive context in the run, none of them deciding anything. So the loop
+is a script. Each turn is a fresh headless `claude -p --agent agentic-sdlc:<role>`
+in the worktree; you make **one call per story**:
+
+```
+0. Brief + init, exactly as step 0 of the manual loop below.
+1. Bash (run_in_background: true — a story outlives the foreground timeout;
+   a wave's PAIR stories run concurrently, one call each):
+       node ${CLAUDE_PLUGIN_ROOT}/scripts/pair-run.mjs <STORY-ID> \
+         --worktree <worktree> --base <feat/EPIC-n | origin/<base>>
+2. On exit — the JSON on stdout carries session, alternation, agent turns,
+   measured cost, and the navigator's closing report (title + scopes):
+     0  complete → LAND (epic), or push + `gh pr create --base <base> --fill`
+                   noting "pair-built" (hotfix).
+     10 blocked  → architect resolves the ARCH → re-run the same command.
+     4  cap      → split the story; do not raise the cap.
+     5  a turn failed or made no progress (usage limit, crash) → read stderr,
+                   fix the cause, re-run: it resumes at the role that is owed.
+```
+
+Optional: `--navigator-model` / `--driver-model` per story (e.g. Opus on a
+data-sourcing or save/restore-wiring story), `--turn-budget-usd <n>`. Headless
+turns get no permission prompts: the project's `.claude/settings.json` allow-list
+governs them, and `PAIR_RUN_CLAUDE_ARGS` passes extra CLI flags (e.g.
+`--permission-mode acceptEdits`). Each turn's cost lands in
+`.agentic-sdlc/meter/pair-run-<STORY-ID>.jsonl`.
+
+Run the manual loop below **only** when `claude` is not on PATH or headless runs
+are not permitted in this environment.
+
+### Manual fallback
+
+#### Every turn is a FRESH agent. Never `SendMessage`.
 
 **Each step below spawns a new `Agent()`. Do not continue a previous navigator or
 driver with `SendMessage`, and do not keep a pair agent alive across turns.** This
@@ -45,9 +81,9 @@ twice and letting the more expensive copy be the one that grows.
 1. Agent(subagent_type: "agentic-sdlc:navigator", prompt: "PAIR on <STORY-ID> in <worktree>,
          branch feat/STORY-<id> off <epic branch | origin/<base>>. Your whole
          context is `pair-log.mjs read <STORY-ID> --role navigator` (it includes
-         the last commit). Review the last increment, write the next failing
-         test, refresh STATE. All ACs green → run the full gate and close the
-         story per your CLOSE step. One test, then stop.")
+         the last commit). Review the last increment, write the failing tests
+         for the next behaviour, refresh STATE. All ACs green → close the story
+         in this same turn per your CLOSE step. Then stop.")
 
 2. Read the session field — never the log itself, or you accumulate one copy per
    alternation:
@@ -63,7 +99,8 @@ twice and letting the more expensive copy be the one that grows.
 
 3. Agent(subagent_type: "agentic-sdlc:driver", prompt: "PAIR driver turn on <STORY-ID>
          in <worktree>. Your whole context is `pair-log.mjs read <STORY-ID>
-         --role driver`. Make the failing test pass, commit, log, stop.")
+         --role driver`. Make the failing tests pass, implementing only what they
+         demand; commit, log, stop.")
 
 4. → back to 1.
 

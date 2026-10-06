@@ -236,6 +236,29 @@ Size ratchet re-calibrated down to the new sizes (group 63,951 → 61,902 B). St
 **not** done, because each changes what the agents judge and needs `bench/`:
 navigator on Sonnet, more than one test per red, a lower alternation cap.
 
+## 2026-10-06 (later) — cuts from a measured epic run
+
+A real run's transcript (EPIC-10, four PAIR stories) gave the first evidence
+from the field: ~68 agent turns (36 navigator, 30 driver, 2 lost to a usage
+limit), ~75 orchestrator turns on Opus at a 1M context, and **every** real defect
+(an unused fallback query hidden by a broad mock, a vanished-then-unstyled label,
+a sign-in race overwriting a pick, an inconsistent empty name) caught by
+reviewing wiring/integration rounds. ~15 one-function rounds on pure helpers
+found nothing. That evidence justifies the behaviour-level cuts below; they are
+still estimates in turns, not billed tokens — `pair-run.mjs` now writes the
+per-turn measured cost to settle that.
+
+| Change | Turns, that run | Where |
+|---|---|---|
+| Loop scripted (`pair-run.mjs`); orchestrator makes one background call per story | ~75 orchestrator → ~4 + blocks | `scripts/pair-run.mjs`, `reference/pair-loop.md` |
+| Mode by `risk:` line, not estimate (plumbing → SOLO; data → SOLO on Opus + independent check) | ~29 → ~6 on two stories | `commands/build.md`, `agents/planner.md` |
+| One behaviour per round, wiring steps keep their own round | ~22 → ~11 on the wiring story | `agents/navigator.md` |
+| Rework prevention: log resolves the worktree root; implement only what the tests demand; check CSS when moving UI; mock one path per fact | ~7 repeats | `pair-log.mjs`, `agents/driver.md`, `agents/navigator.md` |
+| Close in the final review turn | ~5 close-only turns | `agents/navigator.md` |
+
+Kept on purpose: review on every wiring round, Opus where the data or the
+save/restore wiring is the risk, and the orchestrator's independent data check.
+
 ## Verification performed
 
 - `scripts/meter.test.sh` — 16 checks green, incl. byte-exact totals, by_agent

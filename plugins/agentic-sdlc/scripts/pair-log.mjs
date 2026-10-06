@@ -77,7 +77,13 @@ const USAGE = `usage:
 if (!command || command === '--help' || command === '-h') die(2, USAGE)
 if (!storyId) die(2, `missing <STORY-ID>\n${USAGE}`)
 
-const root = flags.root || 'backlog/pair'
+// Anchored at the worktree root, not the cwd: an agent that ran the script from a
+// subfolder used to get "no pair log" and burn a turn on the retry.
+const gitTop = () => {
+  const r = spawnSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' })
+  return r.status === 0 ? r.stdout.trim() : '.'
+}
+const root = flags.root || join(gitTop(), 'backlog/pair')
 const dir = join(root, storyId)
 const F = {
   brief: join(dir, 'brief.md'),
@@ -302,12 +308,17 @@ if (command === 'session') {
 if (command === 'status') {
   requireLog()
   const s = readSession()
+  // `next` lets a resumed loop (after a crash or a usage limit) pick up at the
+  // right role: the navigator opens an alternation, so a navigator entry last
+  // means the driver is owed a turn.
+  const last = parseEntries().at(-1)
+  const next = last && /^## \d+\. navigator /.test(last) ? 'driver' : 'navigator'
   // Machine-readable, and deliberately NOT parsed out of the turn log. The old
   // marker was prose inside an entry, so the 10-line truncation would eventually
   // clip a `SESSION: COMPLETE` written on line 11 — and the symptom would be a
   // pair loop running silently to its alternation cap.
   process.stdout.write(
-    `session=${s.session} arch=${s.arch ?? 'none'} alternation=${s.alternation}/${ALTERNATION_CAP}\n`,
+    `session=${s.session} arch=${s.arch ?? 'none'} alternation=${s.alternation}/${ALTERNATION_CAP} next=${next}\n`,
   )
   process.exit(0)
 }

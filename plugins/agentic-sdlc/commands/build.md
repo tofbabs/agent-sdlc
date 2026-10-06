@@ -53,21 +53,24 @@ needs it. Agents do not resolve it themselves.
 
 ---
 
-## MODE SELECTION — per story
+## MODE SELECTION — per story, by where the risk is
 
-Each story is built one of two ways. Decide per story, not per epic. (Under
-`--fast` this heuristic does not run at all — every task is SOLO.)
+Decide per story from its `risk:` line, **not its estimate** — an L story of
+plumbing is SOLO, an S story of save/restore wiring is PAIR. (Under `--fast` this
+does not run: every task is SOLO.)
 
-- **estimate S, well-specified, a pattern for it already exists** → **SOLO**: one
-  coder invocation runs the story to completion in its worktree.
-- **estimate M or L, novel logic, or a story that came back from review** →
-  **PAIR**: the navigator and driver ping-pong TDD, one increment at a time (see
-  PAIR LOOP).
+- **SOLO** — plumbing or UI following an existing pattern, pure helpers, config.
+  One coder turn; the review at the PR is its check.
+- **SOLO, coder on Opus** — the risk is in the *data* (sourcing, seeding,
+  migration content), not the code. Before landing, check it independently
+  yourself: recompute a total or count from the source.
+- **PAIR** — the risk is in rules or wiring: invariants, persistence and restore,
+  auth/session timing and races, cross-module integration, money, destructive
+  data, or a story that came back from review. Every defect measured in paired
+  runs came from reviewing wiring steps, none from red-green on helpers.
 
-Pairing roughly doubles a story's turns, so it goes where the risk is, not
-everywhere. When unsure, pair — a wrong M story costs more than the pairing
-overhead on ten S stories. The mode is orthogonal to the cascade: a wave can hold
-SOLO and PAIR stories at once, each in its own worktree.
+No `risk:` line → infer it from the ACs; when genuinely unsure, pair. A wave can
+hold SOLO and PAIR stories at once, each in its own worktree.
 
 ---
 
@@ -116,9 +119,12 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
             so nothing greps for what you already know, and ask for a short
             structured report rather than a narrative.
 
-     PAIR → run the PAIR LOOP (below) for <STORY-ID> in <worktree>. It ends with
-            the story's increments committed on the story branch, the same state
-            SOLO leaves. No PR — this is an epic wave.
+     SOLO with data risk → same, plus `model: opus` on the call; check the
+            data yourself before LAND (see MODE SELECTION).
+
+     PAIR → one background `pair-run.mjs` call for <STORY-ID> (PAIR LOOP,
+            below). It ends with the story committed on its branch, the same
+            state SOLO leaves. No PR — this is an epic wave.
 
   3. If any agent reports BLOCKED on an ARCH:
        Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n> — the coder is
@@ -178,29 +184,21 @@ landed, not part of the cascade run.
 
 ## PAIR LOOP — loaded only when a story selects PAIR
 
-A PAIR story is driven by **the orchestrator** alternating fresh navigator and
-driver agents, one increment at a time, with `backlog/pair/<STORY-ID>/` as the
-shared memory. That protocol runs ~130 lines and only a PAIR story needs it, so
-it lives in a file instead of in this prompt:
+A PAIR story alternates fresh navigator and driver agents, one behaviour at a
+time, with `backlog/pair/<STORY-ID>/` as the shared memory. **You do not drive the
+alternation**: `scripts/pair-run.mjs` does, headless, and you make one background
+call per story and act on its exit code. The protocol — the call, exit codes,
+the manual fallback — is in:
 
 ```bash
 cat ${CLAUDE_PLUGIN_ROOT}/reference/pair-loop.md
 ```
 
-**Read it before the first navigator turn of the first PAIR story in a run.** An
-all-SOLO run never reads it and never pays for it. Do not improvise the protocol
-from the summary below — it is a reminder, not a substitute.
-
-Three things you must not get wrong even before you read it:
-
-- **Every turn is a FRESH `Agent()`. Never `SendMessage`.** A live agent's
-  context is re-sent on each of its 18-42 internal round trips per turn, so
-  keeping one alive makes a story cost O(alternations²) — measured at 139M input
-  tokens for a single agent on a 31-alternation story.
-- **Never read a pair-log file into your own context.** `pair-log.mjs status` is
-  the only thing you need between turns, and it prints one line.
-- **CAP: 20 alternations per story**, counted by the script. Hitting it means the
-  story is too big — split it rather than raising the cap.
+**Read it before the first PAIR story in a run.** An all-SOLO run never pays for
+it. In the manual fallback only: every turn is a FRESH `Agent()`, never
+`SendMessage` (a live agent makes a story O(alternations²)); never read a pair-log
+file yourself — `pair-log.mjs status` prints one line. **CAP: 20 alternations**;
+hitting it means split the story.
 
 ---
 
@@ -341,18 +339,15 @@ arithmetic — is in [docs/build-rationale.md](../../../docs/build-rationale.md)
   pattern replicated across four stories is not.
 - **In a PAIR story, never skip the navigator turn to save time**, and never let
   the driver write or modify a test. Either collapses the pair back into solo work
-  while still paying the pair's price. One increment per driver turn, one test per
+  while still paying the pair's price. One increment per driver turn, one behaviour per
   navigator turn. `--fast` selecting SOLO for every task is **not** the
   degradation this rule forbids — choosing the lane up front is the point of the
   flag. The forbidden thing is running a story *in* PAIR and skipping its
   navigator turns.
-- **Never continue a pair agent with `SendMessage`. Every turn is a fresh
-  `Agent()`.** A live agent's context is re-sent on each of its 18–42 internal
-  round trips per turn, so keeping it alive makes a story cost O(alternations²) —
-  see PAIR LOOP. The pair log is the memory; the agent must not be.
-- **Never read a pair-log file into the orchestrator's own context.**
-  `pair-log.mjs status` is the only thing you need between turns, and it prints
-  one line. Anything you read accumulates one copy per alternation.
+- **Never drive a PAIR story turn by turn when `pair-run.mjs` can** — each
+  alternation you drive costs two turns of your own growing context. In the
+  manual fallback: fresh `Agent()` every turn, never `SendMessage`, never read a
+  pair-log file yourself.
 - If a coder blocks three times on one story, the **story** is probably wrong.
   Escalate to the human rather than grinding.
 - **Check the epic file's `status:` against `<base>` before starting.** Markers go

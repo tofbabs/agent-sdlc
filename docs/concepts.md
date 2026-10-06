@@ -43,8 +43,10 @@ The highest-rigor way to *write* a story. Two agents alternate one increment at 
 time: the **navigator** (Opus 4.8) writes the next failing test and reviews the
 last increment; the **driver** (Sonnet 5, a slim pair-only agent) makes it pass with the
 simplest thing that works. The driver *not* owning the tests is what keeps them
-honest. Chosen for M/L, novel, or previously-bounced stories, where the risk
-justifies roughly doubling the story's turns.
+honest. Chosen by the story's `risk:` line, not its size — rules, wiring
+(persistence, restore, races, integration), money, destructive data, or a story
+that bounced — and run one *behaviour* per round, not one function, by a script
+(`pair-run.mjs`) rather than turn by turn by the orchestrator.
 **Debt recorded:** same ledger discipline; pairing narrows nothing about what
 gets written down.
 
@@ -98,7 +100,7 @@ Every story is built one of two ways, chosen per story by `/agentic-sdlc:build`:
   behaviour and remains fully supported.
 - **PAIR** — ping-pong TDD split across two agents (navigator + driver), one
   increment at a time through a shared pair log at `backlog/pair/<STORY-ID>.md`.
-  Chosen for M/L, novel, or previously-bounced stories — where the driver *not*
+  Chosen where the `risk:` line is rules or wiring, not by size — where the driver *not*
   owning the tests is what keeps them honest.
 
 Pairing roughly doubles a story's turns, so `/agentic-sdlc:build` sends it only

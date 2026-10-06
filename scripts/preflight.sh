@@ -76,6 +76,11 @@ if command -v node >/dev/null 2>&1; then
   else
     bad "pair-log tests failed — run scripts/pair-log.test.sh to see which invariant broke"
   fi
+  if "$ROOT/scripts/pair-run.test.sh" >/dev/null 2>&1; then
+    ok "pair-run loop invariants hold"
+  else
+    bad "pair-run tests failed — run scripts/pair-run.test.sh to see which stop condition broke"
+  fi
 else
   note "node not found — skipping pair-log tests"
 fi
