@@ -279,14 +279,15 @@ save/restore wiring is the risk, and the orchestrator's independent data check.
 4. Confirm the production hook lands a record with a nonzero
    `by_agent["coder"].spawns` from a live `/build`.
 
-## 2026-10-06 (evening) — navigator on Sonnet by default, Opus by opt-in
+## 2026-10-06 (evening) — navigator on Sonnet, architect on Opus, every model by opt-in
 
 Taken ahead of `bench/` by owner decision, on the first headless measurement:
 STORY-2-8 under `pair-run.mjs` spent $12.37 of $13.63 on six Opus navigator turns
 and $1.26 on six Sonnet driver turns. The earlier cuts shrank the 9% role; this
-one goes after the 91%. The navigator's frontmatter is now Sonnet 5. Opus stays
-available as an explicit opt-in (`/build --navigator-model <m>` per run,
-`PAIR_RUN_NAVIGATOR_MODEL` per project); the orchestrator never escalates it on
-its own. What to watch in the next measured runs: REDO rate and defects found at
+one goes after the 91%. The navigator's frontmatter is now Sonnet 5, and the
+architect's moves from Fable 5 to Opus 4.8. Any agent's model is an explicit human
+opt-in (`--model <agent>=<m>` per run, an `**Agent models:**` line in `CLAUDE.md`
+per project; `reference/models.md`); the orchestrator never escalates the
+navigator or architect on its own. What to watch in the next measured runs: REDO rate and defects found at
 review on PAIR stories. If either regresses, the opt-in is the rollback, with no
 code change needed.

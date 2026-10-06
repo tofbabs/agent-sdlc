@@ -1,11 +1,11 @@
 ---
 description: Review an open PR — the code-reviewer reads it in its own worktree and posts one "Review — round <k>" comment with findings F1..Fn, then the GitHub verdict. Never edits, never merges. Closing its findings is /build's REVISE loop. --fable escalates the model for a security-critical or contract-changing PR.
-argument-hint: <PR-number> [--fable]
+argument-hint: <PR-number> [--fable] [--model <agent>=<m>]
 allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
 
-Target: `$ARGUMENTS` minus the flag — strip `--fable` if present; what remains
-is the PR number.
+Target: `$ARGUMENTS` minus `--fable` and `--model <agent>=<m>`.
+**Models:** `--fable`, `--model` or an `**Agent models:**` line in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
 Delegate the judgment; do the bookkeeping yourself.
 
@@ -69,7 +69,7 @@ already gathered:
 
 ```
 Agent(subagent_type: "agentic-sdlc:code-reviewer",
-      [model: "claude-fable-5" if --fable was passed],
+      [model: <code-reviewer override>],
       prompt: "Review PR <n>, round <k+1>. Worktree: <abs path>. Head sha:
       <sha>. Base: origin/<base>. Story IDs: <ids> in <backlog file> — read
       only those sections. Mode: FAST — yes|no. CI: <summary>. Previous
@@ -88,9 +88,7 @@ Always, whether the reviewer succeeded or blocked:
 git worktree remove ../wt-review-<n>
 ```
 
-Note the removal in your report in one line — this is the first command in
-this repo's pipeline that removes a worktree rather than merging it or
-leaving it for a human, so say so rather than diverging silently.
+Note the removal in your report in one line.
 
 ---
 

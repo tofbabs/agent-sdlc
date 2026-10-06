@@ -39,11 +39,9 @@ in the worktree; you make **one call per story**:
 ```
 
 Both roles run on Sonnet 5 by default. The navigator is ~90% of a pair's cost
-(measured, STORY-2-8: $12.37 of $13.63), so Opus there is the human's call, never
-yours: pass `--navigator-model <m>` only when `/build` was given it. A project
-that wants it on every pair sets `PAIR_RUN_NAVIGATOR_MODEL` in its
-`.claude/settings.json` `env`; the flag wins over it. Also optional:
-`--driver-model`, `--turn-budget-usd <n>`. Headless
+(measured, STORY-2-8: $12.37 of $13.63), so a stronger model there is the human's
+call, never yours: pass `--navigator-model <m>` / `--driver-model <m>` only for an
+override resolved per `reference/models.md`. Also optional: `--turn-budget-usd <n>`. Headless
 turns get no permission prompts: the project's `.claude/settings.json` allow-list
 governs them, and `PAIR_RUN_CLAUDE_ARGS` passes extra CLI flags (e.g.
 `--permission-mode acceptEdits`). Each turn's cost lands in
@@ -82,7 +80,7 @@ twice and letting the more expensive copy be the one that grows.
    That creates backlog/pair/<STORY-ID>/ — brief.md, state.md, turns.md,
    session.json.
 
-1. Agent(subagent_type: "agentic-sdlc:navigator", [model: <m> if opted in,]
+1. Agent(subagent_type: "agentic-sdlc:navigator", [model: <override>,]
          prompt: "PAIR on <STORY-ID> in <worktree>,
          branch feat/STORY-<id> off <epic branch | origin/<base>>. Your only
          read of the pair log is `pair-log.mjs read <STORY-ID> --role
@@ -103,7 +101,7 @@ twice and letting the more expensive copy be the one that grows.
                          ARCH-<n> — a pair is blocked and waiting.") → back to 1.
      otherwise         → continue.
 
-3. Agent(subagent_type: "agentic-sdlc:driver", prompt: "PAIR driver turn on <STORY-ID>
+3. Agent(subagent_type: "agentic-sdlc:driver", [model: <override>,] prompt: "PAIR driver turn on <STORY-ID>
          in <worktree>. Your only read of the pair log is
          `pair-log.mjs read <STORY-ID> --role driver` (bounded: STATE, last 2
          entries, last commit); open source files as you need them. Make the

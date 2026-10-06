@@ -72,17 +72,14 @@ node "$PL" status STORY-R | grep -q 'alternation=20/20' && [ $code -eq 4 ] \
 cd sub && node "$PL" status STORY-R >/dev/null 2>&1 \
   && ok "pair-log resolves the worktree root from a subfolder" || bad "pair-log failed from a subfolder"
 
-# 7. The navigator runs on its agent default unless a model is opted into, by
-#    flag or project env; the flag wins, and the driver is never touched.
+# 7. Each role runs on its agent default unless the human overrode it; an
+#    override for one role never leaks into the other.
 fresh
 FAKE_MODEL_LOG="$TMP/m0" run >/dev/null 2>&1
 [ ! -s "$TMP/m0" ] && ok "no --model passed by default" || bad "default passed a model: $(cat "$TMP/m0")"
 fresh
-PAIR_RUN_NAVIGATOR_MODEL=opus FAKE_MODEL_LOG="$TMP/m1" run >/dev/null 2>&1
-[ "$(sort -u "$TMP/m1")" = "navigator opus" ] && ok "env opts the navigator into a model" || bad "env: $(cat "$TMP/m1")"
-fresh
-PAIR_RUN_NAVIGATOR_MODEL=opus FAKE_MODEL_LOG="$TMP/m2" run --navigator-model claude-opus-4-8 >/dev/null 2>&1
-[ "$(sort -u "$TMP/m2")" = "navigator claude-opus-4-8" ] && ok "the flag overrides the env" || bad "flag: $(cat "$TMP/m2")"
+FAKE_MODEL_LOG="$TMP/m1" run --navigator-model opus >/dev/null 2>&1
+[ "$(sort -u "$TMP/m1")" = "navigator opus" ] && ok "a navigator override reaches only the navigator" || bad "override: $(cat "$TMP/m1")"
 
 [ "$fail" -eq 0 ] || { printf '\npair-run tests failed\n' >&2; exit 1; }
 printf '\npair-run tests passed\n'

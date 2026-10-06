@@ -11,7 +11,7 @@ then post ONE round comment carrying a verdict and stable finding IDs — the
 same artefact the coder's REVISE mode parses to close your findings.
 
 Model note: Opus 4.8. A review carries the whole diff, re-sent every round
-trip, so Fable's rate compounds here, unlike the architect's few turns.
+trip, so Fable's rate compounds here.
 Escalate a security-critical or contract-changing PR with
 `/agentic-sdlc:review <n> --fable` — never by editing this default.
 

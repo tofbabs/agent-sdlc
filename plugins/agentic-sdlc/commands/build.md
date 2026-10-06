@@ -1,10 +1,11 @@
 ---
 description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄driver TDD pair and landed as ONE squash commit. Architect unblocks mid-build. Opens one PR. Review is `/agentic-sdlc:review`; the REVISE loop that closes its findings runs here separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
-argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast] [--navigator-model <m>]
+argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast] [--model <agent>=<m>]
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
 
-Target: `$ARGUMENTS` minus `--fast` and `--navigator-model <m>`.
+Target: `$ARGUMENTS` minus `--fast` and `--model <agent>=<m>`.
+**Models:** `--model` or an `**Agent models:**` line in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
 Execute the backlog. **Delegate all code.**
 
@@ -123,7 +124,7 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
             data yourself before LAND (see MODE SELECTION).
 
      PAIR → one background `pair-run.mjs` call for <STORY-ID> (PAIR LOOP,
-            below), passing `--navigator-model <m>` if the run was given it. It ends with the story committed on its branch, the same
+            below), with any navigator/driver model override. It ends with the story committed on its branch, the same
             state SOLO leaves. No PR — this is an epic wave.
 
   3. If any agent reports BLOCKED on an ARCH:
@@ -303,9 +304,7 @@ merge; nothing here merges its own PR.
 - **Coder, driver and navigator on Sonnet 5 by default** — they run the most
   turns. **Escalate a story's coder/driver to Opus 4.8** only when it is genuinely
   hard (novel algorithm, tricky concurrency, twice-bounced), on that invocation.
-  The navigator goes to Opus only when the human opts in (`--navigator-model`).
-- **Never Fable on the coder, driver or navigator** — it belongs on the architect, where
-  turns are few and judgment is dense.
+- **Every other model change is the human's** — never make one yourself.
 - **The model tier is the small lever; whether the agents are fresh is the big
   one.** Get freshness right first.
 
