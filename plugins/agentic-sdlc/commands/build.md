@@ -111,6 +111,9 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
             so nothing greps for what you already know, and ask for a short
             structured report rather than a narrative.
 
+            Watch it: BLOCKED, gate failures, and edits outside the files you
+            named may escalate it to PAIR — `reference/runtime-correction.md`.
+
      SOLO with data risk → same, plus `model: opus` on the call; check the
             data yourself before LAND (see MODE SELECTION).
 

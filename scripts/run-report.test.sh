@@ -1005,6 +1005,6 @@ got=$(q "$(OUT "$P")" 'r.decisions.length+" "+r.decisions.map(d=>d.choice).sort(
 got=$(q "$(OUT "$P")" 'r.decisions.map(d=>Object.keys(d).sort().join("+")).join(" ")')
 case "$got" in *subject*|*run_id*|*inputs*|*state*|*verdict*) bad "report leaked record internals: $got" ;; *) ok "record internals (subject, run_id, inputs, state) stay out of the report" ;; esac
 got=$(q "$(OUT "$P")" 'r.decisions.filter(d=>"floor" in d).map(d=>d.floor).join(",")')
-[ "$got" = "money" ] && ok "a floor without a report token (one_way_door) is omitted, not nulled" || bad "floor projection: $got"
+[ "$got" = "one_way_door,money" ] && ok "every mode-select floor (one_way_door, money) reaches the report" || bad "floor projection: $got"
 
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }

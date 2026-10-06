@@ -9,13 +9,13 @@
 //
 // Zero dependencies, Node 22 (the repo floor).
 
-import { readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { readFileSync, writeFileSync, realpathSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parse, findSelectLine, DISPATCH_MODES, FIELD_NAMES } from './mode-select-fields.mjs'
 import { CLOSED, PATTERNS } from './run-report-categories.mjs'
-import { writeDecision } from './decisions.mjs'
+import { writeDecision, readDecisions, recordCorrection } from './decisions.mjs'
 
 const RUBRIC = JSON.parse(
   readFileSync(new URL('./mode-select-rubric.json', import.meta.url), 'utf8'),
@@ -163,11 +163,14 @@ export function recordChoice(recommendation, chosen, vocabulary) {
 // Never invented: a decision with no run has no join key, so the caller skips
 // the record and says so rather than minting one that could never be found again.
 function resolveRunId(flags, file) {
+  return resolveRunIdFrom(flags, dirname(resolve(file)))
+}
+
+function resolveRunIdFrom(flags, cwd) {
   if (flags['run-id'] !== undefined) {
     return PATTERNS.uuid_v4.test(flags['run-id']) ? flags['run-id'] : null
   }
   try {
-    const cwd = dirname(resolve(file))
     const common = resolve(
       cwd,
       execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(),
@@ -205,8 +208,7 @@ function storyDecisions(id, fields, result, decision) {
     {
       ...base,
       layer: result.floor === null ? 'score' : 'floor',
-      // A risk_class floor is reported as the class that fired it; the other
-      // floors have no report token, so the record alone keeps their name.
+      // A risk_class floor is reported as the class that fired it.
       floor: result.floor === 'risk_class' ? fields.risk_class.value : result.floor,
       score: result.score,
       choice: result.mode,
@@ -278,6 +280,8 @@ function parseFlags(args) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--record') {
       flags.record = true
+    } else if (args[i] === '--block') {
+      flags.block = true
     } else if (args[i].startsWith('--')) {
       flags[args[i].slice(2)] = args[++i]
     }
@@ -357,6 +361,106 @@ function record(backlogPath, chosen, flags = {}) {
   return { ...result, choice, alternative, overridden }
 }
 
+// Runtime correction. Observed facts live beside decisions/ and pair/ in the
+// common git dir so every worktree of a run shares one tally. Keyed by run as
+// well as story: a story re-run in a later run must not inherit old strikes.
+function observeFile(cwd, run_id, id) {
+  const common = resolve(
+    cwd,
+    execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8' }).trim(),
+  )
+  const dir = join(common, 'agentic-sdlc', 'observe')
+  mkdirSync(dir, { recursive: true })
+  return join(dir, `${run_id ?? 'norun'}-${id}.json`)
+}
+
+// A declared entry covers itself, or everything under it when it ends in `/`.
+function outsideDeclared(cwd, base, declared) {
+  const changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { cwd, encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean)
+  return changed.filter((f) => !declared.some((d) => (d.endsWith('/') ? f.startsWith(d) : f === d)))
+}
+
+// Reports an escalation once, at the crossing: later calls on an already-escalated
+// story return escalate:false so /build never corrects the same story twice.
+function observe(flags, cwd = process.cwd()) {
+  const id = flags.id
+  const file = observeFile(cwd, resolveRunIdFrom(flags, cwd), id)
+  let state = { blocks: 0, gate_failures: {}, escalated: null }
+  try {
+    state = { ...state, ...JSON.parse(readFileSync(file, 'utf8')) }
+  } catch {
+    // no tally yet
+  }
+  let trigger = null
+  if (flags.block === true) {
+    state.blocks += 1
+    if (state.blocks >= 2) trigger = 'blocked_twice'
+  }
+  if (flags['gate-fail'] !== undefined) {
+    const ac = flags['gate-fail']
+    state.gate_failures[ac] = (state.gate_failures[ac] ?? 0) + 1
+    if (state.gate_failures[ac] >= 2) trigger = trigger ?? 'gate_failed_same_ac'
+  }
+  let outside = []
+  if (flags.declared !== undefined) {
+    if (flags.base === undefined) throw new Error('mode-select.mjs: --declared needs --base <branch>')
+    outside = outsideDeclared(cwd, flags.base, flags.declared.split(',').filter(Boolean))
+    if (outside.length > 0) trigger = trigger ?? 'edited_outside_declared'
+  }
+  const fire = trigger !== null && state.escalated === null
+  if (fire) state.escalated = trigger
+  writeFileSync(file, JSON.stringify(state, null, 2) + '\n')
+  return { escalate: fire, trigger: fire ? trigger : null, ...(outside.length > 0 && { outside }) }
+}
+
+// Appended, never replaced: a story can be corrected more than once (SOLO to
+// PAIR, later PAIR to SOLO) and each line is its own fact.
+function recordCorrectionLine(backlogPath, id, line) {
+  const content = readFileSync(backlogPath, 'utf8')
+  const lines = content.split('\n')
+  const { start, end } = storyBounds(lines, id, backlogPath)
+  const block = lines.slice(start, end)
+  if (block.includes(line)) return
+  // Last of the story's header-style lines, not of its whole block, so the
+  // line stays with the metadata rather than trailing into acceptance criteria.
+  const anchor = Math.max(
+    ...block.map((l, i) => (/^- (correction|override|mode|status): /.test(l) ? i : -1)),
+  )
+  if (anchor === -1) throw new Error(`mode-select.mjs: no status or mode line in "### ${id}:" to anchor a correction on`)
+  block.splice(anchor + 1, 0, line)
+  writeFileSync(backlogPath, [...lines.slice(0, start), ...block, ...lines.slice(end)].join('\n'))
+}
+
+// Generic over from/to/trigger: PAIR to SOLO and FAST to deliberate reuse it.
+function correct(flags) {
+  const { file, id, from, to, trigger } = flags
+  if (!CLOSED.correction_trigger.includes(trigger)) {
+    throw new Error(`mode-select.mjs: trigger "${trigger}" is not one of ${CLOSED.correction_trigger.join('|')}`)
+  }
+  // Dispatch modes plus the lane tokens, so a FAST-to-deliberate correction
+  // validates against the same call.
+  const known = [...new Set([...DISPATCH_MODES, ...CLOSED.mode, ...CLOSED.lane])]
+  for (const m of [from, to]) {
+    if (!known.includes(m)) {
+      throw new Error(`mode-select.mjs: mode "${m}" is not one of ${known.join('|')}`)
+    }
+  }
+  recordCorrectionLine(file, id, `- correction: ${from}→${to} trigger=${trigger}`)
+  const run_id = resolveRunId(flags, file)
+  if (run_id === null) {
+    process.stderr.write('mode-select.mjs: no run_id (pass --run-id or start a run); decision record skipped\n')
+    return { corrected: true, recorded: false, from, to, trigger }
+  }
+  const opts = { cwd: dirname(resolve(file)) }
+  const mine = readDecisions(run_id, opts).filter((d) => d.layer === 'correction' && d.subject === id)
+  const same = mine.find((d) => d.alternative === from && d.choice === to && d.inputs.trigger === trigger)
+  const seq = same ? same.seq : mine.length + 1
+  recordCorrection({ run_id, subject: id, seq, trigger, from, to }, opts)
+  return { corrected: true, recorded: true, seq, from, to, trigger }
+}
+
 // Argument-shape errors throw, so a bad invocation exits non-zero with no output.
 function runCli(argv) {
   const [command, ...rest] = argv
@@ -410,6 +514,12 @@ function runCli(argv) {
     }
     return { ...result, ...decision }
   }
+  if (command === 'observe' && flags.id !== undefined) {
+    return observe(flags)
+  }
+  if (command === 'correct' && ['file', 'id', 'from', 'to', 'trigger'].every((k) => flags[k] !== undefined)) {
+    return correct(flags)
+  }
   if (command === 'lane' && flags.file !== undefined) {
     const result = decideLane(readSelectLines(flags.file))
     return { ...result, ...recordChoice(result.lane, flags.chosen, CLOSED.lane) }
@@ -421,7 +531,9 @@ function runCli(argv) {
     'usage: mode-select.mjs story --line <select> [--chosen <mode>] | ' +
       'story --file <backlog> --id <story> [--chosen <mode>] [--record] [--run-id <uuid>] | ' +
       'lane --file <backlog> [--chosen <lane>] | ' +
-      'record --file <backlog> --chosen <lane> [--run-id <uuid>]',
+      'record --file <backlog> --chosen <lane> [--run-id <uuid>] | ' +
+      'observe --id <story> [--block] [--gate-fail <AC>] [--declared <f,..> --base <branch>] [--run-id <uuid>] | ' +
+      'correct --file <backlog> --id <story> --from <mode> --to <mode> --trigger <token> [--run-id <uuid>]',
   )
 }
 

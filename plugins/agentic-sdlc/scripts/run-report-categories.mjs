@@ -61,7 +61,7 @@ export const CLOSED = Object.freeze({
   // SOLO_OPUS is deliberately absent: the builder maps it to SOLO before a
   // decision reaches the report, so the report never carries a dispatch token.
   decision_choice: Object.freeze(['SOLO', 'PAIR', 'FAST', 'deliberate', 'fast']),
-  decision_floor: Object.freeze(['money', 'auth', 'destructive_data']),
+  decision_floor: Object.freeze(['money', 'auth', 'destructive_data', 'one_way_door', 'review_bounced']),
 })
 
 // The only string patterns the report schema admits (ADR 0001, amended by

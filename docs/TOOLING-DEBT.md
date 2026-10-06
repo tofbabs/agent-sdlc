@@ -80,13 +80,15 @@ an ignored ledger is worse than none.
 
 ### Gate runs and failures have no recorder
 - Raised: 2026-10-06 by architect (ARCH-1)
-- Current: schema 1 carries `build.gate_runs`/`build.gate_failures` as `null`
-  with `gate_history` in `degraded`; nothing records gate executions, and
-  wrapping the gate just for counting was judged not worth the build-path
-  change now
+- Current: `mode-select.mjs observe --gate-fail AC<n>` now tallies per-AC gate
+  failures for runtime correction, but only the failures a coder reports; gate
+  executions are still not counted and `build.gate_runs`/`build.gate_failures`
+  stay `null` in schema 1 with `gate_history` in `degraded`
 - Risk: LOW
 - Category: observability
-- Address when: 03-signal-routine defines a signal that needs gate data
+- Address when: 03-signal-routine defines a signal that needs gate run counts
+  (the observe store under `<git common dir>/agentic-sdlc/observe/` is the
+  place to feed the report from)
 
 ### Per-story architect-block attribution is lost on unblock
 - Raised: 2026-10-06 by architect (ARCH-3)

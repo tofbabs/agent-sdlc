@@ -720,5 +720,84 @@ node --input-type=module -e "
   }
 " && ok "usage string lists the --file/--id/--record forms" || bad "usage string is stale"
 
+# 18. Runtime correction: observe fires each trigger at its threshold and not
+#     before; a clean story escalates nothing and records nothing; correct writes
+#     the line + record idempotently and refuses a bad trigger or mode.
+node --input-type=module -e "
+  import { spawnSync, execFileSync } from 'node:child_process'
+  import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
+  import { tmpdir } from 'node:os'
+  import { join } from 'node:path'
+  const fail = (m) => { console.error(m); process.exit(1) }
+  const RUN = '11111111-1111-4111-8111-111111111111'
+  const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' })
+  const repo = mkdtempSync(join(tmpdir(), 'ms-corr-'))
+  git(repo, 'init', '-q', '-b', 'main')
+  git(repo, 'config', 'user.email', 't@t'); git(repo, 'config', 'user.name', 't')
+  mkdirSync(join(repo, 'src'))
+  writeFileSync(join(repo, 'src', 'a.js'), '1')
+  git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'base')
+  git(repo, 'checkout', '-qb', 'feat/STORY-C')
+  const run = (args) => spawnSync('node', ['$MS', ...args], { cwd: repo, encoding: 'utf8' })
+  const obs = (id, ...a) => { const r = run(['observe', '--id', id, '--run-id', RUN, ...a]); if (r.status !== 0) fail('observe failed: ' + r.stderr); return JSON.parse(r.stdout) }
+  const storeFiles = () => { const d = join(repo, '.git', 'agentic-sdlc'); return existsSync(d) ? readdirSync(d) : [] }
+  const decDir = join(repo, '.git', 'agentic-sdlc', 'decisions')
+  const decs = () => existsSync(decDir) ? readdirSync(decDir) : []
+
+  // AC3: one block, one gate fail, an in-set edit -> nothing fires, nothing recorded.
+  writeFileSync(join(repo, 'src', 'b.js'), '2'); git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'b')
+  let o = obs('STORY-C', '--block'); if (o.escalate || o.trigger !== null) fail('one block must not escalate')
+  o = obs('STORY-C', '--gate-fail', 'AC1'); if (o.escalate) fail('one gate failure must not escalate')
+  o = obs('STORY-C', '--declared', 'src/', '--base', 'main'); if (o.escalate) fail('in-set edits must not escalate')
+  if (decs().length !== 0) fail('observing alone must record no decision')
+  // Different ACs do not add up.
+  o = obs('STORY-C', '--gate-fail', 'AC2'); if (o.escalate) fail('failures on different ACs must not escalate')
+  // Second block fires blocked_twice, once.
+  o = obs('STORY-C', '--block'); if (!o.escalate || o.trigger !== 'blocked_twice') fail('2nd block must fire: ' + JSON.stringify(o))
+  o = obs('STORY-C', '--block'); if (o.escalate) fail('an escalated story must not re-fire')
+
+  // Same-AC gate failure fires at the 2nd.
+  obs('STORY-G', '--gate-fail', 'AC3')
+  o = obs('STORY-G', '--gate-fail', 'AC3'); if (!o.escalate || o.trigger !== 'gate_failed_same_ac') fail('2nd same-AC failure must fire: ' + JSON.stringify(o))
+
+  // Outside-declared fires on the first stray file, and names it.
+  o = obs('STORY-O', '--declared', 'src/b.js', '--base', 'main'); if (o.escalate) fail('exact declared file must pass')
+  o = obs('STORY-X', '--declared', 'docs/', '--base', 'main')
+  if (!o.escalate || o.trigger !== 'edited_outside_declared' || !o.outside.includes('src/b.js')) fail('stray edit must fire: ' + JSON.stringify(o))
+
+  // correct: line + record, idempotent, appended not replaced.
+  const file = join(repo, 'backlog.md')
+  writeFileSync(file, ['# EPIC-9', '', '### STORY-C: t', '- status: TODO', '- mode: SOLO — x', '', 'AC text', ''].join('\n'))
+  const args = ['correct', '--file', file, '--id', 'STORY-C', '--from', 'SOLO', '--to', 'PAIR', '--trigger', 'blocked_twice', '--run-id', RUN]
+  let r = run(args); if (r.status !== 0) fail('correct failed: ' + r.stderr)
+  const text = () => readFileSync(file, 'utf8')
+  if (!/^- mode: SOLO — x\n- correction: SOLO→PAIR trigger=blocked_twice\n\nAC text/m.test(text())) fail('correction line misplaced: ' + text())
+  const recs = () => decs().map((f) => JSON.parse(readFileSync(join(decDir, f), 'utf8')))
+  let c = recs().filter((d) => d.layer === 'correction')
+  if (c.length !== 1 || c[0].choice !== 'PAIR' || c[0].alternative !== 'SOLO' || c[0].inputs.trigger !== 'blocked_twice' || c[0].seq !== 1) fail('correction record wrong: ' + JSON.stringify(c))
+  const before = text()
+  r = run(args)
+  if (text() !== before || recs().length !== 1) fail('correct must be idempotent')
+  r = run(['correct', '--file', file, '--id', 'STORY-C', '--from', 'PAIR', '--to', 'SOLO', '--trigger', 'navigator_no_rejections', '--run-id', RUN])
+  c = recs().filter((d) => d.layer === 'correction')
+  if (c.length !== 2 || !c.some((d) => d.seq === 2) || (text().match(/^- correction:/gm) || []).length !== 2) fail('a second correction must append with the next seq')
+
+  // Bad trigger / bad mode: refused, nothing written.
+  const before2 = text(); const n = recs().length
+  r = run(['correct', '--file', file, '--id', 'STORY-C', '--from', 'SOLO', '--to', 'PAIR', '--trigger', 'because', '--run-id', RUN])
+  if (r.status === 0) fail('a bad trigger must be refused')
+  r = run(['correct', '--file', file, '--id', 'STORY-C', '--from', 'SOLO', '--to', 'NOPE', '--trigger', 'blocked_twice', '--run-id', RUN])
+  if (r.status === 0) fail('a bad mode must be refused')
+  if (text() !== before2 || recs().length !== n) fail('refused corrections must write nothing')
+" && ok "observe fires each trigger at its threshold, clean stories record nothing; correct is idempotent and validated (AC1/AC2/AC3)" \
+  || bad "runtime correction is wrong"
+
+# 19. decision_floor admits the mode-select floors so they reach the report.
+node --input-type=module -e "
+  import { CLOSED } from '$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs'
+  for (const f of ['one_way_door', 'review_bounced', 'money', 'auth', 'destructive_data'])
+    if (!CLOSED.decision_floor.includes(f)) { console.error('decision_floor lacks ' + f); process.exit(1) }
+" && ok "decision_floor carries every floor mode-select can record" || bad "decision_floor is missing a floor"
+
 [ "$fail" -eq 0 ] || { printf '\nmode-select tests failed\n' >&2; exit 1; }
 printf '\nmode-select tests passed\n'
