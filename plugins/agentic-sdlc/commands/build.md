@@ -55,22 +55,14 @@ needs it. Agents do not resolve it themselves.
 
 ## MODE SELECTION — per story, by where the risk is
 
-Decide per story from its `risk:` line, **not its estimate** — an L story of
-plumbing is SOLO, an S story of save/restore wiring is PAIR. (Under `--fast` this
-does not run: every task is SOLO.)
+(Under `--fast` this does not run: every task is SOLO.)
 
-- **SOLO** — plumbing or UI following an existing pattern, pure helpers, config.
-  One coder turn; the review at the PR is its check.
-- **SOLO, coder on Opus** — the risk is in the *data* (sourcing, seeding,
-  migration content), not the code. Before landing, check it independently
-  yourself: recompute a total or count from the source.
-- **PAIR** — the risk is in rules or wiring: invariants, persistence and restore,
-  auth/session timing and races, cross-module integration, money, destructive
-  data, or a story that came back from review. Every defect measured in paired
-  runs came from reviewing wiring steps, none from red-green on helpers.
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs story --file backlog/EPIC-<n>.md --id <STORY-ID> --record [--chosen <mode>]
+```
 
-No `risk:` line → infer it from the ACs; when genuinely unsure, pair. A wave can
-hold SOLO and PAIR stories at once, each in its own worktree.
+Dispatch exactly `choice`. On `fallback: true`, `cat ${CLAUDE_PLUGIN_ROOT}/reference/mode-selection.md`
+and follow it.
 
 ---
 

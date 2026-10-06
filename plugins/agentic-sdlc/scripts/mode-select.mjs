@@ -11,7 +11,7 @@
 
 import { readFileSync, writeFileSync, realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { parse } from './mode-select-fields.mjs'
+import { parse, findSelectLine, DISPATCH_MODES } from './mode-select-fields.mjs'
 import { CLOSED } from './run-report-categories.mjs'
 
 const RUBRIC = JSON.parse(
@@ -163,10 +163,38 @@ function readSelectLines(backlogPath) {
     .map((line) => parse(line))
 }
 
+// A story's block runs from its `### <ID>:` heading to the next `###` or `##`
+// heading, so a neighbouring story's select line can never be borrowed. The
+// colon in the match keeps STORY-A from matching STORY-AB.
+function storyBounds(lines, id, backlogPath) {
+  const start = lines.findIndex((line) => line.startsWith(`### ${id}:`))
+  if (start === -1) {
+    throw new Error(`mode-select.mjs: no story block "### ${id}:" in ${backlogPath}`)
+  }
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^###?\s/.test(lines[i])) {
+      end = i
+      break
+    }
+  }
+  return { start, end }
+}
+
+function readStoryBlock(backlogPath, id) {
+  const lines = readFileSync(backlogPath, 'utf8').split('\n')
+  const { start, end } = storyBounds(lines, id, backlogPath)
+  return lines.slice(start, end).join('\n')
+}
+
 function parseFlags(args) {
   const flags = {}
   for (let i = 0; i < args.length; i++) {
-    if (args[i].startsWith('--')) flags[args[i].slice(2)] = args[++i]
+    if (args[i] === '--record') {
+      flags.record = true
+    } else if (args[i].startsWith('--')) {
+      flags[args[i].slice(2)] = args[++i]
+    }
   }
   return flags
 }
@@ -205,6 +233,23 @@ function upsertHeaderLine(content, lineRe, line, anchorRe = ARTIFACTS_LINE_RE) {
   return `${content.slice(0, at)}\n${line}${content.slice(at)}`
 }
 
+// Story decision lines live inside the story's own block, anchored on its status
+// line, so a recorded choice can never land in a neighbour's block.
+const STORY_MODE_LINE_RE = /^- mode: .*$/m
+const STORY_OVERRIDE_LINE_RE = /^- override: mode .*$/m
+const STORY_STATUS_LINE_RE = /^- status: .*$/m
+
+function recordStory(backlogPath, id, modeLine, overrideLine) {
+  const content = readFileSync(backlogPath, 'utf8')
+  const lines = content.split('\n')
+  const { start, end } = storyBounds(lines, id, backlogPath)
+  const block = lines.slice(start, end).join('\n')
+  let next = upsertHeaderLine(block, STORY_MODE_LINE_RE, modeLine, STORY_STATUS_LINE_RE)
+  next = upsertHeaderLine(next, STORY_OVERRIDE_LINE_RE, overrideLine, STORY_MODE_LINE_RE)
+  if (next === block) return
+  writeFileSync(backlogPath, [...lines.slice(0, start), next, ...lines.slice(end)].join('\n'))
+}
+
 // record — the one call plan.md and fast-mode.md carry (STORY-2-4 "a call, not
 // inline policy"): computes the lane recommendation, applies the human's chosen
 // lane, and writes both into the backlog header idempotently. Re-running with the
@@ -233,6 +278,34 @@ function runCli(argv) {
   if (command === 'story' && flags.line !== undefined) {
     const result = decideStory(parse(flags.line))
     return { ...result, ...recordChoice(result.mode, flags.chosen, CLOSED.mode) }
+  }
+  if (command === 'story' && flags.file !== undefined && flags.id !== undefined) {
+    const recording = flags.record === true
+    const selectLine = findSelectLine(readStoryBlock(flags.file, flags.id))
+    // An old-format block has no select line; /build applies the prose risk: rule
+    // instead, so this is a fallback to report. Recording one needs the human's
+    // chosen mode — writing a guess the human never made would pass for a decision.
+    if (selectLine === null) {
+      const reason = `no select line in "### ${flags.id}:" — apply the prose risk: rule`
+      if (!recording) return { fallback: true, mode: null, rubric: null, reason }
+      if (flags.chosen === undefined) {
+        throw new Error(`mode-select.mjs: --record on "### ${flags.id}:" needs --chosen; a fallback has no recommendation to record`)
+      }
+      const { choice } = recordChoice(null, flags.chosen, DISPATCH_MODES)
+      recordStory(flags.file, flags.id, `- mode: ${choice} — fallback (no select line): prose risk: rule`, null)
+      return { fallback: true, mode: choice, rubric: null, reason }
+    }
+    const result = decideStory(parse(selectLine))
+    const decision = recordChoice(result.mode, flags.chosen, DISPATCH_MODES)
+    if (recording) {
+      recordStory(
+        flags.file,
+        flags.id,
+        `- mode: ${decision.choice} — recommended ${result.mode} (rubric ${result.rubric}): ${result.reason}`,
+        decision.overridden ? `- override: mode recommended=${result.mode} chosen=${decision.choice}` : null,
+      )
+    }
+    return { ...result, ...decision }
   }
   if (command === 'lane' && flags.file !== undefined) {
     const result = decideLane(readSelectLines(flags.file))

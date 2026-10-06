@@ -40,6 +40,12 @@ const RISK_KIND = Object.freeze(['code', 'data'])
 
 const BOOLEAN_YES_NO = Object.freeze(['yes', 'no'])
 
+// The pairing modes a story can dispatch under. Kept beside the field enums so
+// the scorer and the recorder read one vocabulary; CLOSED.mode in
+// run-report-categories.mjs is the run-report lane vocabulary and does not
+// carry SOLO_OPUS, so it cannot be used for dispatch choices.
+export const DISPATCH_MODES = Object.freeze(['SOLO', 'SOLO_OPUS', 'PAIR'])
+
 // FIELDS is the frozen spec every reader (planner, mode-select.mjs, this
 // module's own validate/parse/format) must import rather than re-declare.
 // `kind` drives both validation and the one-line codec below.

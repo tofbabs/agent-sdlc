@@ -366,5 +366,277 @@ node --input-type=module -e "
 " && ok "CLI record: writes Lane/Override lines idempotently, drops Override on agreement" \
   || bad "CLI record wrong"
 
+# 12. Per-story resolution (STORY-2-5 AC1): `story --file <backlog> --id <ID>`
+#     finds that story's block (`### <ID>:` up to the next `### `/`## `), scores
+#     the block's own `- select:` line, and prints the decideStory + recordChoice
+#     JSON. Scoping is the wiring under test: two blocks with different decisions
+#     must each resolve to their own, not to whichever select line comes first.
+#     `--chosen SOLO_OPUS` is accepted — the mode vocabulary is DISPATCH_MODES
+#     (which includes SOLO_OPUS), not CLOSED.mode (which does not). An unknown
+#     --id refuses non-zero rather than scoring the wrong block.
+node --input-type=module -e "
+  import { execFileSync } from 'node:child_process'
+  import { writeFileSync, mkdtempSync } from 'node:fs'
+  import { tmpdir } from 'node:os'
+  import { join } from 'node:path'
+  const run = (args) => {
+    try { return { code: 0, stdout: execFileSync('node', ['$MS', ...args], { encoding: 'utf8' }) } }
+    catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '' } }
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'ms-story-'))
+  const file = join(dir, 'EPIC-9.md')
+  writeFileSync(file, [
+    '# EPIC-9: test',
+    '',
+    '## Stories',
+    '',
+    '### STORY-A: a solo one',
+    '- select: risk_class=none@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+    '### STORY-B: a floored one',
+    '- select: risk_class=none@AC1 one_way_doors=1@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+  ].join('\n'))
+
+  // STORY-A scores SOLO (score 0, no floor); the default choice rides the recommendation.
+  const a = run(['story', '--file', file, '--id', 'STORY-A'])
+  if (a.code !== 0) { console.error('story --file --id must exit 0, got ' + a.code + ': ' + a.stdout); process.exit(1) }
+  const aj = JSON.parse(a.stdout)
+  if (aj.mode !== 'SOLO' || aj.floor !== null || aj.score !== 0 || aj.rubric === undefined || aj.fallback !== false) {
+    console.error('STORY-A must resolve to its own SOLO decision: ' + a.stdout); process.exit(1)
+  }
+  if (aj.choice !== 'SOLO' || aj.alternative !== null || aj.overridden !== false) {
+    console.error('STORY-A default choice must ride the recommendation: ' + a.stdout); process.exit(1)
+  }
+
+  // STORY-B scores PAIR via the one_way_door floor — proves the call scopes to
+  // the named block, not to the first select line in the file.
+  const b = run(['story', '--file', file, '--id', 'STORY-B'])
+  if (b.code !== 0) { console.error('STORY-B must exit 0, got ' + b.code + ': ' + b.stdout); process.exit(1) }
+  const bj = JSON.parse(b.stdout)
+  if (bj.mode !== 'PAIR' || bj.floor !== 'one_way_door') {
+    console.error('STORY-B must resolve to its own floored PAIR decision, not STORY-A: ' + b.stdout); process.exit(1)
+  }
+
+  // --chosen SOLO_OPUS is accepted and overrides: the mode vocabulary is
+  // DISPATCH_MODES, which carries SOLO_OPUS (CLOSED.mode does not).
+  const opus = run(['story', '--file', file, '--id', 'STORY-A', '--chosen', 'SOLO_OPUS'])
+  if (opus.code !== 0) { console.error('--chosen SOLO_OPUS must be accepted (DISPATCH_MODES), got ' + opus.code + ': ' + opus.stdout); process.exit(1) }
+  const oj = JSON.parse(opus.stdout)
+  if (oj.choice !== 'SOLO_OPUS' || oj.alternative !== 'SOLO' || oj.overridden !== true) {
+    console.error('--chosen SOLO_OPUS must record choice SOLO_OPUS over recommended SOLO: ' + opus.stdout); process.exit(1)
+  }
+
+  // An unknown --id refuses non-zero rather than scoring the wrong block.
+  const missing = run(['story', '--file', file, '--id', 'STORY-ZZZ'])
+  if (missing.code === 0) { console.error('an unknown --id must refuse non-zero, got: ' + missing.stdout); process.exit(1) }
+" && ok "story --file --id resolves the named block; --chosen SOLO_OPUS accepted (AC1)" \
+  || bad "per-story resolution or SOLO_OPUS vocabulary wrong"
+
+# 13. Per-story fallback (STORY-2-5 AC2): a story block with no `- select:` line
+#     is an old-format backlog — `story --file --id` must NOT throw and must NOT
+#     borrow a neighbouring story's select line. It returns fallback: true,
+#     mode: null, rubric: null and a reason naming the missing select line, so
+#     /build knows to apply the prose risk: rule. A block that DOES carry a
+#     select line still scores normally (fallback: false). A malformed select
+#     line never falls back silently — it refuses non-zero (the "no line" and
+#     "bad line" cases must stay distinguishable). Block scoping is under test:
+#     STORY-OLD sits immediately before STORY-NEW with only a `### ` heading
+#     between them, so a decision for STORY-OLD may not reach STORY-NEW's line.
+node --input-type=module -e "
+  import { execFileSync } from 'node:child_process'
+  import { writeFileSync, mkdtempSync } from 'node:fs'
+  import { tmpdir } from 'node:os'
+  import { join } from 'node:path'
+  const run = (args) => {
+    try { return { code: 0, stdout: execFileSync('node', ['$MS', ...args], { encoding: 'utf8' }) } }
+    catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '' } }
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'ms-fallback-'))
+  const file = join(dir, 'EPIC-9.md')
+  writeFileSync(file, [
+    '# EPIC-9: test',
+    '',
+    '## Stories',
+    '',
+    '### STORY-OLD: old format, no select fields',
+    'Just prose describing the work, the way the planner wrote it before STORY-2-1.',
+    '',
+    '### STORY-NEW: has a select line',
+    '- select: risk_class=none@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+    '### STORY-BAD: malformed select line',
+    '- select: risk_class=banana@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+  ].join('\n'))
+
+  // No select line in the block → fallback, never a throw, never the neighbour's line.
+  const old = run(['story', '--file', file, '--id', 'STORY-OLD'])
+  if (old.code !== 0) { console.error('a block with no select line must fall back (exit 0), got ' + old.code + ': ' + old.stdout); process.exit(1) }
+  const oj = JSON.parse(old.stdout)
+  if (oj.fallback !== true || oj.mode !== null || oj.rubric !== null) {
+    console.error('no select line must return fallback: true, mode: null, rubric: null: ' + old.stdout); process.exit(1)
+  }
+  if (typeof oj.reason !== 'string' || !oj.reason.includes('no select line')) {
+    console.error('fallback reason must name the missing select line: ' + old.stdout); process.exit(1)
+  }
+
+  // The neighbour with a real select line still scores — proves scoping stopped
+  // at the next '### ' heading rather than bleeding STORY-OLD into STORY-NEW.
+  const fresh = run(['story', '--file', file, '--id', 'STORY-NEW'])
+  if (fresh.code !== 0) { console.error('STORY-NEW must still score, got ' + fresh.code + ': ' + fresh.stdout); process.exit(1) }
+  const fj = JSON.parse(fresh.stdout)
+  if (fj.fallback !== false || fj.mode !== 'SOLO') {
+    console.error('STORY-NEW must score its own SOLO decision, not fall back: ' + fresh.stdout); process.exit(1)
+  }
+
+  // A malformed select line refuses non-zero — never a silent fallback.
+  const bad = run(['story', '--file', file, '--id', 'STORY-BAD'])
+  if (bad.code === 0) { console.error('a malformed select line must refuse non-zero, not fall back: ' + bad.stdout); process.exit(1) }
+" && ok "story --file --id falls back on a missing select line, refuses on a malformed one (AC2)" \
+  || bad "per-story fallback / malformed refusal wrong"
+
+# 14. Per-story recording into the block (STORY-2-5 AC2/AC3): `--record` writes
+#     idempotent decision lines INTO the named story's own block (same shape as
+#     2-4's header lines), never into a neighbour. A scored story with the
+#     default choice writes one `- mode:` line naming choice/recommended/rubric/
+#     reason and no override; a `--chosen` that disagrees adds one `- override:
+#     mode` line and updates the single mode line in place, and an agreeing
+#     re-run drops the stale override. A fallback block records the `fallback (no
+#     select line)` variant when `--chosen` supplies the prose-rule mode, but
+#     `--record` with a fallback and no `--chosen` refuses non-zero — an
+#     unrecorded guess is never written. Without `--record` the call is read-only.
+node --input-type=module -e "
+  import { execFileSync } from 'node:child_process'
+  import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs'
+  import { tmpdir } from 'node:os'
+  import { join } from 'node:path'
+  const run = (args) => {
+    try { return { code: 0, stdout: execFileSync('node', ['$MS', ...args], { encoding: 'utf8' }) } }
+    catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '' } }
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'ms-srec-'))
+  const file = join(dir, 'EPIC-9.md')
+  const seed = () => writeFileSync(file, [
+    '# EPIC-9: test',
+    '',
+    '## Stories',
+    '',
+    '### STORY-P: a floored one',
+    '- status: TODO',
+    '- select: risk_class=money@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+    '### STORY-Q: another with a select line',
+    '- status: TODO',
+    '- select: risk_class=none@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+    '### STORY-OLD: old format, no select fields',
+    '- status: TODO',
+    'Just prose describing the work.',
+    '',
+  ].join('\n'))
+  const modeLines = (c) => c.match(/^- mode: .*\$/gm) ?? []
+  const overrideLines = (c) => c.match(/^- override: mode .*\$/gm) ?? []
+  const blockP = (c) => c.slice(c.indexOf('### STORY-P:'), c.indexOf('### STORY-Q:'))
+  const blockQ = (c) => c.slice(c.indexOf('### STORY-Q:'), c.indexOf('### STORY-OLD:'))
+  const blockOld = (c) => c.slice(c.indexOf('### STORY-OLD:'))
+
+  // Without --record the call is read-only: it prints JSON and writes nothing.
+  seed()
+  const before = readFileSync(file, 'utf8')
+  run(['story', '--file', file, '--id', 'STORY-P'])
+  if (readFileSync(file, 'utf8') !== before) { console.error('story without --record must not mutate the backlog'); process.exit(1) }
+
+  // Default choice on a scored (floored) story: exactly one mode line, in
+  // STORY-P's own block, naming choice/recommended/rubric/reason; no override.
+  const rec = run(['story', '--file', file, '--id', 'STORY-P', '--record'])
+  if (rec.code !== 0) { console.error('story --record must exit 0, got ' + rec.code + ': ' + rec.stdout); process.exit(1) }
+  let c = readFileSync(file, 'utf8')
+  if (modeLines(c).length !== 1) { console.error('record must write exactly one mode line, got ' + JSON.stringify(modeLines(c))); process.exit(1) }
+  const pLine = modeLines(blockP(c))[0] || ''
+  if (!pLine.includes('PAIR') || !pLine.includes('recommended PAIR') || !pLine.includes('rubric 1') || !pLine.includes('hard floor risk_class')) {
+    console.error('mode line must name choice, recommended mode, rubric and reason: ' + pLine); process.exit(1)
+  }
+  if (modeLines(blockQ(c)).length !== 0) { console.error('recording STORY-P must not touch STORY-Q block: ' + c); process.exit(1) }
+  if (overrideLines(c).length !== 0) { console.error('a default (agreeing) choice must write no override line: ' + c); process.exit(1) }
+
+  // Idempotent: re-running with the same (default) choice does not change the file.
+  const after = readFileSync(file, 'utf8')
+  run(['story', '--file', file, '--id', 'STORY-P', '--record'])
+  if (readFileSync(file, 'utf8') !== after) { console.error('re-running --record with the same choice must be a no-op write'); process.exit(1) }
+
+  // Override: --chosen SOLO against recommended PAIR adds exactly one override
+  // line and updates the single mode line's choice in place.
+  run(['story', '--file', file, '--id', 'STORY-P', '--chosen', 'SOLO', '--record'])
+  c = readFileSync(file, 'utf8')
+  const pOv = modeLines(blockP(c))
+  if (pOv.length !== 1 || !pOv[0].includes('SOLO') || !pOv[0].includes('recommended PAIR')) {
+    console.error('override must update the single mode line to the chosen mode: ' + c); process.exit(1)
+  }
+  const ov = overrideLines(blockP(c))
+  if (ov.length !== 1 || !ov[0].includes('recommended=PAIR') || !ov[0].includes('chosen=SOLO')) {
+    console.error('a disagreeing --chosen must write exactly one override line with both values: ' + c); process.exit(1)
+  }
+
+  // Agreeing re-run drops the stale override line, mode line stays singular.
+  run(['story', '--file', file, '--id', 'STORY-P', '--chosen', 'PAIR', '--record'])
+  c = readFileSync(file, 'utf8')
+  if (overrideLines(c).length !== 0) { console.error('an agreeing re-run must drop the stale override line: ' + c); process.exit(1) }
+  if (modeLines(blockP(c)).length !== 1) { console.error('agreement must still carry exactly one mode line'); process.exit(1) }
+
+  // Fallback block with --chosen records the fallback variant into STORY-OLD.
+  run(['story', '--file', file, '--id', 'STORY-OLD', '--chosen', 'PAIR', '--record'])
+  c = readFileSync(file, 'utf8')
+  const oldLines = modeLines(blockOld(c))
+  if (oldLines.length !== 1 || !oldLines[0].includes('fallback (no select line)') || !oldLines[0].includes('prose risk: rule') || !oldLines[0].includes('PAIR')) {
+    console.error('a fallback block must record the fallback variant naming the chosen mode: ' + c); process.exit(1)
+  }
+
+  // --record on a fallback block with NO --chosen refuses non-zero and writes nothing.
+  seed()
+  const refusal = run(['story', '--file', file, '--id', 'STORY-OLD', '--record'])
+  if (refusal.code === 0) { console.error('--record on a fallback with no --chosen must refuse non-zero'); process.exit(1) }
+  if (modeLines(readFileSync(file, 'utf8')).length !== 0) { console.error('a refused fallback record must not write any mode line'); process.exit(1) }
+" && ok "story --record writes idempotent mode/override lines into the block; fallback needs --chosen (AC2/AC3)" \
+  || bad "per-story recording wrong"
+
+# 15. build.md wires the call, the rubric prose lives in reference/ (STORY-2-5
+#     AC4): the MODE SELECTION section becomes one `mode-select.mjs story` call
+#     plus a short stub, and on `fallback: true` cats the prose rule. The
+#     floor/score rubric prose (the SOLO / SOLO-on-Opus / PAIR distinctions and
+#     the "no risk: line → infer; when unsure, pair" fallback, plus how to read
+#     the script output) moves VERBATIM into NEW reference/mode-selection.md and
+#     is NOT left duplicated in build.md — a copy here is exactly the drift the
+#     repo's "no copies" rule exists to prevent. build.md keeps the "--fast
+#     skips this" sentence and stays at or below its 16928-byte ratchet cap, and
+#     the TOOLING-DEBT row this story resolves (CLOSED.mode lacks SOLO_OPUS) is
+#     removed.
+BUILD="$ROOT/plugins/agentic-sdlc/commands/build.md"
+REF="$ROOT/plugins/agentic-sdlc/reference/mode-selection.md"
+DEBT="$ROOT/docs/TOOLING-DEBT.md"
+ac4=0
+[ -f "$REF" ] || { echo "reference/mode-selection.md must exist (the prose moves here)" >&2; ac4=1; }
+if [ -f "$REF" ]; then
+  grep -qF 'sourcing, seeding' "$REF" || { echo "reference must carry the SOLO-on-Opus data-risk prose verbatim" >&2; ac4=1; }
+  grep -qF 'reviewing wiring steps' "$REF" || { echo "reference must carry the PAIR rubric prose verbatim" >&2; ac4=1; }
+  grep -qF 'when genuinely unsure, pair' "$REF" || { echo "reference must carry the no-risk-line fallback rule verbatim" >&2; ac4=1; }
+  grep -qF 'fallback' "$REF" || { echo "reference must explain how to read the script output (the fallback field)" >&2; ac4=1; }
+fi
+# The call and its fallback branch now live in build.md's MODE SELECTION.
+grep -qF 'mode-select.mjs story' "$BUILD" || { echo "build.md MODE SELECTION must call mode-select.mjs story" >&2; ac4=1; }
+grep -qe '--record' "$BUILD" || { echo "build.md must call the per-story recording path (--record)" >&2; ac4=1; }
+grep -qF 'reference/mode-selection.md' "$BUILD" || { echo "build.md must cat reference/mode-selection.md on fallback: true" >&2; ac4=1; }
+grep -qF 'every task is SOLO' "$BUILD" || { echo "build.md must keep the '--fast skips this: every task is SOLO' sentence" >&2; ac4=1; }
+# The rubric prose moved — it must not be duplicated back in build.md.
+grep -qF 'sourcing, seeding' "$BUILD" && { echo "build.md must not duplicate the moved rubric prose (it belongs in reference/)" >&2; ac4=1; }
+grep -qF 'reviewing wiring steps' "$BUILD" && { echo "build.md must not duplicate the moved PAIR rubric prose" >&2; ac4=1; }
+# The boot-path ratchet: build.md ends at or below its cap (it is expected to shrink).
+bytes=$(wc -c < "$BUILD")
+[ "$bytes" -le 16928 ] || { echo "build.md is $bytes bytes, over its 16928 cap" >&2; ac4=1; }
+# The debt this story resolves is gone.
+grep -qF 'validates against CLOSED.mode' "$DEBT" && { echo "the resolved TOOLING-DEBT row (CLOSED.mode lacks SOLO_OPUS) must be removed" >&2; ac4=1; }
+[ "$ac4" -eq 0 ] && ok "build.md calls mode-select; rubric prose lives verbatim in reference/, not duplicated (AC4)" \
+  || bad "build.md wiring / reference move / debt removal wrong"
+
 [ "$fail" -eq 0 ] || { printf '\nmode-select tests failed\n' >&2; exit 1; }
 printf '\nmode-select tests passed\n'
