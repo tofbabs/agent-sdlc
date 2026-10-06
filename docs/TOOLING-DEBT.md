@@ -187,3 +187,32 @@ an ignored ledger is worse than none.
 - Category: robustness
 - Address when: a user reports a slow prompt at a pipeline command boundary,
   or `gh pr view`'s 5s cap is made configurable (ties to the entry above)
+
+### Rubric v1 weights are transliterated prose, not fitted
+- Raised: 2026-10-06 by architect (ARCH-2)
+- Current: weights/band encode build.md's existing rule; evidence base is one
+  pair log and 35 PRs
+- Risk: LOW
+- Address when: 03's routine has ≥20 closed decisions to fit against
+
+### Unnamed post-merge fixes escape attribution
+- Raised: 2026-10-06 by architect (ARCH-2)
+- Current: fix/revert attribution is by story/epic ID in the commit subject or
+  PR body only; a fix that names nothing counts against no decision
+- Risk: LOW
+- Address when: >20% of swept fix commits carry no ID
+
+### No counterfactual measurement in v1
+- Raised: 2026-10-06 by architect (ARCH-2)
+- Current: no forced-exploration rate; SOLO review findings by risk class are
+  the only counterfactual signal
+- Risk: LOW
+- Address when: 02's cross-repo export is live and decision volume supports a
+  sample
+
+### Decision store is machine-local
+- Raised: 2026-10-06 by architect (ARCH-1 / ADR-0002)
+- Current: cross-machine decision→outcome joins close as orphaned
+  (`machine_local`); the gh sweep narrows but does not remove the gap
+- Risk: MEDIUM
+- Address when: 02's central storage is live (ADR-0002 "Revisit if")
