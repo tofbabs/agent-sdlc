@@ -2,6 +2,39 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.7](https://github.com/tofbabs/agent-sdlc/compare/v0.2.6...v0.2.7) (2026-10-06)
+
+
+### Features
+
+* **agentic-sdlc:** /build per-story mode selection via mode-select.mjs [STORY-2-5] ([02ceb7c](https://github.com/tofbabs/agent-sdlc/commit/02ceb7ca90cecb7228dc657a26ff55d5abe2ad34))
+* **agentic-sdlc:** /plan lane recommendation and override recording [STORY-2-4] ([6c7f844](https://github.com/tofbabs/agent-sdlc/commit/6c7f8440b368842d05f834f0367b5af0c3135b5d))
+* **agentic-sdlc:** decision records with stable IDs [STORY-2-8] ([a9133ed](https://github.com/tofbabs/agent-sdlc/commit/a9133ed6138113bc131222736ad05b90585115d4))
+* **agentic-sdlc:** mode selection — deterministic, auditable lane and pairing [EPIC-2] ([00e3562](https://github.com/tofbabs/agent-sdlc/commit/00e35629de9a7c2525b8a5fc2571f2b7c1c6262f))
+* **agentic-sdlc:** mode-select.mjs — floors and scoring [STORY-2-3] ([08001a9](https://github.com/tofbabs/agent-sdlc/commit/08001a9890c60e4096672612cc1160332ff1f36c))
+* **agentic-sdlc:** navigator on Sonnet by default, Opus by opt-in ([36b1881](https://github.com/tofbabs/agent-sdlc/commit/36b18818c26aea2f2b2c14196d40aeb797a4fab8))
+* **agentic-sdlc:** Opus agents use the opus alias, not a pinned version ([24b37c7](https://github.com/tofbabs/agent-sdlc/commit/24b37c750db41909e4b6e261f6bc86ed8b148486))
+* **agentic-sdlc:** outcome events, outcome sweep, and verdict rules [STORY-2-9] ([66bb632](https://github.com/tofbabs/agent-sdlc/commit/66bb632ad46f96df5a943d3ef8e4cdc639032332))
+* **agentic-sdlc:** per-agent model overrides; architect on Opus ([3a71675](https://github.com/tofbabs/agent-sdlc/commit/3a716756452b1491ec6cda07b624ee0f4db604da))
+* **agentic-sdlc:** per-agent model overrides; navigator on Sonnet, architect on Opus ([b7e94e3](https://github.com/tofbabs/agent-sdlc/commit/b7e94e3e60d277022d97e7de4a8b92a9b36d010d))
+* **agentic-sdlc:** planner emits selection fields instead of the risk: line [STORY-2-2] ([8d9eb33](https://github.com/tofbabs/agent-sdlc/commit/8d9eb33d89abe0c09124e87424eeb91c211c560b))
+* **agentic-sdlc:** runtime correction — PAIR to SOLO, and FAST to deliberate [STORY-2-7] ([a59aeec](https://github.com/tofbabs/agent-sdlc/commit/a59aeec0ebc4aa5c8731c4d4ac49708a504008e7))
+* **agentic-sdlc:** runtime correction — SOLO to PAIR escalation [STORY-2-6] ([8d24b13](https://github.com/tofbabs/agent-sdlc/commit/8d24b13ada599b51924f458c399919186c778d2d))
+* **agentic-sdlc:** selection-field schema module [STORY-2-1] ([da3d8fc](https://github.com/tofbabs/agent-sdlc/commit/da3d8fc0d310d9fb0b472ac9bcc132444257d60a))
+
+
+### Bug Fixes
+
+* **agentic-sdlc:** address PR [#36](https://github.com/tofbabs/agent-sdlc/issues/36) review — outcome attribution, report contract, dispatch [EPIC-2] ([3cf0a5f](https://github.com/tofbabs/agent-sdlc/commit/3cf0a5f29685d1832ddf42dac19b66e144efd4c2))
+* **agentic-sdlc:** only the coder escalates; model checks require a clean run ([716c147](https://github.com/tofbabs/agent-sdlc/commit/716c14751dacbbda6537280c5cfa0fc800a784fb))
+* **agentic-sdlc:** pair logs are local scaffolding, never committed [STORY-2-10] ([d77734c](https://github.com/tofbabs/agent-sdlc/commit/d77734cfded74f6ddc4d9bf2f551b7b383b1a13a))
+
+
+### Documentation
+
+* add EPIC-2 plan ([4a14cf5](https://github.com/tofbabs/agent-sdlc/commit/4a14cf57fec2b6df3468a6223c31dbde3b9ca42f))
+* mark EPIC-2 stories done [EPIC-2] ([3603501](https://github.com/tofbabs/agent-sdlc/commit/36035012dbdeaf493c79621cd98ab8ea0631d565))
+
 ## [0.2.6](https://github.com/tofbabs/agent-sdlc/compare/v0.2.5...v0.2.6) (2026-10-06)
 
 
