@@ -40,8 +40,8 @@ ledger.
 
 ### 3. Deliberate PAIR — ping-pong TDD
 The highest-rigor way to *write* a story. Two agents alternate one increment at a
-time: the **navigator** (Sonnet 5) writes the next failing test and reviews the
-last increment; the **driver** (Sonnet 5, a slim pair-only agent) makes it pass with the
+time: the **navigator** (Sonnet) writes the next failing test and reviews the
+last increment; the **driver** (Sonnet, a slim pair-only agent) makes it pass with the
 simplest thing that works. The driver *not* owning the tests is what keeps them
 honest. Chosen by the story's `risk:` line, not its size — rules, wiring
 (persistence, restore, races, integration), money, destructive data, or a story
@@ -80,7 +80,7 @@ needed.
 | Decisions | `ARCH-<n>` handoff, coder blocks and waits | coder decides and logs; five one-way doors are tagged and batched, never blocking |
 | Tests | the story's criteria; PAIR stories are strict ping-pong TDD | the `done when`, plus the **negative** case on each risk surface touched — auth, money, destructive data paths, external contracts — nothing else |
 | Branching | epic branch, story worktrees off the epic tip, one squash commit per story | one branch, sequential, gate once |
-| Agents | planner, architect (Opus), coder, driver, navigator (Sonnet 5), code-reviewer (Opus) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
+| Agents | planner, architect (Opus), coder, driver, navigator (Sonnet), code-reviewer (Opus) at the PR | planner + coder (both Sonnet); architect at most once, usually zero; code-reviewer judges the fast floor |
 | Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
 | Debt ledger | required | required |
 
