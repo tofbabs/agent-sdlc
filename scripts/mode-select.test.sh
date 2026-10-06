@@ -792,6 +792,31 @@ node --input-type=module -e "
 " && ok "observe fires each trigger at its threshold, clean stories record nothing; correct is idempotent and validated (AC1/AC2/AC3)" \
   || bad "runtime correction is wrong"
 
+# 20. lane-check recommends deliberate on 2+ deferred one-way items or a second
+#     re-dispatch round, from rubric thresholds; `correct --id lane` records it.
+node --input-type=module -e "
+  import { laneCheck } from '$MS'
+  import { execFileSync } from 'node:child_process'
+  import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
+  import { join } from 'node:path'
+  const eq = (g, w, m) => { if (JSON.stringify(g) !== JSON.stringify(w)) { console.error(m + ': ' + JSON.stringify(g)); process.exit(1) } }
+  eq(laneCheck(1, 1), { recommend: null, trigger: null }, 'one deferred, one round')
+  eq(laneCheck(2, 0), { recommend: 'deliberate', trigger: 'deferred_one_way' }, 'two deferred')
+  eq(laneCheck(0, 2), { recommend: 'deliberate', trigger: 'second_redispatch' }, 'second round')
+  const cli = JSON.parse(execFileSync('node', ['$MS', 'lane-check', '--deferred-one-way', '0', '--redispatch-rounds', '2'], { encoding: 'utf8' }))
+  eq(cli, { recommend: 'deliberate', trigger: 'second_redispatch' }, 'cli')
+  const dir = mkdtempSync(join(process.env.TMPDIR || '/tmp', 'lc-'))
+  execFileSync('git', ['init', '-q', dir])
+  const f = join(dir, 'FAST-1.md')
+  writeFileSync(f, '# FAST-1\n\n- Lane: fast — x\n- Artifacts: y\n\n## Tasks\n\n### T1-1: a\n- status: open\n')
+  const run = () => execFileSync('node', ['$MS', 'correct', '--file', f, '--id', 'lane', '--from', 'fast', '--to', 'deliberate', '--trigger', 'second_redispatch', '--run-id', '11111111-1111-4111-8111-111111111111'], { encoding: 'utf8', cwd: dir })
+  run(); run()
+  const t = readFileSync(f, 'utf8')
+  if (!t.includes('- Lane: fast — x\n- correction: fast→deliberate trigger=second_redispatch\n- Artifacts')) { console.error('lane correction misplaced: ' + t); process.exit(1) }
+  if ((t.match(/^- correction:/gm) || []).length !== 1) { console.error('lane correction not idempotent'); process.exit(1) }
+" && ok "lane-check thresholds from the rubric; fast to deliberate is recorded once at the header (AC3/AC4)" \
+  || bad "lane-check / lane correction is wrong"
+
 # 19. decision_floor admits the mode-select floors so they reach the report.
 node --input-type=module -e "
   import { CLOSED } from '$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs'

@@ -64,9 +64,16 @@ FAKE_DRIVER_SILENT=1 run >/dev/null 2>&1; code=$?
 
 # 5. The cap stops the loop before a 21st navigator turn.
 fresh
-FAKE_COMPLETE_AT=99 run >/dev/null 2>&1; code=$?
+FAKE_REJECT=1 FAKE_COMPLETE_AT=99 run >/dev/null 2>&1; code=$?
 node "$PL" status STORY-R | grep -q 'alternation=20/20' && [ $code -eq 4 ] \
   && ok "cap exits 4 at 20 alternations" || bad "cap: code $code $(node "$PL" status STORY-R)"
+
+# 5b. Five alternations with no recorded rejection stop the loop for a SOLO handoff.
+fresh
+out=$(FAKE_COMPLETE_AT=99 run 2>/dev/null); code=$?
+[ $code -eq 6 ] && grep -q '"deescalate": true' <<<"$out" \
+  && node "$PL" status STORY-R | grep -q 'alternation=5/20.*rejections=0 deescalate=yes' \
+  && ok "zero rejections over N alternations exits 6" || bad "deescalate: code $code $(node "$PL" status STORY-R)"
 
 # 6. pair-log finds the log from a subfolder — the wrong-folder retry is gone.
 cd sub && node "$PL" status STORY-R >/dev/null 2>&1 \

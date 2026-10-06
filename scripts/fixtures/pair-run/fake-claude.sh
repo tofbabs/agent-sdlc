@@ -31,5 +31,7 @@ if [ "$role" = navigator ] && [ -n "${FAKE_BLOCK:-}" ]; then
   echo "- blocked" | node "$PL" append "$story" --role navigator >/dev/null
   echo '{"is_error":false,"result":"blocked","total_cost_usd":0.5}'; exit 0
 fi
-echo "- turn by $role" | node "$PL" append "$story" --role "$role" >/dev/null
+rej=""
+[ "$role" = navigator ] && [ -n "${FAKE_REJECT:-}" ] && rej="--rejected"
+echo "- turn by $role" | node "$PL" append "$story" --role "$role" $rej >/dev/null
 echo '{"is_error":false,"result":"ok","total_cost_usd":0.25,"num_turns":3}'

@@ -35,6 +35,13 @@ const ALTERNATION_CAP = 20
 const READ_ENTRIES = 2
 const COMMIT_MAX_LINES = 200
 
+// N lives in the rubric data file so it retunes without a code change.
+const DEESCALATE_AFTER = JSON.parse(
+  readFileSync(new URL('./mode-select-rubric.json', import.meta.url), 'utf8'),
+).pair_to_solo.zero_rejection_alternations
+
+const TEST_FILE_RE = /(^|\/)(__tests__|tests?|spec|e2e)\/|\.(test|spec)\.[^/]+$|(^|\/)test_[^/]+$|_test\.[^/]+$/
+
 const ENTRY_RE = /^## \d+\. /
 
 const STATE_TEMPLATE = `- ACs met / remaining:
@@ -69,10 +76,12 @@ const die = (code, msg) => {
 const USAGE = `usage:
   pair-log.mjs init    <STORY-ID> --brief <path> [--root <dir>] [--force]
   pair-log.mjs read    <STORY-ID> --role navigator|driver [--entries <n>] [--no-git]
-  pair-log.mjs append  <STORY-ID> --role navigator|driver      (body on stdin)
+  pair-log.mjs append  <STORY-ID> --role navigator|driver [--rejected]  (body on stdin)
   pair-log.mjs state   <STORY-ID>                              (STATE on stdin)
   pair-log.mjs session <STORY-ID> --set active|complete|blocked [--arch ARCH-<n>]
-  pair-log.mjs status  <STORY-ID>`
+  pair-log.mjs status  <STORY-ID>
+  pair-log.mjs handoff <STORY-ID> --base <branch>              (PAIR to SOLO: freeze the tests)
+  pair-log.mjs frozen-tests <STORY-ID>                         (exit 1 if a frozen test changed)`
 
 if (!command || command === '--help' || command === '-h') die(2, USAGE)
 if (!storyId) die(2, `missing <STORY-ID>\n${USAGE}`)
@@ -191,7 +200,7 @@ if (command === 'init') {
   writeFileSync(F.brief, readFileSync(flags.brief, 'utf8'))
   writeFileSync(F.state, STATE_TEMPLATE)
   writeFileSync(F.turns, `# Turn log — ${storyId}\n`)
-  writeSession({ story: storyId, session: 'active', arch: null, alternation: 0 })
+  writeSession({ story: storyId, session: 'active', arch: null, alternation: 0, rejections: 0 })
 
   process.stdout.write(`initialised ${dir} (brief.md, state.md, turns.md, session.json)\n`)
   process.exit(0)
@@ -267,8 +276,12 @@ if (command === 'append') {
   // alternations. The count lives here rather than in STATE's prose so it cannot
   // drift, and so STATE keeps the line for `constraints in play` at no net cost.
   const session = readSession()
+  if (flags.rejected && role !== 'navigator') die(2, '--rejected is a navigator flag')
   if (role === 'navigator') {
     session.alternation += 1
+    // Tagged at the source, never parsed from the entry: the 10-line clamp
+    // would eventually clip the verdict a prose parse depends on.
+    if (flags.rejected) session.rejections = (session.rejections ?? 0) + 1
     writeSession(session)
   }
 
@@ -340,9 +353,53 @@ if (command === 'status') {
   // marker was prose inside an entry, so the 10-line truncation would eventually
   // clip a `SESSION: COMPLETE` written on line 11 — and the symptom would be a
   // pair loop running silently to its alternation cap.
+  const rejections = s.rejections ?? 0
+  const deescalate =
+    s.session === 'active' && !s.handed_off && s.alternation >= DEESCALATE_AFTER && rejections === 0
   process.stdout.write(
-    `session=${s.session} arch=${s.arch ?? 'none'} alternation=${s.alternation}/${ALTERNATION_CAP} next=${next}\n`,
+    `session=${s.session} arch=${s.arch ?? 'none'} alternation=${s.alternation}/${ALTERNATION_CAP} next=${next} rejections=${rejections} deescalate=${deescalate ? 'yes' : 'no'}\n`,
   )
+  process.exit(0)
+}
+
+// Frozen by content hash, not by name, so an uncommitted edit by the SOLO coder
+// is caught as well as a committed one.
+const hashOf = (file) => {
+  const r = spawnSync('git', ['hash-object', '--', file], { encoding: 'utf8' })
+  return r.status === 0 ? r.stdout.trim() : null
+}
+
+if (command === 'handoff') {
+  requireLog()
+  if (typeof flags.base !== 'string') die(2, `handoff needs --base <branch>\n${USAGE}`)
+  const diff = spawnSync('git', ['diff', '--name-only', `${flags.base}...HEAD`], { encoding: 'utf8' })
+  if (diff.status !== 0) die(2, `git diff against ${flags.base} failed: ${diff.stderr.trim()}`)
+  const top = gitTop()
+  const frozen = {}
+  for (const f of diff.stdout.split('\n').filter((l) => TEST_FILE_RE.test(l))) {
+    const h = hashOf(join(top, f))
+    if (h) frozen[f] = h
+  }
+  const session = readSession()
+  session.handed_off = true
+  session.frozen_tests = frozen
+  writeSession(session)
+  process.stdout.write(`handoff: ${Object.keys(frozen).length} test file(s) frozen\n`)
+  process.exit(0)
+}
+
+if (command === 'frozen-tests') {
+  requireLog()
+  const frozen = readSession().frozen_tests ?? {}
+  const top = gitTop()
+  const changed = Object.entries(frozen)
+    .filter(([f, h]) => hashOf(join(top, f)) !== h)
+    .map(([f]) => f)
+  if (changed.length > 0) {
+    process.stdout.write(`frozen tests changed since handoff:\n${changed.join('\n')}\n`)
+    process.exit(1)
+  }
+  process.stdout.write('frozen tests intact\n')
   process.exit(0)
 }
 

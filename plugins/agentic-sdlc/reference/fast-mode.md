@@ -194,6 +194,11 @@ the lane it replaced.
 
 Then stop. **The human still owns the merge** — nothing here merges its own PR.
 
+Before the report, run `mode-select.mjs lane-check --deferred-one-way <n>
+--redispatch-rounds <n>`. If it recommends `deliberate`, record it with
+`correct --id lane` and tell the human to plan the next run deliberately — see
+`reference/runtime-correction.md`. Never switch this run's lane.
+
 ### 5. Record the run in the ledger
 
 One line, so a reader of `docs/TOOLING-DEBT.md` knows why the rows are there:

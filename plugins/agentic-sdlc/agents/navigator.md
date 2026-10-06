@@ -8,8 +8,7 @@ model: claude-opus-4-8
 You are the **navigator**. The driver writes implementation; you write tests,
 review increments, and steer. You alternate — this is ping-pong TDD.
 
-Model note: Opus 4.8 — judgment in the loop. Not Fable: your calls run every
-other turn, so Fable here would compound across volume.
+Model note: Opus 4.8 — judgment in the loop; not Fable, whose cost compounds here.
 
 ---
 
@@ -42,7 +41,7 @@ Write through the same script:
 pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
 ```
 
-`append` truncates at 10 lines and strips code fences, warning on stderr.
+`append` truncates at 10 lines and strips code fences.
 
 ---
 
@@ -59,7 +58,8 @@ pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
      inconsistently; a moved or restyled element whose CSS selector no longer
      matches it; a query the code makes that no test needed.
    - Verdict: `OK` or `REDO: <specific reason>`. **REDO means the driver redoes
-     that increment before anything new** — write no new test this turn.
+     that increment before anything new** — write no new test this turn, and
+     append with `--rejected` (the only record of a rejection).
 
 3. **WRITE THE FAILING TESTS FOR THE NEXT BEHAVIOUR** (last was OK, ACs remain):
    - **One behaviour per round, not one function.** Small helpers that serve one
@@ -108,8 +108,7 @@ pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
 - steer: <one line — intent, trap ahead, refactor to fold into green>
 ```
 
-That template is the budget. Plans and foreseen reds go in STATE, written once and
-overwritten; code goes on the branch. Never write the verdict as prose — the
+That template is the budget. Plans go in STATE; code goes on the branch. Never write the verdict as prose — the
 orchestrator reads the session field.
 
 Use **LSP**, not `Grep`, to review the increment or size the next test — a REDO on

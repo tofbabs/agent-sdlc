@@ -417,7 +417,20 @@ function observe(flags, cwd = process.cwd()) {
 
 // Appended, never replaced: a story can be corrected more than once (SOLO to
 // PAIR, later PAIR to SOLO) and each line is its own fact.
+function recordLaneCorrectionLine(backlogPath, line) {
+  const lines = readFileSync(backlogPath, 'utf8').split('\n')
+  // The lane lives in the file header, above the first story heading.
+  const headerEnd = lines.findIndex((l) => /^###?\s/.test(l))
+  const header = lines.slice(0, headerEnd === -1 ? lines.length : headerEnd)
+  if (header.includes(line)) return
+  const anchor = Math.max(...header.map((l, i) => (/^- (Lane|correction): |^- Override: lane /.test(l) ? i : -1)))
+  if (anchor === -1) throw new Error(`mode-select.mjs: no "- Lane:" header line in ${backlogPath} to anchor a correction on`)
+  lines.splice(anchor + 1, 0, line)
+  writeFileSync(backlogPath, lines.join('\n'))
+}
+
 function recordCorrectionLine(backlogPath, id, line) {
+  if (id === 'lane') return recordLaneCorrectionLine(backlogPath, line)
   const content = readFileSync(backlogPath, 'utf8')
   const lines = content.split('\n')
   const { start, end } = storyBounds(lines, id, backlogPath)
@@ -459,6 +472,16 @@ function correct(flags) {
   const seq = same ? same.seq : mine.length + 1
   recordCorrection({ run_id, subject: id, seq, trigger, from, to }, opts)
   return { corrected: true, recorded: true, seq, from, to, trigger }
+}
+
+// Run-end check for the fast lane. Pure: it recommends and never switches the
+// lane mid-run (ARCH-3); /build records the correction with `correct`.
+export function laneCheck(deferred, rounds, rubricData = RUBRIC) {
+  const t = rubricData.fast_to_deliberate
+  let trigger = null
+  if (deferred >= t.deferred_one_way_at_or_above) trigger = 'deferred_one_way'
+  else if (rounds >= t.redispatch_rounds_at_or_above) trigger = 'second_redispatch'
+  return { recommend: trigger === null ? null : 'deliberate', trigger }
 }
 
 // Argument-shape errors throw, so a bad invocation exits non-zero with no output.
@@ -520,6 +543,13 @@ function runCli(argv) {
   if (command === 'correct' && ['file', 'id', 'from', 'to', 'trigger'].every((k) => flags[k] !== undefined)) {
     return correct(flags)
   }
+  if (command === 'lane-check' && flags['deferred-one-way'] !== undefined && flags['redispatch-rounds'] !== undefined) {
+    const [d, r] = [flags['deferred-one-way'], flags['redispatch-rounds']].map(Number)
+    if (![d, r].every((n) => Number.isInteger(n) && n >= 0)) {
+      throw new Error('mode-select.mjs: --deferred-one-way and --redispatch-rounds must be non-negative integers')
+    }
+    return laneCheck(d, r)
+  }
   if (command === 'lane' && flags.file !== undefined) {
     const result = decideLane(readSelectLines(flags.file))
     return { ...result, ...recordChoice(result.lane, flags.chosen, CLOSED.lane) }
@@ -533,7 +563,8 @@ function runCli(argv) {
       'lane --file <backlog> [--chosen <lane>] | ' +
       'record --file <backlog> --chosen <lane> [--run-id <uuid>] | ' +
       'observe --id <story> [--block] [--gate-fail <AC>] [--declared <f,..> --base <branch>] [--run-id <uuid>] | ' +
-      'correct --file <backlog> --id <story> --from <mode> --to <mode> --trigger <token> [--run-id <uuid>]',
+      'lane-check --deferred-one-way <n> --redispatch-rounds <n> | ' +
+      'correct --file <backlog> --id <story|lane> --from <mode> --to <mode> --trigger <token> [--run-id <uuid>]',
   )
 }
 

@@ -195,6 +195,9 @@ it. In the manual fallback only: every turn is a FRESH `Agent()`, never
 file yourself — `pair-log.mjs status` prints one line. **CAP: 20 alternations**;
 hitting it means split the story.
 
+`pair-run.mjs` exit 6 = the navigator rejected nothing: hand off to SOLO and
+check frozen tests before LAND — `reference/runtime-correction.md`.
+
 ---
 
 ## BRANCH TOPOLOGY

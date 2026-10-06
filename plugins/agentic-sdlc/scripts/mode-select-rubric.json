@@ -9,5 +9,12 @@
   "thresholds": {
     "solo_at_or_below": 2,
     "pair_at_or_above": 4
+  },
+  "pair_to_solo": {
+    "zero_rejection_alternations": 5
+  },
+  "fast_to_deliberate": {
+    "deferred_one_way_at_or_above": 2,
+    "redispatch_rounds_at_or_above": 2
   }
 }

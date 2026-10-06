@@ -33,6 +33,8 @@ in the worktree; you make **one call per story**:
      0  complete → LAND (epic), or push + `gh pr create --base <base> --fill`
                    noting "pair-built" (hotfix).
      10 blocked  → architect resolves the ARCH → re-run the same command.
+     6  deescalate → the navigator rejected nothing in N alternations: PAIR→SOLO
+                   handoff (reference/runtime-correction.md); do not re-run.
      4  cap      → split the story; do not raise the cap.
      5  a turn failed or made no progress (usage limit, crash) → read stderr,
                    fix the cause, re-run: it resumes at the role that is owed.
