@@ -122,3 +122,37 @@ an ignored ledger is worse than none.
 - Category: robustness
 - Address when: the next change that touches `meter.sh` — fix is
   `${sub_arg[@]+"${sub_arg[@]}"}` in place of `"${sub_arg[@]}"`
+
+### Run-report cost covers only the current session's meter record
+- Raised: 2026-10-06 by coder (STORY-1-2)
+- Current: `run-report.mjs` embeds the newest meter record modified at or
+  after the marker's `started_at` (this session's command start), so a run
+  resumed across sessions reports only the last session's cost; earlier
+  sessions' records are not summed, because summing would re-derive totals
+  the ADR says to embed verbatim
+- Risk: LOW
+- Category: observability
+- Address when: a multi-session run's `cost` is used in a 03 signal, or the
+  meter gains a per-run aggregate record to embed instead
+
+### Build and review run outcomes are provisional
+- Raised: 2026-10-06 by coder (STORY-1-2)
+- Current: `run.outcome` for a build is `completed` only when every story
+  (or the file's own `Status:`) reads DONE — the epic PR is not consulted;
+  for a review it is `null` with `pr_comments` degraded, since only the
+  review section reads PR comments
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: the build and review sections land — each refines its own
+  entry in `COMPLETION` in `run-report.mjs`
+
+### run-report-categories.mjs CLI is silent when run through a symlink
+- Raised: 2026-10-06 by coder (STORY-1-2)
+- Current: its `isMain` compares `import.meta.url` (realpath-resolved) with
+  the unresolved `argv[1]`, so `node <symlinked path>` prints nothing (macOS
+  `/var` → `/private/var` reproduces it). `run-report.mjs` compares realpaths
+  instead; the vocabulary module was left as shipped (out of this story)
+- Risk: LOW
+- Category: robustness
+- Address when: the next change that touches `run-report-categories.mjs`, or
+  an agent reports an empty vocabulary dump

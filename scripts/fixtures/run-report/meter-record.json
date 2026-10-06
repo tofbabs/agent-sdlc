@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "label": "plan-run/feat/secret-branch",
+  "session": null,
+  "harness_ref": null,
+  "lane": "deliberate",
+  "wall_clock_s": 812.5,
+  "totals": {
+    "input": 1200,
+    "cache_write_5m": 30000,
+    "cache_write_1h": 0,
+    "cache_read": 410000,
+    "output": 9000,
+    "thinking": 0,
+    "billed_input_equivalent": 79700,
+    "usd": 0.37425
+  },
+  "derived": {
+    "cache_hit_ratio": 0.9291,
+    "spawns": 2,
+    "boot_tokens_total": 28000,
+    "boot_tokens_mean": 14000,
+    "round_trips_per_turn_mean": 6.5,
+    "naive_model_tokens": 441200,
+    "overstatement_factor": 5.5358,
+    "cost_usd_reported": null
+  },
+  "by_agent": { "planner": { "spawns": 1, "boot_mean": 14000, "output": 7000, "usd": 0.3 } },
+  "by_model": { "claude-opus-5": { "usd": 0.37 } },
+  "spawns": [ { "agent": "planner", "session": "a1b2c3" } ],
+  "degraded": []
+}

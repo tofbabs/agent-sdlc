@@ -92,6 +92,12 @@ jobs:
       - name: meter invariants
         run: ./scripts/meter.test.sh
 
+      # run-report.mjs builds the report that is exported later, so it is
+      # code-free by schema: no field accepts an unbounded string, cost is the
+      # meter record verbatim, and a missing input is null + named, never zero.
+      - name: run-report invariants
+        run: ./scripts/run-report.test.sh
+
       # plan-artifacts.mjs claims backlog IDs across every worktree and branch,
       # and carries a plan onto its build branch. Without it, parallel sessions
       # reuse FAST-<n> and plans never ship with the code they describe.

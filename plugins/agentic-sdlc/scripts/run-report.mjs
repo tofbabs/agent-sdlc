@@ -1,0 +1,700 @@
+#!/usr/bin/env node
+//
+// run-report.mjs — derive one code-free JSON report per pipeline run, after the fact.
+//
+// WHY A DERIVATION AND NOT AN EVENT LOG
+//
+// ADR 0001 (docs/adr/0001-run-report-schema-and-vocabulary.md) fixes the report
+// shape; ARCH-4 makes a run "one report, amended by full rebuild". So this script
+// never appends: it reads artifacts the pipeline already writes (the run marker,
+// the backlog file, the newest meter record, pair sessions) and rebuilds the whole
+// report. A double-fired hook, a crash or a resume the next day all converge on
+// the same file.
+//
+// WHY THE SCHEMA IS A DATA STRUCTURE
+//
+// "Code-free" is a schema property, not a redaction pass: no field may accept an
+// unbounded string. REPORT_SCHEMA below is declarative so the validator and the
+// leak-proofing test walk the very same object — a field cannot be added to one
+// and forgotten in the other. Enum values are never listed here; they come from
+// run-report-categories.mjs, the only place any of them is written down.
+//
+// THE RUN MARKER — <project>/.agentic-sdlc/run-state.json
+//
+// Written by the UserPromptSubmit hook (templates/hooks/run-report.sh), read here.
+// It is LOCAL state and may carry paths; nothing in it is copied into the report
+// except the fields marked "→ run.*". Shape (all fields required unless noted):
+//
+//   {
+//     "run_id": "<uuid v4>",               → run.run_id; names the report file
+//     "command": "plan|build|review",      → run.command
+//     "lane": "deliberate|fast",           → run.lane
+//     "target": "<raw command argument>",  local only, NEVER in the report
+//     "started_at": "<ISO-8601>",          start of THIS session's command
+//     "sessions": 1,                       → run.sessions (integer ≥ 1)
+//     "wall_clock_s_prior": 0,             seconds accumulated by earlier sessions
+//     "arch_snapshot": ["ARCH-1"],         ARCH IDs in the backlog file at run start
+//                                          ([] when the file did not exist yet)
+//     "debt_snapshot": 0,                  `###` entries under the ledger's
+//                                          "Logged by agents" at run start
+//                                          (null when there is no ledger)
+//     "backlog": "backlog/EPIC-1.md"       resolved backlog file, relative to the
+//                                          project or absolute; null if unknown
+//   }
+//
+// run.wall_clock_s = wall_clock_s_prior + (now − started_at). A missing, unreadable
+// or incomplete marker puts `run_state` in `degraded` and nulls what it fed.
+//
+// BACKLOG FILE RESOLUTION, in order: --backlog; marker.backlog; an EPIC-<n> /
+// FAST-<n> ID in marker.target → backlog/<ID>.md; for a plan run, the backlog
+// file whose `- Artifacts:` line names the brief in marker.target (the planner
+// claims the ID after the run starts, so the hook cannot know it up front).
+//
+// PLAN-TIME HANDOFFS: a plan run counts every ARCH handoff in the file; a build
+// or review run counts only those in arch_snapshot, because anything newer was
+// raised mid-build and belongs to build.arch_blocks. With no marker the command
+// is unknown, so every handoff counts (run_state already says why).
+//
+// COST: the newest meter record (<project>/.agentic-sdlc/meter/*.json) modified
+// at or after this session's started_at — an older one belongs to another run.
+// Only its schema, totals and derived are embedded: label, by_agent, by_model and
+// spawns carry free strings (ADR 0001).
+//
+// CLI
+//   run-report.mjs report --project <dir> [--out <file>] [--backlog <file>]
+//                         [--meter <record.json>] [--now <ISO-8601>]
+//     Writes <project>/.agentic-sdlc/runs/<run_id>.json (or --out). With no
+//     marker there is no run_id to name the file, so it writes nothing and exits
+//     0 unless --out is given. Degraded inputs always exit 0; a report that fails
+//     its own schema is never written (exit 1, violations on stderr). --now pins
+//     the clock for tests.
+//   run-report.mjs validate <file>
+//
+// Zero dependencies, Node 22 (the repo floor).
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs'
+import { join, dirname, resolve, isAbsolute } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const PLUGIN_JSON = join(HERE, '..', '.claude-plugin', 'plugin.json')
+const MARKER = join('.agentic-sdlc', 'run-state.json')
+const METER_DIR = join('.agentic-sdlc', 'meter')
+const RUNS_DIR = join('.agentic-sdlc', 'runs')
+
+// ------------------------------------------------------------------- schema
+
+// The only three string patterns the whole schema admits (ADR 0001).
+export const PATTERNS = Object.freeze({
+  uuid_v4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  semver: /^\d+\.\d+\.\d+$/,
+  iso_utc_seconds: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
+})
+
+// numericRecord keys come from meter.mjs, not a vocabulary, so they are bounded
+// by shape instead: short snake_case cannot carry a path, branch or sentence.
+const NUMERIC_KEY = /^[a-z][a-z0-9_]{0,63}$/
+const NUMERIC_RECORD_MAX_KEYS = 64
+const NUMERIC_RECORD_MAX_DEPTH = 4
+
+// Every spec is nullable unless wrapped in required(): ADR 0001's null means
+// "input missing, named in degraded", and that applies to every field.
+export const T = Object.freeze({
+  const: (value) => ({ type: 'const', value }),
+  enum: (vocab) => ({ type: 'enum', vocab }),
+  number: (opts = {}) => ({ type: 'number', ...opts }),
+  pattern: (name) => ({ type: 'pattern', name }),
+  object: (fields) => ({ type: 'object', fields }),
+  array: (items) => ({ type: 'array', items }),
+  countMap: (vocab) => ({ type: 'countMap', vocab }),
+  numericRecord: () => ({ type: 'numericRecord' }),
+})
+const required = (spec) => ({ ...spec, nullable: false })
+const count = () => T.number({ int: true, min: 0 })
+
+const deepFreeze = (o) => {
+  for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v)
+  return Object.freeze(o)
+}
+
+export const REPORT_SCHEMA = deepFreeze(
+  required(
+    T.object({
+      schema: required(T.const(1)),
+      run: required(
+        T.object({
+          run_id: T.pattern('uuid_v4'),
+          plugin_version: T.pattern('semver'),
+          command: T.enum('command'),
+          lane: T.enum('lane'),
+          outcome: T.enum('outcome'),
+          ended_at: T.pattern('iso_utc_seconds'),
+          wall_clock_s: T.number({ int: true, min: 0 }),
+          sessions: T.number({ int: true, min: 1 }),
+        }),
+      ),
+      plan: required(
+        T.object({
+          epics: count(),
+          stories: count(),
+          tasks: count(),
+          arch_handoffs: T.countMap('arch_category'),
+        }),
+      ),
+      build: required(
+        T.object({
+          stories: T.array(required(T.object({ mode: required(T.enum('mode')), alternations: count() }))),
+          arch_blocks: T.countMap('arch_category'),
+          revise_rounds: count(),
+          gate_runs: count(),
+          gate_failures: count(),
+        }),
+      ),
+      review: required(
+        T.object({
+          rounds: count(),
+          verdict: T.enum('verdict'),
+          findings: T.array(
+            required(
+              T.object({
+                round: required(T.number({ int: true, min: 1 })),
+                category: required(T.enum('finding_category')),
+                severity: required(T.enum('severity')),
+              }),
+            ),
+          ),
+        }),
+      ),
+      debt: required(
+        T.object({
+          rows_logged: count(),
+          by_risk: T.countMap('risk'),
+          by_category: T.countMap('debt_category'),
+        }),
+      ),
+      cost: T.object({
+        schema: required(T.number({ int: true, min: 1 })),
+        totals: required(T.numericRecord()),
+        derived: required(T.numericRecord()),
+      }),
+      degraded: required(T.array(required(T.enum('degraded_input')))),
+    }),
+  ),
+)
+
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
+// Report-supplied keys reach stderr in violation paths; cap them so a stuffed key
+// cannot turn the error message into the leak.
+const keyLabel = (k) => JSON.stringify(String(k).slice(0, 40))
+
+// Values that are null by the meter's own semantics (e.g. cost_usd_reported) are
+// measurements, so a numericRecord's nulls do not demand a degraded entry.
+function checkNumericRecord(value, path, out, depth = 0) {
+  if (!isPlainObject(value)) return out.push(`${path}: must be an object of numbers`)
+  if (depth >= NUMERIC_RECORD_MAX_DEPTH) return out.push(`${path}: nested too deep`)
+  const keys = Object.keys(value)
+  if (keys.length > NUMERIC_RECORD_MAX_KEYS) out.push(`${path}: more than ${NUMERIC_RECORD_MAX_KEYS} keys`)
+  for (const k of keys) {
+    const p = `${path}[${keyLabel(k)}]`
+    if (!NUMERIC_KEY.test(k)) {
+      out.push(`${p}: key is not short snake_case`)
+      continue
+    }
+    const v = value[k]
+    if (v === null) continue
+    if (typeof v === 'number') {
+      if (!Number.isFinite(v)) out.push(`${p}: must be finite`)
+    } else if (isPlainObject(v)) {
+      checkNumericRecord(v, p, out, depth + 1)
+    } else {
+      out.push(`${p}: must be a number or null`)
+    }
+  }
+}
+
+function walk(spec, value, path, out, state) {
+  if (value === null) {
+    if (spec.nullable === false) out.push(`${path}: must not be null`)
+    else state.nulls++
+    return
+  }
+  switch (spec.type) {
+    case 'const':
+      if (value !== spec.value) out.push(`${path}: must be ${JSON.stringify(spec.value)}`)
+      return
+    case 'enum':
+      if (typeof value !== 'string' || !isMember(spec.vocab, value)) out.push(`${path}: not a ${spec.vocab} member`)
+      return
+    case 'number':
+      if (typeof value !== 'number' || !Number.isFinite(value)) return out.push(`${path}: must be a finite number`)
+      if (spec.int && !Number.isInteger(value)) out.push(`${path}: must be an integer`)
+      if (spec.min !== undefined && value < spec.min) out.push(`${path}: must be ≥ ${spec.min}`)
+      return
+    case 'pattern':
+      if (typeof value !== 'string' || !PATTERNS[spec.name].test(value)) out.push(`${path}: does not match ${spec.name}`)
+      return
+    case 'object':
+      if (!isPlainObject(value)) return out.push(`${path}: must be an object`)
+      for (const k of Object.keys(value)) {
+        if (!Object.hasOwn(spec.fields, k)) out.push(`${path}[${keyLabel(k)}]: unknown field`)
+      }
+      for (const [k, sub] of Object.entries(spec.fields)) {
+        if (!Object.hasOwn(value, k)) out.push(`${path}.${k}: missing`)
+        else walk(sub, value[k], `${path}.${k}`, out, state)
+      }
+      return
+    case 'array':
+      if (!Array.isArray(value)) return out.push(`${path}: must be an array`)
+      value.forEach((item, i) => walk(spec.items, item, `${path}[${i}]`, out, state))
+      return
+    case 'countMap':
+      if (!isPlainObject(value)) return out.push(`${path}: must be an object`)
+      for (const [k, v] of Object.entries(value)) {
+        const p = `${path}[${keyLabel(k)}]`
+        if (!isMember(spec.vocab, k)) out.push(`${p}: key is not a ${spec.vocab} member`)
+        if (!Number.isInteger(v) || v < 0) out.push(`${p}: must be a non-negative integer`)
+      }
+      return
+    case 'numericRecord':
+      checkNumericRecord(value, path, out)
+      return
+    default:
+      out.push(`${path}: schema has unknown type ${JSON.stringify(spec.type)}`)
+  }
+}
+
+// Returns a list of violations; empty means valid. Beyond shape it enforces the
+// no-silent-gaps rule: a null anywhere needs a named input in `degraded`.
+export function validate(report) {
+  const out = []
+  const state = { nulls: 0 }
+  walk(REPORT_SCHEMA, report, '$', out, state)
+  if (isPlainObject(report) && Array.isArray(report.degraded)) {
+    if (new Set(report.degraded).size !== report.degraded.length) out.push('$.degraded: duplicate entries')
+    if (state.nulls > 0 && report.degraded.length === 0) out.push('$: null field(s) with nothing named in degraded')
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- context
+
+const readJson = (path) => {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'))
+  } catch {
+    return undefined
+  }
+}
+
+function readMarker(project) {
+  const raw = readJson(join(project, MARKER))
+  if (!isPlainObject(raw)) return null
+  const nonNegative = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0
+  const startedMs = typeof raw.started_at === 'string' ? Date.parse(raw.started_at) : NaN
+  const m = {
+    run_id: typeof raw.run_id === 'string' && PATTERNS.uuid_v4.test(raw.run_id) ? raw.run_id : null,
+    command: isMember('command', raw.command) ? raw.command : null,
+    lane: isMember('lane', raw.lane) ? raw.lane : null,
+    target: typeof raw.target === 'string' ? raw.target : null,
+    started_ms: Number.isFinite(startedMs) ? startedMs : null,
+    sessions: Number.isInteger(raw.sessions) && raw.sessions >= 1 ? raw.sessions : null,
+    wall_clock_s_prior: nonNegative(raw.wall_clock_s_prior) ? raw.wall_clock_s_prior : null,
+    arch_snapshot:
+      Array.isArray(raw.arch_snapshot) && raw.arch_snapshot.every((id) => /^ARCH-\d+$/.test(id))
+        ? new Set(raw.arch_snapshot)
+        : null,
+    debt_snapshot: raw.debt_snapshot === null || (Number.isInteger(raw.debt_snapshot) && raw.debt_snapshot >= 0)
+      ? raw.debt_snapshot
+      : undefined,
+    backlog: typeof raw.backlog === 'string' && raw.backlog ? raw.backlog : null,
+  }
+  const requiredKeys = ['run_id', 'command', 'lane', 'target', 'started_ms', 'sessions', 'wall_clock_s_prior', 'arch_snapshot']
+  m.complete = requiredKeys.every((k) => m[k] !== null) && m.debt_snapshot !== undefined
+  return m
+}
+
+// Splits markdown into `##`/`###` blocks so a field like `- status:` is read only
+// from the block it belongs to, never from prose that happens to mention it.
+function blocks(text) {
+  const out = []
+  let cur = null
+  for (const line of text.split('\n')) {
+    if (/^#{2,3} /.test(line)) {
+      cur = { heading: line, body: [] }
+      out.push(cur)
+    } else if (cur) {
+      cur.body.push(line)
+    }
+  }
+  return out.map((b) => ({ heading: b.heading, body: b.body.join('\n') }))
+}
+
+const field = (body, name) => new RegExp(`^-\\s*${name}:\\s*\`?([A-Za-z_]+)`, 'm').exec(body)?.[1] ?? null
+
+export function parseBacklog(text, fileName = '') {
+  const kind = /^# (EPIC|FAST)-\d+/m.exec(text)?.[1] ?? /(EPIC|FAST)-\d+\.md$/.exec(fileName)?.[1] ?? null
+  if (!kind) return null
+  const status = /^- Status:\s*(\w+)/m.exec(text)?.[1] ?? null
+  const stories = []
+  const arch = new Map()
+  let tasks = 0
+  for (const b of blocks(text)) {
+    const story = /^### (STORY-[\w-]+)/.exec(b.heading)
+    if (story) stories.push({ id: story[1], status: field(b.body, 'status') })
+    if (/^### T\d+-\d+\b/.test(b.heading)) tasks++
+    const a = /^### (ARCH-\d+)\b/.exec(b.heading)
+    if (a) arch.set(a[1], { category: field(b.body, 'category'), status: field(b.body, 'status') })
+  }
+  // A handoff listed only in the table still counts; its category is untagged.
+  for (const row of text.matchAll(/^\|\s*(ARCH-\d+)\s*\|(.*)$/gm)) {
+    if (arch.has(row[1])) continue
+    const cells = row[2].split('|').map((c) => c.trim()).filter(Boolean)
+    arch.set(row[1], { category: null, status: cells.at(-1) ?? null })
+  }
+  return { kind, status, stories, tasks, arch }
+}
+
+function resolveBacklogPath(project, marker, override) {
+  const abs = (p) => (isAbsolute(p) ? p : resolve(project, p))
+  if (override) return abs(override)
+  if (marker?.backlog) return abs(marker.backlog)
+  const target = marker?.target ?? ''
+  const id = /\b((?:EPIC|FAST)-\d+)\b/.exec(target)?.[1]
+  if (id) return join(project, 'backlog', `${id}.md`)
+  if (marker?.command !== 'plan') return null
+  const brief = target.trim().split(/\s+/)[0]?.replace(/^\.\//, '')
+  const dir = join(project, 'backlog')
+  if (!brief || !existsSync(dir)) return null
+  let best = null
+  for (const name of readdirSync(dir)) {
+    if (!/^(EPIC|FAST)-\d+\.md$/.test(name)) continue
+    const p = join(dir, name)
+    let text
+    try {
+      text = readFileSync(p, 'utf8')
+    } catch {
+      continue
+    }
+    const artifacts = /^- Artifacts:\s*(.*)$/m.exec(text)?.[1] ?? ''
+    if (!artifacts.split(/[\s,]+/).includes(brief)) continue
+    const mtime = statSync(p).mtimeMs
+    if (!best || mtime > best.mtime) best = { p, mtime }
+  }
+  return best?.p ?? null
+}
+
+export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSON, backlog, meter } = {}) {
+  const root = resolve(project ?? process.cwd())
+  const marker = readMarker(root)
+  const path = resolveBacklogPath(root, marker, backlog)
+  let text = null
+  if (path) {
+    try {
+      text = readFileSync(path, 'utf8')
+    } catch {
+      text = null
+    }
+  }
+  return {
+    project: root,
+    now,
+    pluginJson,
+    marker,
+    meterOverride: meter ?? null,
+    backlog: {
+      path,
+      exists: Boolean(path && existsSync(path)),
+      parsed: text === null ? null : parseBacklog(text, path),
+    },
+  }
+}
+
+// ============================================================ section: run
+
+// Outcome per ARCH-4: blocked, else completed if the command's completion
+// artifact exists, else aborted. Each command's completion check returns
+// true / false, or null plus the input it could not read.
+const COMPLETION = {
+  plan: (ctx) => {
+    const b = ctx.backlog
+    if (b.exists && !b.parsed) return { done: null, degraded: ['backlog_file'] }
+    return { done: Boolean(b.parsed && b.parsed.stories.length + b.parsed.tasks > 0) }
+  },
+  // Provisional until the build section reads pair sessions and the epic PR:
+  // every story DONE, or the file's own Status flipped to DONE.
+  build: (ctx) => {
+    const p = ctx.backlog.parsed
+    if (!p) return { done: null, degraded: ['backlog_file'] }
+    const allDone = p.stories.length > 0 && p.stories.every((s) => s.status?.toUpperCase() === 'DONE')
+    return { done: allDone || p.status?.toUpperCase() === 'DONE' }
+  },
+  // Completion is a round comment on the PR, which only the review section reads.
+  review: () => ({ done: null, degraded: ['pr_comments'] }),
+}
+
+function isBlocked(ctx) {
+  const degraded = []
+  const p = ctx.backlog.parsed
+  const snapshot = ctx.marker?.arch_snapshot
+  if (p && snapshot) {
+    for (const [id, a] of p.arch) {
+      if (!snapshot.has(id) && a.status?.toUpperCase() === 'OPEN') return { blocked: true, degraded }
+    }
+  }
+  const pairDir = join(ctx.project, 'backlog', 'pair')
+  if (!existsSync(pairDir)) return { blocked: false, degraded }
+  // Only this backlog's stories: a stale blocked session from another epic must
+  // not mark this run blocked.
+  const ours = p ? new Set(p.stories.map((s) => s.id)) : null
+  for (const name of readdirSync(pairDir)) {
+    if (ours && !ours.has(name)) continue
+    const sessionPath = join(pairDir, name, 'session.json')
+    if (!existsSync(sessionPath)) continue
+    const s = readJson(sessionPath)
+    if (!isPlainObject(s)) {
+      if (!degraded.includes('pair_sessions')) degraded.push('pair_sessions')
+      continue
+    }
+    if (s.session === 'blocked') return { blocked: true, degraded }
+  }
+  return { blocked: false, degraded }
+}
+
+function deriveOutcome(ctx) {
+  const command = ctx.marker?.command
+  if (!command) return { value: null, degraded: ['run_state'] }
+  const degraded = []
+  if (command === 'build') {
+    const b = isBlocked(ctx)
+    degraded.push(...b.degraded)
+    if (b.blocked) return { value: 'blocked', degraded }
+  }
+  const c = COMPLETION[command](ctx)
+  if (c.done === null) return { value: null, degraded: [...degraded, ...c.degraded] }
+  return { value: c.done ? 'completed' : 'aborted', degraded }
+}
+
+const isoSeconds = (d) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+export function buildRun(ctx) {
+  const degraded = []
+  const m = ctx.marker
+  const version = readJson(ctx.pluginJson)?.version
+  const plugin_version = typeof version === 'string' && PATTERNS.semver.test(version) ? version : null
+  if (plugin_version === null) degraded.push('plugin_version')
+  if (!m || !m.complete) degraded.push('run_state')
+
+  const outcome = deriveOutcome(ctx)
+  degraded.push(...outcome.degraded)
+
+  const nowMs = ctx.now.getTime()
+  const wall_clock_s =
+    m && m.wall_clock_s_prior !== null && m.started_ms !== null
+      ? Math.round(m.wall_clock_s_prior + Math.max(0, nowMs - m.started_ms) / 1000)
+      : null
+
+  return {
+    section: {
+      run_id: m?.run_id ?? null,
+      plugin_version,
+      command: m?.command ?? null,
+      lane: m?.lane ?? null,
+      outcome: outcome.value,
+      ended_at: isoSeconds(ctx.now),
+      wall_clock_s,
+      sessions: m?.sessions ?? null,
+    },
+    degraded,
+  }
+}
+
+// =========================================================== section: plan
+
+export function buildPlan(ctx) {
+  const p = ctx.backlog.parsed
+  if (!p) {
+    return {
+      section: { epics: null, stories: null, tasks: null, arch_handoffs: null },
+      degraded: ['backlog_file'],
+    }
+  }
+  const degraded = []
+  const command = ctx.marker?.command
+  let arch_handoffs = null
+  if (command && command !== 'plan' && !ctx.marker.arch_snapshot) {
+    degraded.push('run_state')
+  } else {
+    const planTime = command && command !== 'plan' ? ctx.marker.arch_snapshot : null
+    arch_handoffs = Object.fromEntries(OPEN.arch_category.map((c) => [c, 0]))
+    for (const [id, a] of p.arch) {
+      if (planTime && !planTime.has(id)) continue
+      arch_handoffs[toCategory('arch_category', a.category)]++
+    }
+  }
+  return {
+    section: {
+      epics: p.kind === 'EPIC' ? 1 : 0,
+      stories: p.stories.length,
+      tasks: p.tasks,
+      arch_handoffs,
+    },
+    degraded,
+  }
+}
+
+// ========================================================== section: build
+// Stub: every field null with its inputs named. Replace only this region.
+
+export function buildBuild(_ctx) {
+  return {
+    section: { stories: null, arch_blocks: null, revise_rounds: null, gate_runs: null, gate_failures: null },
+    // revise_rounds is read from the PR's round comments, hence pr_comments.
+    degraded: ['pair_sessions', 'pr_comments', 'gate_history'],
+  }
+}
+
+// ========================================================= section: review
+// Stub: every field null with its inputs named. Replace only this region.
+
+export function buildReview(_ctx) {
+  return {
+    section: { rounds: null, verdict: null, findings: null },
+    degraded: ['pr_comments'],
+  }
+}
+
+// =========================================================== section: debt
+// Stub: every field null with its inputs named. Replace only this region.
+
+export function buildDebt(_ctx) {
+  return {
+    section: { rows_logged: null, by_risk: null, by_category: null },
+    degraded: ['debt_ledger'],
+  }
+}
+
+// =========================================================== section: cost
+
+function newestMeterRecord(ctx) {
+  const dir = join(ctx.project, METER_DIR)
+  if (!existsSync(dir)) return undefined
+  const since = ctx.marker?.started_ms ?? -Infinity
+  const candidates = []
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.json')) continue
+    const p = join(dir, name)
+    const mtime = statSync(p).mtimeMs
+    if (mtime >= since) candidates.push({ p, name, mtime })
+  }
+  candidates.sort((a, b) => b.mtime - a.mtime || (a.name < b.name ? 1 : -1))
+  return candidates.length ? readJson(candidates[0].p) : undefined
+}
+
+export function buildCost(ctx) {
+  const rec = ctx.meterOverride ? readJson(ctx.meterOverride) : newestMeterRecord(ctx)
+  const missing = { section: null, degraded: ['meter_record'] }
+  if (!isPlainObject(rec) || !Number.isInteger(rec.schema) || rec.schema < 1) return missing
+  const problems = []
+  checkNumericRecord(rec.totals, 'totals', problems)
+  checkNumericRecord(rec.derived, 'derived', problems)
+  if (problems.length) return missing
+  return { section: { schema: rec.schema, totals: rec.totals, derived: rec.derived }, degraded: [] }
+}
+
+// ----------------------------------------------------------------- report
+
+export const SECTION_BUILDERS = Object.freeze({
+  run: buildRun,
+  plan: buildPlan,
+  build: buildBuild,
+  review: buildReview,
+  debt: buildDebt,
+  cost: buildCost,
+})
+
+export function buildReport(ctx) {
+  const report = { schema: 1 }
+  const named = new Set()
+  for (const [key, builder] of Object.entries(SECTION_BUILDERS)) {
+    const { section, degraded } = builder(ctx)
+    report[key] = section
+    for (const d of degraded) named.add(d)
+  }
+  // Vocabulary order, so two builds of the same artifacts are byte-identical.
+  report.degraded = DEGRADED_INPUT.filter((d) => named.has(d))
+  return report
+}
+
+// -------------------------------------------------------------------- CLI
+
+function main(argv) {
+  const [command, ...rest] = argv
+  const flags = {}
+  const positional = []
+  for (let i = 0; i < rest.length; i++) {
+    const a = rest[i]
+    if (a.startsWith('--')) {
+      const next = rest[i + 1]
+      if (next === undefined || next.startsWith('--')) flags[a.slice(2)] = true
+      else {
+        flags[a.slice(2)] = next
+        i++
+      }
+    } else positional.push(a)
+  }
+  const USAGE = `usage:
+  run-report.mjs report --project <dir> [--out <file>] [--backlog <file>] [--meter <record.json>] [--now <ISO-8601>]
+  run-report.mjs validate <file>`
+  const die = (code, msg) => {
+    process.stderr.write(`run-report: ${msg}\n`)
+    process.exit(code)
+  }
+  const str = (k) => (typeof flags[k] === 'string' ? flags[k] : undefined)
+
+  if (command === 'validate') {
+    if (!positional[0]) die(2, USAGE)
+    const report = readJson(positional[0])
+    if (report === undefined) die(1, `cannot read JSON from ${positional[0]}`)
+    const v = validate(report)
+    if (v.length) die(1, `invalid report:\n  ${v.join('\n  ')}`)
+    process.stdout.write('valid\n')
+    process.exit(0)
+  }
+
+  if (command === 'report') {
+    let now = new Date()
+    if (str('now')) {
+      now = new Date(str('now'))
+      if (!Number.isFinite(now.getTime())) die(2, `--now is not a date: ${str('now')}`)
+    }
+    const ctx = loadContext({ project: str('project'), now, backlog: str('backlog'), meter: str('meter') })
+    const report = buildReport(ctx)
+    const v = validate(report)
+    if (v.length) die(1, `refusing to write an invalid report:\n  ${v.join('\n  ')}`)
+    if (report.degraded.length) process.stderr.write(`run-report: degraded: ${report.degraded.join(', ')}\n`)
+    const out = str('out') ?? (report.run.run_id ? join(ctx.project, RUNS_DIR, `${report.run.run_id}.json`) : null)
+    if (!out) {
+      process.stderr.write('run-report: no run marker, so no run_id to name the report; nothing written\n')
+      process.exit(0)
+    }
+    mkdirSync(dirname(resolve(out)), { recursive: true })
+    writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`)
+    process.stdout.write(`${out}\n`)
+    process.exit(0)
+  }
+
+  die(2, `${command ? `unknown command: ${command}\n` : ''}${USAGE}`)
+}
+
+// Compared by realpath: import.meta.url is already resolved, so a script reached
+// through a symlink (a plugin cache link, macOS's /var → /private/var) would
+// otherwise never run its CLI.
+const isMain = (() => {
+  try {
+    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+  } catch {
+    return false
+  }
+})()
+if (isMain) main(process.argv.slice(2))
