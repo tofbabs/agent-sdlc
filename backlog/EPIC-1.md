@@ -8,7 +8,7 @@
 - Success metric: coverage of valid reports across bench fixtures and this
   repo's own runs, 0% → 100%; a schema test proves no field accepts an
   unbounded string, enforced in preflight and CI.
-- Status: TODO
+- Status: DONE
 - Artifacts: docs/adr/0001-run-report-schema-and-vocabulary.md, docs/briefs/self-improvement/01-run-report.md
 
 ## Architect handoffs
@@ -154,7 +154,7 @@ crashes and resumes all harmless, and it matches 02's idempotency key
 
 ### STORY-1-1: Category vocabulary module
 
-- status: TODO
+- status: DONE
 - estimate: S
 - risk: schema drift between the vocabulary file and the agents/tests that read it
 - depends_on: []
@@ -199,7 +199,7 @@ the schema accepts
 
 ### STORY-1-2: `run-report.mjs` — run, plan and cost sections
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: embedding the meter record wrong (re-deriving costs instead of reusing `meter.mjs`'s own totals, which the brief explicitly forbids)
 - depends_on: []
@@ -254,7 +254,7 @@ report before build/review sections exist
 
 ### STORY-1-3: `run-report.mjs` — build section
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: data sourcing — per-story mode/alternation/block counts live across pair-log session.json, git history and the epic file, not one place
 - depends_on: [STORY-1-2]
@@ -305,7 +305,7 @@ were made
 
 ### STORY-1-4: `run-report.mjs` — review section
 
-- status: TODO
+- status: DONE
 - estimate: S
 - risk: data sourcing — parsing review-round structure out of GitHub PR comments without capturing any of their free text
 - depends_on: [STORY-1-2]
@@ -347,7 +347,7 @@ something only visible by re-reading transcripts
 
 ### STORY-1-5: `run-report.mjs` — debt section
 
-- status: TODO
+- status: DONE
 - estimate: S
 - risk: none: follows the backlog-file-parsing pattern `plan-artifacts.mjs`'s `## Debt` regex already uses
 - depends_on: [STORY-1-2]
@@ -386,7 +386,7 @@ during the run, by category
 
 ### STORY-1-6: lifecycle hook and end-to-end report
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: hook wiring — the one spot where a bug silently drops every report this epic exists to produce
 - depends_on: [STORY-1-2, STORY-1-3, STORY-1-4, STORY-1-5]
@@ -443,7 +443,7 @@ report at the lifecycle point ARCH-2 settles, writes it to
 
 ### STORY-1-7: schema leak-proofing test
 
-- status: TODO
+- status: DONE
 - estimate: S
 - risk: none: follows the existing `scripts/<name>.test.sh` pattern (`meter.test.sh`, `pair-log.test.sh`)
 - depends_on: [STORY-1-1, STORY-1-2]
