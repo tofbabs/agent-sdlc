@@ -1,4 +1,4 @@
-# PAIR LOOP — the navigator ⇄ coder protocol
+# PAIR LOOP — the navigator ⇄ driver protocol
 
 Read by `/build` **only when a story selects PAIR**. It is kept out of
 `commands/build.md` because an all-SOLO run would otherwise carry ~130 lines it
@@ -6,10 +6,10 @@ never uses, on every invocation.
 
 ---
 
-## PAIR LOOP — navigator ⇄ coder, for one story
+## PAIR LOOP — navigator ⇄ driver, for one story
 
 Subagents run to completion — they cannot pause mid-story — so **the orchestrator
-drives the alternation**. The pairing IS this loop; it is not something the coder
+drives the alternation**. The pairing IS this loop; it is not something the driver
 does internally. Shared state is the worktree branch plus
 `backlog/pair/<STORY-ID>/`, which is read and written **only** through
 `pair-log.mjs` (see PAIR LOG SHAPE).
@@ -42,29 +42,28 @@ twice and letting the more expensive copy be the one that grows.
    That creates backlog/pair/<STORY-ID>/ — brief.md, state.md, turns.md,
    session.json.
 
-1. Agent(subagent_type: "agentic-sdlc:navigator", prompt: "PAIR on <STORY-ID> in <worktree>.
-         Get your context with `pair-log.mjs read <STORY-ID> --role navigator` —
-         that command IS your read of the log; do not open the files yourself.
-         Review the driver's last increment if any. Write the next failing test.
-         Steer. Refresh STATE. One test, then stop.")
+1. Agent(subagent_type: "agentic-sdlc:navigator", prompt: "PAIR on <STORY-ID> in <worktree>,
+         branch feat/STORY-<id> off <epic branch | origin/<base>>. Your whole
+         context is `pair-log.mjs read <STORY-ID> --role navigator` (it includes
+         the last commit). Review the last increment, write the next failing
+         test, refresh STATE. All ACs green → run the full gate and close the
+         story per your CLOSE step. One test, then stop.")
 
 2. Read the session field — never the log itself, or you accumulate one copy per
    alternation:
        node ${CLAUDE_PLUGIN_ROOT}/scripts/pair-log.mjs status <STORY-ID>
-     session=complete  → Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR —
-                         <STORY-ID> in <worktree>, session complete. Run full
-                         verification, commit the final state on the story
-                         branch. Do NOT open a PR, do NOT push — this is an epic
-                         wave. Report the story title and the scopes touched.")
-                         → story done, back to the wave.
+     session=complete  → the navigator already ran the full gate, committed the
+                         final state and reported title + scopes. No further
+                         agent. Epic wave → story done, back to the wave (LAND).
+                         Hotfix path → push feat/<STORY-ID> and
+                         `gh pr create --base <base> --fill`, noting "pair-built".
      session=blocked   → Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve
                          ARCH-<n> — a pair is blocked and waiting.") → back to 1.
      otherwise         → continue.
 
-3. Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: PAIR — driver turn on <STORY-ID>
-         in <worktree>. Get your context with `pair-log.mjs read <STORY-ID>
-         --role driver`. Make the failing test pass with the simplest thing that
-         works, one increment, commit, stop.")
+3. Agent(subagent_type: "agentic-sdlc:driver", prompt: "PAIR driver turn on <STORY-ID>
+         in <worktree>. Your whole context is `pair-log.mjs read <STORY-ID>
+         --role driver`. Make the failing test pass, commit, log, stop.")
 
 4. → back to 1.
 
@@ -72,6 +71,17 @@ CAP: 20 alternations per story, counted by the script and reported by `status`.
 Hitting the cap means the increments are too small or the story is too big —
 split the story rather than raising the cap.
 ```
+
+**There is no closing driver turn.** The navigator's completing turn already ran
+the suite to verify every AC; it runs the full gate too and commits, so a
+separate driver spawn — a whole boot plus ~40 round trips — only to re-run the
+same gate is gone. A red gate is not completion: the navigator routes it to the
+driver as a REDO, and the loop continues.
+
+**Two agents, two prompts.** The driver is its own slim agent (`agents/driver.md`),
+not the coder in a mode: the coder's prompt carries SOLO, FAST and REVISE, and a
+pair story re-sent all of it — plus a `cat` of the pair protocol — on every
+driver round trip of every alternation.
 
 **`status`, not a grep for `SESSION: COMPLETE`.** The old marker was prose inside
 a turn-log entry, so the 10-line truncation clips one written on line 11 —

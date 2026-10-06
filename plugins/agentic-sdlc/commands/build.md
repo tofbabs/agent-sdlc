@@ -1,5 +1,5 @@
 ---
-description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄coder TDD pair and landed as ONE squash commit. Architect unblocks mid-build. Opens one PR. Review is `/agentic-sdlc:review`; the REVISE loop that closes its findings runs here separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
+description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄driver TDD pair and landed as ONE squash commit. Architect unblocks mid-build. Opens one PR. Review is `/agentic-sdlc:review`; the REVISE loop that closes its findings runs here separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
 argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast]
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
@@ -61,7 +61,7 @@ Each story is built one of two ways. Decide per story, not per epic. (Under
 - **estimate S, well-specified, a pattern for it already exists** → **SOLO**: one
   coder invocation runs the story to completion in its worktree.
 - **estimate M or L, novel logic, or a story that came back from review** →
-  **PAIR**: the navigator and coder ping-pong TDD, one increment at a time (see
+  **PAIR**: the navigator and driver ping-pong TDD, one increment at a time (see
   PAIR LOOP).
 
 Pairing roughly doubles a story's turns, so it goes where the risk is, not
@@ -120,7 +120,7 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
             the story's increments committed on the story branch, the same state
             SOLO leaves. No PR — this is an epic wave.
 
-  3. If the coder OR navigator reports BLOCKED on an ARCH:
+  3. If any agent reports BLOCKED on an ARCH:
        Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n> — the coder is
              blocked and waiting. Read the codebase, decide, update the epic file.")
        → resume the coder on the same story
@@ -179,7 +179,7 @@ landed, not part of the cascade run.
 ## PAIR LOOP — loaded only when a story selects PAIR
 
 A PAIR story is driven by **the orchestrator** alternating fresh navigator and
-coder agents, one increment at a time, with `backlog/pair/<STORY-ID>/` as the
+driver agents, one increment at a time, with `backlog/pair/<STORY-ID>/` as the
 shared memory. That protocol runs ~130 lines and only a PAIR story needs it, so
 it lives in a file instead of in this prompt:
 
@@ -302,11 +302,11 @@ merge; nothing here merges its own PR.
 
 ## COST NOTE
 
-- **Coder on Sonnet 5 by default** — it runs the most turns, so the cheapest
-  capable model belongs there. **Escalate a story's coder to Opus 4.8** only when
+- **Coder/driver on Sonnet 5 by default** — it runs the most turns, so the cheapest
+  capable model belongs there. **Escalate a story's coder/driver to Opus 4.8** only when
   it is genuinely hard (novel algorithm, tricky concurrency, or twice-bounced);
   override on that invocation, not the agent default.
-- **Never Fable on the coder or navigator** — it belongs on the architect, where
+- **Never Fable on the coder, driver or navigator** — it belongs on the architect, where
   turns are few and judgment is dense.
 - **The model tier is the small lever; whether the agents are fresh is the big
   one.** Get freshness right first.

@@ -27,11 +27,13 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 
 const ENTRY_MAX_LINES = 10
 const STATE_MAX_LINES = 15
 const ALTERNATION_CAP = 20
 const READ_ENTRIES = 2
+const COMMIT_MAX_LINES = 200
 
 const ENTRY_RE = /^## \d+\. /
 
@@ -66,7 +68,7 @@ const die = (code, msg) => {
 
 const USAGE = `usage:
   pair-log.mjs init    <STORY-ID> --brief <path> [--root <dir>] [--force]
-  pair-log.mjs read    <STORY-ID> --role navigator|driver [--entries <n>]
+  pair-log.mjs read    <STORY-ID> --role navigator|driver [--entries <n>] [--no-git]
   pair-log.mjs append  <STORY-ID> --role navigator|driver      (body on stdin)
   pair-log.mjs state   <STORY-ID>                              (STATE on stdin)
   pair-log.mjs session <STORY-ID> --set active|complete|blocked [--arch ARCH-<n>]
@@ -192,6 +194,26 @@ if (command === 'read') {
   const entries = parseEntries()
   const recent = n === 0 ? [] : entries.slice(-n)
   parts.push(recent.length ? `## Recent turns\n\n${recent.join('\n\n')}` : '## Recent turns\n\n(none yet)')
+
+  // The last commit is what each role reads next anyway — the driver's increment
+  // for the navigator to review, the navigator's failing test for the driver to
+  // pass. Folding it in here saves each fresh agent the `git log` / `git show`
+  // round trips it would otherwise spend at turn start, and every round trip
+  // re-sends the agent's whole context. Capped, because a large diff should be
+  // paged by the agent that needs it, not carried by every turn.
+  if (!flags['no-git']) {
+    const git = (...a) => spawnSync('git', a, { encoding: 'utf8' })
+    const log = git('log', '--oneline', '-5')
+    if (log.status === 0 && log.stdout.trim()) {
+      const show = git('show', '--stat', '--patch', '--format=%h %s', 'HEAD')
+      const lines = show.status === 0 ? show.stdout.trimEnd().split('\n') : []
+      const kept = lines.slice(0, COMMIT_MAX_LINES)
+      if (lines.length > COMMIT_MAX_LINES) {
+        kept.push(`… ${lines.length - COMMIT_MAX_LINES} more lines — \`git show HEAD -- <path>\` for the rest`)
+      }
+      parts.push(`## Recent commits\n${log.stdout.trimEnd()}\n\n## Last commit\n${kept.join('\n')}`)
+    }
+  }
 
   process.stdout.write(`${parts.join('\n\n---\n\n')}\n`)
   process.exit(0)

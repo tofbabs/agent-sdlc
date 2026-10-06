@@ -92,5 +92,24 @@ node "$PL" session STORY-T --set blocked >/dev/null 2>&1
 echo "" | node "$PL" append STORY-T --role driver >/dev/null 2>&1
 [ $? -eq 2 ] && ok "empty entry is refused" || bad "empty entry was accepted"
 
+# 9. The last commit rides along with `read`, so neither fresh agent spends round
+#    trips on `git log` / `git show` at turn start — and a huge diff is capped,
+#    not carried whole by every turn.
+git init -q repo && cd repo
+git config user.email t@t && git config user.name t
+node "$PL" init STORY-G --brief ../brief-src.md >/dev/null 2>&1
+printf 'it("pins GIT_SENTINEL")\n' > a.test.js
+git add -A && git commit -qm "test(x): pins the thing [STORY-G]"
+node "$PL" read STORY-G --role driver > drv.txt 2>/dev/null
+grep -q 'GIT_SENTINEL' drv.txt && grep -q '## Recent commits' drv.txt \
+  && ok "read includes the last commit" || bad "read is missing the last commit"
+node "$PL" read STORY-G --role driver --no-git 2>/dev/null | grep -q 'GIT_SENTINEL' \
+  && bad "--no-git still printed the commit" || ok "--no-git omits it"
+seq 1 500 > big.txt && git add -A && git commit -qm "feat(x): big"
+node "$PL" read STORY-G --role navigator > nav.txt 2>/dev/null
+grep -q 'more lines' nav.txt && ! grep -q '^+500$' nav.txt \
+  && ok "a large last commit is capped" || bad "large last commit was not capped"
+cd ..
+
 [ "$fail" -eq 0 ] || { printf '\npair-log tests failed\n' >&2; exit 1; }
 printf '\npair-log tests passed\n'

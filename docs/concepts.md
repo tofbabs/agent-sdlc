@@ -41,7 +41,7 @@ ledger.
 ### 3. Deliberate PAIR — ping-pong TDD
 The highest-rigor way to *write* a story. Two agents alternate one increment at a
 time: the **navigator** (Opus 4.8) writes the next failing test and reviews the
-last increment; the **coder** (Sonnet 5, the driver) makes it pass with the
+last increment; the **driver** (Sonnet 5, a slim pair-only agent) makes it pass with the
 simplest thing that works. The driver *not* owning the tests is what keeps them
 honest. Chosen for M/L, novel, or previously-bounced stories, where the risk
 justifies roughly doubling the story's turns.
@@ -78,7 +78,7 @@ needed.
 | Decisions | `ARCH-<n>` handoff, coder blocks and waits | coder decides and logs; five one-way doors are tagged and batched, never blocking |
 | Tests | the story's criteria; PAIR stories are strict ping-pong TDD | the `done when`, plus the **negative** case on each risk surface touched — auth, money, destructive data paths, external contracts — nothing else |
 | Branching | epic branch, story worktrees off the epic tip, one squash commit per story | one branch, sequential, gate once |
-| Agents | planner, architect (Fable), coder, navigator (Opus 4.8), code-reviewer (Opus 4.8) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
+| Agents | planner, architect (Fable), coder, driver, navigator (Opus 4.8), code-reviewer (Opus 4.8) at the PR | planner + coder (both Sonnet 5); architect at most once, usually zero; code-reviewer judges the fast floor |
 | Spawns, 5 tasks | ~52 with two PAIR stories | ~6 *(projected, not yet measured)* |
 | Debt ledger | required | required |
 
@@ -96,7 +96,7 @@ Every story is built one of two ways, chosen per story by `/agentic-sdlc:build`:
 - **SOLO** — one coder runs the story end to end. The default for small,
   well-specified stories with an existing pattern to follow. This is the original
   behaviour and remains fully supported.
-- **PAIR** — ping-pong TDD split across two agents (navigator + coder), one
+- **PAIR** — ping-pong TDD split across two agents (navigator + driver), one
   increment at a time through a shared pair log at `backlog/pair/<STORY-ID>.md`.
   Chosen for M/L, novel, or previously-bounced stories — where the driver *not*
   owning the tests is what keeps them honest.

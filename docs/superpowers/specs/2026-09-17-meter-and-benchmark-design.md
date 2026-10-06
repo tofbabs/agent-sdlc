@@ -203,6 +203,39 @@ before the benchmark and A0 exist.
 
 ---
 
+## 2026-10-06 — PAIR-loop cuts landed ahead of `bench/`
+
+Four cuts to the TDD pair, each removing work rather than changing a judgment the
+agents make, so they land without a bench artifact. They are the part of C1 and A1
+that is structural; the rest stays gated.
+
+1. **A slim `driver` agent** (`agents/driver.md`, ~3.2 KB) replaces "coder in
+   `MODE: PAIR`". Every driver spawn used to boot the 11.2 KB coder prompt (SOLO,
+   FAST, REVISE, superpowers table, architect protocol) and then `cat`
+   `reference/coder-pair-mode.md` (4.3 KB) — one extra round trip, and ~12 KB of
+   pair-irrelevant text re-sent on each of ~42 round trips per turn, ~20 turns per
+   story. `coder.md` loses its PAIR section too (11,220 → 9,333 B), which every
+   SOLO/FAST/REVISE spawn now saves. `WebFetch` is not on the driver's tool list
+   (A1 for this one agent: making one failing test pass does not need the web).
+2. **`pair-log.mjs read` carries the last commit** (`git log --oneline -5` plus
+   `git show HEAD`, capped at 200 lines; `--no-git` opts out). Each role's first
+   move was exactly that read — the navigator reviewing the driver's increment,
+   the driver opening the navigator's new test — so this removes 1–2 round trips
+   per turn, each of which re-sent the agent's whole context.
+3. **No closing driver turn.** On `session=complete` the old loop spawned one more
+   coder only to re-run the gate and commit. The navigator's completing turn now
+   runs the full gate, commits the pair log and reports title + scopes; a red gate
+   is routed to the driver as a REDO, so the navigator still writes no
+   implementation code. One full Sonnet spawn (boot + ~40 round trips) per PAIR
+   story is gone; on the hotfix path the orchestrator pushes and opens the PR.
+4. **`navigator.md` trimmed** 9,353 → 6,010 B: rationale already recorded in
+   `reference/pair-loop.md` and the 2026-07-31 spec was removed; the normative
+   rules are unchanged.
+
+Size ratchet re-calibrated down to the new sizes (group 63,951 → 61,902 B). Still
+**not** done, because each changes what the agents judge and needs `bench/`:
+navigator on Sonnet, more than one test per red, a lower alternation cap.
+
 ## Verification performed
 
 - `scripts/meter.test.sh` — 16 checks green, incl. byte-exact totals, by_agent
