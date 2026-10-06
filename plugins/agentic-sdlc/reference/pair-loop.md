@@ -79,9 +79,10 @@ twice and letting the more expensive copy be the one that grows.
    session.json.
 
 1. Agent(subagent_type: "agentic-sdlc:navigator", prompt: "PAIR on <STORY-ID> in <worktree>,
-         branch feat/STORY-<id> off <epic branch | origin/<base>>. Your whole
-         context is `pair-log.mjs read <STORY-ID> --role navigator` (it includes
-         the last commit). Review the last increment, write the failing tests
+         branch feat/STORY-<id> off <epic branch | origin/<base>>. Your only
+         read of the pair log is `pair-log.mjs read <STORY-ID> --role
+         navigator` (bounded: brief, STATE, last 2 entries, last commit);
+         open source files as you need them. Review the last increment, write the failing tests
          for the next behaviour, refresh STATE. All ACs green → close the story
          in this same turn per your CLOSE step. Then stop.")
 
@@ -98,9 +99,11 @@ twice and letting the more expensive copy be the one that grows.
      otherwise         → continue.
 
 3. Agent(subagent_type: "agentic-sdlc:driver", prompt: "PAIR driver turn on <STORY-ID>
-         in <worktree>. Your whole context is `pair-log.mjs read <STORY-ID>
-         --role driver`. Make the failing tests pass, implementing only what they
-         demand; commit, log, stop.")
+         in <worktree>. Your only read of the pair log is
+         `pair-log.mjs read <STORY-ID> --role driver` (bounded: STATE, last 2
+         entries, last commit); open source files as you need them. Make the
+         failing tests pass, implementing only what they demand; commit, log,
+         stop.")
 
 4. → back to 1.
 

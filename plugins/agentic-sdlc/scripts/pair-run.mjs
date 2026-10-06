@@ -74,8 +74,8 @@ const status = () => {
 }
 
 const PROMPTS = {
-  navigator: `PAIR on ${storyId}. You are already in the story worktree, on the story branch off ${flags.base}; stay in it. Your whole context is \`node ${PAIR_LOG} read ${storyId} --role navigator\`. Review the last increment, write the failing tests for the next behaviour, refresh STATE. All ACs green → close the story in this same turn per your CLOSE step (scopes: \`git diff --stat ${flags.base}...HEAD\`). Then stop.`,
-  driver: `PAIR driver turn on ${storyId}. You are already in the story worktree; stay in it. Your whole context is \`node ${PAIR_LOG} read ${storyId} --role driver\`. Make the failing tests pass, implementing only what they demand; commit, log, stop.`,
+  navigator: `PAIR on ${storyId}. You are already in the story worktree, on the story branch off ${flags.base}; stay in it. Your only read of the pair log is \`node ${PAIR_LOG} read ${storyId} --role navigator\` (bounded: brief, STATE, last 2 entries, last commit); open source files as you need them. Review the last increment, write the failing tests for the next behaviour, refresh STATE. All ACs green → close the story in this same turn per your CLOSE step (scopes: \`git diff --stat ${flags.base}...HEAD\`). Then stop.`,
+  driver: `PAIR driver turn on ${storyId}. You are already in the story worktree; stay in it. Your only read of the pair log is \`node ${PAIR_LOG} read ${storyId} --role driver\` (bounded: STATE, last 2 entries, last commit); open source files as you need them. Make the failing tests pass, implementing only what they demand; commit, log, stop.`,
 }
 
 const totals = { turns: 0, cost_usd: 0 }
