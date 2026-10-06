@@ -10,9 +10,12 @@
 // Zero dependencies, Node 22 (the repo floor).
 
 import { readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parse, findSelectLine, DISPATCH_MODES } from './mode-select-fields.mjs'
-import { CLOSED } from './run-report-categories.mjs'
+import { parse, findSelectLine, DISPATCH_MODES, FIELD_NAMES } from './mode-select-fields.mjs'
+import { CLOSED, PATTERNS } from './run-report-categories.mjs'
+import { writeDecision } from './decisions.mjs'
 
 const RUBRIC = JSON.parse(
   readFileSync(new URL('./mode-select-rubric.json', import.meta.url), 'utf8'),
@@ -155,6 +158,89 @@ export function recordChoice(recommendation, chosen, vocabulary) {
   }
 }
 
+// The run that owns a decision: --run-id, else the marker in the main worktree
+// (the run's marker lives there even when /build works in a story worktree).
+// Never invented: a decision with no run has no join key, so the caller skips
+// the record and says so rather than minting one that could never be found again.
+function resolveRunId(flags, file) {
+  if (flags['run-id'] !== undefined) {
+    return PATTERNS.uuid_v4.test(flags['run-id']) ? flags['run-id'] : null
+  }
+  try {
+    const cwd = dirname(resolve(file))
+    const common = resolve(
+      cwd,
+      execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(),
+    )
+    const marker = JSON.parse(readFileSync(join(dirname(common), '.agentic-sdlc', 'run-state.json'), 'utf8'))
+    return PATTERNS.uuid_v4.test(marker.run_id) ? marker.run_id : null
+  } catch {
+    return null
+  }
+}
+
+// A decision record must never fail /plan or /build: the backlog line is the
+// human-facing record, the store is telemetry.
+function writeDecisions(flags, file, decisions) {
+  const run_id = resolveRunId(flags, file)
+  if (run_id === null) {
+    process.stderr.write('mode-select.mjs: no run_id (pass --run-id or start a run); decision record skipped\n')
+    return
+  }
+  const opts = { cwd: dirname(resolve(file)) }
+  try {
+    for (const d of decisions) writeDecision({ run_id, ...d }, opts)
+  } catch (err) {
+    process.stderr.write(`mode-select.mjs: decision record skipped: ${err.message}\n`)
+  }
+}
+
+// One story decision yields the layer that decided it (a floor beats the score)
+// plus an override record when the human chose differently. Fallbacks carry no
+// rubric, floor or score: nothing scored them.
+function storyDecisions(id, fields, result, decision) {
+  const inputs = Object.fromEntries(FIELD_NAMES.map((n) => [n, fields[n].value]))
+  const base = { subject: id, rubric: result.rubric, inputs, fallback: false }
+  const out = [
+    {
+      ...base,
+      layer: result.floor === null ? 'score' : 'floor',
+      // A risk_class floor is reported as the class that fired it; the other
+      // floors have no report token, so the record alone keeps their name.
+      floor: result.floor === 'risk_class' ? fields.risk_class.value : result.floor,
+      score: result.score,
+      choice: result.mode,
+      alternative: null,
+      overridden: false,
+    },
+  ]
+  if (decision.overridden) {
+    out.push({
+      ...base,
+      layer: 'override',
+      floor: null,
+      score: null,
+      choice: decision.choice,
+      alternative: result.mode,
+      overridden: true,
+    })
+  }
+  return out
+}
+
+function laneDecisions(result, decision) {
+  const inputs = { floors: result.floors, pair_count: result.pair_count }
+  const base = { subject: 'lane', rubric: result.rubric, inputs, floor: null, score: null }
+  if (result.fallback) {
+    return [{ ...base, layer: 'lane', choice: decision.choice, alternative: null, overridden: false, fallback: true }]
+  }
+  const out = [{ ...base, layer: 'lane', choice: result.lane, alternative: null, overridden: false, fallback: false }]
+  if (decision.overridden) {
+    out.push({ ...base, layer: 'override', choice: decision.choice, alternative: result.lane, overridden: true, fallback: false })
+  }
+  return out
+}
+
 function readSelectLines(backlogPath) {
   return readFileSync(backlogPath, 'utf8')
     .split('\n')
@@ -255,7 +341,7 @@ function recordStory(backlogPath, id, modeLine, overrideLine) {
 // lane, and writes both into the backlog header idempotently. Re-running with the
 // same `--chosen` is a no-op write; a different `--chosen` updates the lines in
 // place rather than appending a second pair.
-function record(backlogPath, chosen) {
+function record(backlogPath, chosen, flags = {}) {
   const result = decideLane(readSelectLines(backlogPath))
   const { choice, alternative, overridden } = recordChoice(result.lane, chosen, CLOSED.lane)
   const content = readFileSync(backlogPath, 'utf8')
@@ -267,6 +353,7 @@ function record(backlogPath, chosen) {
     LANE_LINE_RE,
   )
   if (next !== content) writeFileSync(backlogPath, next)
+  writeDecisions(flags, backlogPath, laneDecisions(result, { choice, overridden }))
   return { ...result, choice, alternative, overridden }
 }
 
@@ -293,9 +380,24 @@ function runCli(argv) {
       }
       const { choice } = recordChoice(null, flags.chosen, DISPATCH_MODES)
       recordStory(flags.file, flags.id, `- mode: ${choice} — fallback (no select line): prose risk: rule`, null)
+      writeDecisions(flags, flags.file, [
+        {
+          subject: flags.id,
+          layer: 'score',
+          rubric: null,
+          floor: null,
+          score: null,
+          inputs: {},
+          choice,
+          alternative: null,
+          overridden: false,
+          fallback: true,
+        },
+      ])
       return { fallback: true, mode: choice, rubric: null, reason }
     }
-    const result = decideStory(parse(selectLine))
+    const fields = parse(selectLine)
+    const result = decideStory(fields)
     const decision = recordChoice(result.mode, flags.chosen, DISPATCH_MODES)
     if (recording) {
       recordStory(
@@ -304,6 +406,7 @@ function runCli(argv) {
         `- mode: ${decision.choice} — recommended ${result.mode} (rubric ${result.rubric}): ${result.reason}`,
         decision.overridden ? `- override: mode recommended=${result.mode} chosen=${decision.choice}` : null,
       )
+      writeDecisions(flags, flags.file, storyDecisions(flags.id, fields, result, decision))
     }
     return { ...result, ...decision }
   }
@@ -312,11 +415,13 @@ function runCli(argv) {
     return { ...result, ...recordChoice(result.lane, flags.chosen, CLOSED.lane) }
   }
   if (command === 'record' && flags.file !== undefined && flags.chosen !== undefined) {
-    return record(flags.file, flags.chosen)
+    return record(flags.file, flags.chosen, flags)
   }
   throw new Error(
     'usage: mode-select.mjs story --line <select> [--chosen <mode>] | ' +
-      'lane --file <backlog> [--chosen <lane>] | record --file <backlog> --chosen <lane>',
+      'story --file <backlog> --id <story> [--chosen <mode>] [--record] [--run-id <uuid>] | ' +
+      'lane --file <backlog> [--chosen <lane>] | ' +
+      'record --file <backlog> --chosen <lane> [--run-id <uuid>]',
   )
 }
 

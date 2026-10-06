@@ -27,6 +27,50 @@ export const CLOSED = Object.freeze({
   verdict: Object.freeze(['APPROVE', 'REQUEST_CHANGES', 'COMMENT', 'NONE']),
   severity: Object.freeze(['BLOCKER', 'MAJOR', 'MINOR']),
   risk: Object.freeze(['LOW', 'MEDIUM', 'HIGH']),
+  // Decision-record tokens (ADR 0002). Enumerated by the pipeline, so no `other`.
+  decision_layer: Object.freeze(['lane', 'floor', 'score', 'override', 'correction']),
+  correction_trigger: Object.freeze([
+    'blocked_twice',
+    'gate_failed_same_ac',
+    'edited_outside_declared',
+    'navigator_no_rejections',
+    'deferred_one_way',
+    'second_redispatch',
+  ]),
+  outcome_event: Object.freeze([
+    'build',
+    'review',
+    'merged',
+    'abandoned',
+    'post_merge_fix',
+    'post_merge_revert',
+    'corrected',
+  ]),
+  decision_verdict: Object.freeze([
+    'earned',
+    'wasted',
+    'held',
+    'missed',
+    'under_ceremony',
+    'over_ceremony',
+    'needed',
+    'better',
+    'worse',
+  ]),
+  decision_state: Object.freeze(['open', 'closed', 'orphaned']),
+  // SOLO_OPUS is deliberately absent: the builder maps it to SOLO before a
+  // decision reaches the report, so the report never carries a dispatch token.
+  decision_choice: Object.freeze(['SOLO', 'PAIR', 'FAST', 'deliberate', 'fast']),
+  decision_floor: Object.freeze(['money', 'auth', 'destructive_data']),
+})
+
+// The only string patterns the report schema admits (ADR 0001, amended by
+// ADR 0002). Homed here with the vocabularies so there is one list to audit.
+export const PATTERNS = Object.freeze({
+  uuid_v4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  semver: /^\d+\.\d+\.\d+$/,
+  iso_utc_seconds: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
+  decision_id: /^[0-9a-f]{16}$/,
 })
 
 // Open sets: a deterministic script cannot classify prose (ADR 0001 Context),
@@ -63,6 +107,7 @@ export const OPEN = Object.freeze({
     'observability',
     'other',
   ]),
+  orphan_reason: Object.freeze(['pr_deleted', 'machine_local', 'subject_missing', 'other']),
 })
 
 // Closed despite naming *missing* inputs: the build script enumerates exactly

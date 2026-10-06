@@ -521,12 +521,69 @@ got=$(q "$(OUT "$P")" 'String(r.run.lane)+" "+r.run.command+" "+r.degraded.inclu
 [ "$got" = "null plan true" ] && ok "incomplete marker → that field null + run_state, rest kept" || bad "incomplete marker: $got"
 
 mkdir -p "$TMP/bare/scripts"
-cp "$ROOT/plugins/agentic-sdlc/scripts/run-report.mjs" "$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs" "$TMP/bare/scripts/"
+cp "$ROOT/plugins/agentic-sdlc/scripts/run-report.mjs" "$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs" "$ROOT/plugins/agentic-sdlc/scripts/decisions.mjs" "$TMP/bare/scripts/"
 P=$(mkproj no-plugin-json)
 marker "$P" plan deliberate "x" '"backlog/EPIC-7.md"' '[]'
 node "$TMP/bare/scripts/run-report.mjs" report --project "$P" --now "$NOW" >/dev/null 2>&1
 got=$(q "$(OUT "$P")" 'String(r.run.plugin_version)+" "+r.degraded.includes("plugin_version")')
 [ "$got" = "null true" ] && ok "unreadable plugin.json → plugin_version null + plugin_version" || bad "plugin_version: $got"
+
+# ===== decision vocabularies (STORY-2-8, ADR-0002) ========================
+#
+# ADR-0002 adds six vocabularies additively to this one module so the
+# leak-proof walk stays mechanical: the decision record's layer/trigger/state/
+# verdict and the orphaning reason are tokens, not prose. Five are CLOSED (the
+# pipeline enumerates every value it can produce); orphan_reason is OPEN —
+# orphaning causes are not fully enumerable, so a stale tag must fall to
+# `other`, never reject. Membership is pinned to the ADR's exact token sets so a
+# dropped or renamed token (a schema bump by ADR-0002) is caught here.
+
+echo "decision vocabularies"
+got=$(node --input-type=module -e '
+  import { CLOSED, OPEN, isMember, toCategory } from "'"$ROOT"'/plugins/agentic-sdlc/scripts/run-report-categories.mjs"
+  const fails = []
+  const eq = (name, actual, expected) => {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) fails.push(`${name}: ${JSON.stringify(actual)} != ${JSON.stringify(expected)}`)
+  }
+  // Closed sets — exact membership, in ADR-0002 order.
+  eq("decision_layer", CLOSED.decision_layer, ["lane", "floor", "score", "override", "correction"])
+  eq("correction_trigger", CLOSED.correction_trigger, ["blocked_twice", "gate_failed_same_ac", "edited_outside_declared", "navigator_no_rejections", "deferred_one_way", "second_redispatch"])
+  eq("outcome_event", CLOSED.outcome_event, ["build", "review", "merged", "abandoned", "post_merge_fix", "post_merge_revert", "corrected"])
+  eq("decision_verdict", CLOSED.decision_verdict, ["earned", "wasted", "held", "missed", "under_ceremony", "over_ceremony", "needed", "better", "worse"])
+  eq("decision_state", CLOSED.decision_state, ["open", "closed", "orphaned"])
+  // orphan_reason is OPEN with `other` last so a stale tag still counts.
+  eq("orphan_reason", OPEN.orphan_reason, ["pr_deleted", "machine_local", "subject_missing", "other"])
+
+  // isMember resolves each new vocabulary (no throw on an unknown name) and
+  // rejects an off-token.
+  for (const [name, member, outsider] of [
+    ["decision_layer", "correction", "coder"],
+    ["correction_trigger", "blocked_twice", "flaky"],
+    ["outcome_event", "merged", "closed"],
+    ["decision_verdict", "earned", "good"],
+    ["decision_state", "orphaned", "pending"],
+    ["orphan_reason", "machine_local", "laptop_died"],
+  ]) {
+    // A throw here means the vocabulary itself is absent — report it, do not crash the run.
+    const member_of = (n, v) => { try { return isMember(n, v) } catch (e) { return String(e.message) } }
+    if (member_of(name, member) !== true) fails.push(`isMember(${name}, ${member}) should be true`)
+    if (member_of(name, outsider) !== false) fails.push(`isMember(${name}, ${outsider}) should be false`)
+  }
+
+  // Only orphan_reason is open: an unrecognised reason maps to `other`, and the
+  // five closed vocabularies refuse to be treated as open.
+  const category_of = (n, v) => { try { return toCategory(n, v) } catch (e) { return String(e.message) } }
+  if (category_of("orphan_reason", "laptop_died") !== "other") fails.push("unknown orphan_reason must map to other")
+  if (category_of("orphan_reason", "pr_deleted") !== "pr_deleted") fails.push("a known orphan_reason must pass through")
+  for (const closed of ["decision_layer", "correction_trigger", "outcome_event", "decision_verdict", "decision_state"]) {
+    let threw = false
+    try { toCategory(closed, "x") } catch { threw = true }
+    if (!threw) fails.push(`${closed} is closed — toCategory must refuse it`)
+  }
+  process.stdout.write(fails.length ? fails.join("\n") : "ok")
+')
+[ "$got" = "ok" ] && ok "decision_layer/correction_trigger/outcome_event/decision_verdict/decision_state are closed, orphan_reason open — exact ADR-0002 tokens" \
+  || bad "decision vocabularies: $got"
 
 # =================================================== schema bounds (AC 4)
 
@@ -536,7 +593,7 @@ got=$(node --input-type=module -e '
   const fs = await import("node:fs")
   const base = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
   const fails = []
-  const LEAF = new Set(["const", "enum", "number", "pattern", "countMap", "numericRecord"])
+  const LEAF = new Set(["const", "enum", "number", "bool", "pattern", "countMap", "numericRecord"])
   const patterns = []
   // Walk the declarative schema: every leaf must be a bounded type.
   const walk = (spec, path) => {
@@ -546,8 +603,8 @@ got=$(node --input-type=module -e '
     if (spec.type === "pattern") patterns.push(path)
   }
   walk(REPORT_SCHEMA, "$")
-  if (patterns.join() !== "$.run.run_id,$.run.plugin_version,$.run.ended_at") fails.push(`patterns: ${patterns}`)
-  if (Object.keys(PATTERNS).length !== 3) fails.push("more than three patterns exported")
+  if (patterns.join() !== "$.run.run_id,$.run.plugin_version,$.run.ended_at,$.decisions[].decision_id") fails.push(`patterns: ${patterns}`)
+  if (Object.keys(PATTERNS).length !== 4) fails.push("patterns whitelist is not exactly four (ADR-0002: decision_id is the fourth)")
   if (validate(base).length) fails.push(`base invalid: ${validate(base)}`)
   // Stuff a long string into every field of the run, plan and cost sections.
   const LONG = "src/secret/" + "x".repeat(10000)
@@ -582,6 +639,73 @@ got=$(node --input-type=module -e '
 printf '{"schema":1}\n' > "$TMP/partial.json"
 node "$R" validate "$TMP/partial.json" >/dev/null 2>&1 && bad "validate accepted a report missing sections" \
   || ok "validate CLI rejects a report missing sections (exit non-zero)"
+
+# ===== decision report section (STORY-2-8, ADR-0002) =====================
+#
+# ADR-0002 adds ONE optional, always-omittable top-level section, `decisions`:
+# the lane/floor/score/override/correction decisions this run made, each an
+# object of enum tokens, numbers and booleans only. It carries NO story ID (the
+# subject feeds the decision_id hash but never the report) and NO SOLO_OPUS —
+# the dispatch token is mapped to SOLO at build time, so the report's choice/
+# alternative hold only mode|lane tokens. decision_id is the FOURTH whitelisted
+# pattern, and ADR-0002's amended leak-proof rule homes every pattern in the
+# vocabulary module: run-report-categories.mjs is the one place they live.
+
+echo "decision report section"
+got=$(node --input-type=module -e '
+  import { validate, PATTERNS } from "'"$R"'"
+  // Namespace import, not a named one: the pattern whitelist does not live in
+  // the vocabulary module yet, and a missing named export would be a link error
+  // (a meaningless red) rather than the assertion failure we want.
+  import * as VOCAB from "'"$ROOT"'/plugins/agentic-sdlc/scripts/run-report-categories.mjs"
+  const fs = await import("node:fs")
+  const base = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+  const fails = []
+  const clone = () => JSON.parse(JSON.stringify(base))
+  const ok = (r, m) => { const v = validate(r); if (v.length) fails.push(m + " -> " + v.join("; ")) }
+  const no = (r, m) => { if (!validate(r).length) fails.push(m) }
+
+  // decision_id is the fourth whitelisted pattern, homed in the vocabulary
+  // module, and run-report.mjs reads it from there — one source, not two.
+  const VP = VOCAB.PATTERNS
+  if (VP?.decision_id?.source !== "^[0-9a-f]{16}$") fails.push("the vocabulary module must export PATTERNS.decision_id = ^[0-9a-f]{16}$")
+  if (VP && Object.keys(VP).length !== 4) fails.push("the vocabulary module must whitelist exactly four patterns")
+  if (PATTERNS.decision_id?.source !== VP?.decision_id?.source) fails.push("run-report PATTERNS.decision_id must be the vocabulary module pattern (one source)")
+
+  const el = {
+    decision_id: "0123456789abcdef", layer: "score",
+    rubric: 4, floor: null, score: 7,
+    choice: "PAIR", alternative: "SOLO", overridden: false, fallback: false,
+  }
+
+  // Omittable: a report with NO decisions section stays valid — a plan or review
+  // run, or any run before the builder populates it, makes none.
+  ok(clone(), "a report without a decisions section must stay valid")
+
+  { const r = clone(); r.decisions = [el]; ok(r, "a well-formed score decision must validate") }
+  { const r = clone(); r.decisions = [{ ...el, layer: "floor", rubric: null, floor: "money", score: null }]; ok(r, "a floor-layer decision with a floor token and null rubric/score must validate") }
+  { const r = clone(); r.decisions = [{ ...el, layer: "lane", choice: "deliberate", alternative: "fast" }]; ok(r, "a lane decision with lane-token choice/alternative must validate") }
+  { const r = clone(); r.decisions = [{ ...el, alternative: null }]; ok(r, "a null alternative (no road-not-taken) must validate") }
+  { const r = clone(); r.decisions = [{ ...el, overridden: true, fallback: true }]; ok(r, "boolean overridden/fallback must validate") }
+  { const r = clone(); r.decisions = []; ok(r, "an empty decisions array must validate") }
+
+  // Rejections — the leak surface.
+  { const r = clone(); r.decisions = [{ ...el, decision_id: "STORY-2-8" }]; no(r, "a non-16-hex decision_id (a story ID) must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, decision_id: "0123456789abcdef0" }]; no(r, "a 17-hex decision_id must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, decision_id: "noise-0123456789abcdef" }]; no(r, "a decision_id with a valid 16-hex substring must be rejected (anchoring)") }
+  { const r = clone(); r.decisions = [{ ...el, choice: "SOLO_OPUS" }]; no(r, "SOLO_OPUS must not reach the report — it is mapped to SOLO at build") }
+  { const r = clone(); r.decisions = [{ ...el, choice: "nonsense" }]; no(r, "an unknown choice token must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, layer: "coder" }]; no(r, "an unknown layer token must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, floor: "src/secret/" + "x".repeat(4096) }]; no(r, "an unbounded floor string must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, rubric: "4" }]; no(r, "a string rubric must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, overridden: "yes" }]; no(r, "a non-boolean overridden must be rejected") }
+  { const r = clone(); r.decisions = [{ ...el, subject: "STORY-2-8" }]; no(r, "an extra story-ID-bearing field on the element must be rejected") }
+  { const r = clone(); const e = { ...el }; delete e.decision_id; r.decisions = [e]; no(r, "a decision element missing decision_id must be rejected") }
+
+  process.stdout.write(fails.length ? fails.join("\n") : "ok")
+' "$TMP/flag.json")
+[ "$got" = "ok" ] && ok "report admits an optional decisions array; every field is enum/number/bool/decision_id — story IDs and SOLO_OPUS cannot leak" \
+  || bad "decision report section: $got"
 
 # ===== leak-proof (STORY-1-7): schema-driven, not fixture-driven ==========
 #
@@ -853,5 +977,34 @@ got=$(commitreport "$P" "$TB" "node '$R' mark --project '$P' --prompt-file '$PF'
 NEWM=$(cat "$(MARK_OUT "$P")")
 [ "$got" = "false" ] && [ ! -e "$P/stale.json" ] && [ "$(q "$(MARK_OUT "$P")" 'r.command+" "+r.session_open+" "+r.wall_clock_s_prior')" = "review true 0" ] \
   && ok "superseded mid-build: the stale report leaves the new run's marker alone" || bad "supersession stale commit=$got marker=$NEWM"
+
+# ============================================================== decisions
+
+echo "decisions section"
+P=$(mkproj decisions-run)
+git -C "$P" init -q
+marker "$P" plan deliberate "docs/briefs/fixture.md" '"backlog/EPIC-7.md"' '[]'
+report --project "$P" >/dev/null
+[ "$(q "$(OUT "$P")" '"decisions" in r')" = "false" ] \
+  && ok "no decisions in the store: the decisions key is omitted" || bad "decisions key present with an empty store"
+node --input-type=module -e "
+  import { writeDecision } from '$ROOT/plugins/agentic-sdlc/scripts/decisions.mjs'
+  const base = { run_id: '$RUN_ID', inputs: { risk_class: 'money' }, overridden: false, fallback: false }
+  writeDecision({ ...base, subject: 'STORY-A', layer: 'score', rubric: 1, floor: null, score: 2, choice: 'SOLO_OPUS', alternative: null }, { cwd: '$P' })
+  writeDecision({ ...base, subject: 'STORY-B', layer: 'floor', rubric: 1, floor: 'money', score: null, choice: 'PAIR', alternative: null }, { cwd: '$P' })
+  writeDecision({ ...base, subject: 'STORY-C', layer: 'floor', rubric: 1, floor: 'one_way_door', score: null, choice: 'PAIR', alternative: null }, { cwd: '$P' })
+  writeDecision({ ...base, run_id: '99999999-2222-4333-8444-555555555555', subject: 'STORY-A', layer: 'score', rubric: 1, floor: null, score: 0, choice: 'SOLO', alternative: null }, { cwd: '$P' })
+"
+report --project "$P" >/dev/null
+cp "$(OUT "$P")" "$TMP/dec-1.json"
+report --project "$P" >/dev/null
+cmp -s "$TMP/dec-1.json" "$(OUT "$P")" && ok "decisions report is byte-identical across two builds" || bad "decisions report differs between builds"
+node "$R" validate "$(OUT "$P")" >/dev/null 2>&1 && ok "report with decisions validates" || bad "report with decisions is invalid"
+got=$(q "$(OUT "$P")" 'r.decisions.length+" "+r.decisions.map(d=>d.choice).sort().join(",")')
+[ "$got" = "3 PAIR,PAIR,SOLO" ] && ok "only this run's decisions; SOLO_OPUS reads as SOLO in the report" || bad "decisions: $got"
+got=$(q "$(OUT "$P")" 'r.decisions.map(d=>Object.keys(d).sort().join("+")).join(" ")')
+case "$got" in *subject*|*run_id*|*inputs*|*state*|*verdict*) bad "report leaked record internals: $got" ;; *) ok "record internals (subject, run_id, inputs, state) stay out of the report" ;; esac
+got=$(q "$(OUT "$P")" 'r.decisions.filter(d=>"floor" in d).map(d=>d.floor).join(",")')
+[ "$got" = "money" ] && ok "a floor without a report token (one_way_door) is omitted, not nulled" || bad "floor projection: $got"
 
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }

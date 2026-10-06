@@ -186,6 +186,19 @@ else
   note "node not found — skipping mode-select tests"
 fi
 
+# 6b. Decision records: the ID is the join key every later outcome hangs off, so
+#     its derivation and the store's idempotency on the identity tuple are
+#     contract, not detail. Same node guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/decisions.test.sh" >/dev/null 2>&1; then
+    ok "decision-record invariants hold"
+  else
+    bad "decisions tests failed — run scripts/decisions.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping decisions tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

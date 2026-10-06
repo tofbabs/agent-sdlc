@@ -93,7 +93,8 @@ import { join, dirname, resolve, isAbsolute, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { CLOSED, OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
+import { readDecisions } from './decisions.mjs'
+import { CLOSED, OPEN, DEGRADED_INPUT, PATTERNS, isMember, toCategory } from './run-report-categories.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PLUGIN_JSON = join(HERE, '..', '.claude-plugin', 'plugin.json')
@@ -103,12 +104,7 @@ const RUNS_DIR = join('.agentic-sdlc', 'runs')
 
 // ------------------------------------------------------------------- schema
 
-// The only three string patterns the whole schema admits (ADR 0001).
-export const PATTERNS = Object.freeze({
-  uuid_v4: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  semver: /^\d+\.\d+\.\d+$/,
-  iso_utc_seconds: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
-})
+export { PATTERNS }
 
 // numericRecord keys come from meter.mjs, not a vocabulary, so they are bounded
 // by shape instead: short snake_case cannot carry a path, branch or sentence.
@@ -127,6 +123,7 @@ export const T = Object.freeze({
   array: (items) => ({ type: 'array', items }),
   countMap: (vocab) => ({ type: 'countMap', vocab }),
   numericRecord: () => ({ type: 'numericRecord' }),
+  bool: () => ({ type: 'bool' }),
 })
 const required = (spec) => ({ ...spec, nullable: false })
 const count = () => T.number({ int: true, min: 0 })
@@ -135,6 +132,26 @@ const deepFreeze = (o) => {
   for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v)
   return Object.freeze(o)
 }
+
+// One lane/floor/score/override/correction decision (ADR 0002). Tokens and
+// numbers only: the subject that feeds decision_id never reaches the report.
+// rubric/floor/score/alternative are omittable: a floor decision has no score and
+// most have no alternative, and an explicit null would demand a degraded entry
+// for a gap that is not one.
+const omittable = (spec) => ({ ...spec, optional: true })
+
+const decisionElement = () =>
+  T.object({
+    decision_id: required(T.pattern('decision_id')),
+    layer: required(T.enum('decision_layer')),
+    rubric: omittable(T.number({ int: true, min: 1 })),
+    floor: omittable(T.enum('decision_floor')),
+    score: omittable(T.number({ int: true, min: 0 })),
+    choice: required(T.enum('decision_choice')),
+    alternative: omittable(T.enum('decision_choice')),
+    overridden: required(T.bool()),
+    fallback: required(T.bool()),
+  })
 
 export const REPORT_SCHEMA = deepFreeze(
   required(
@@ -197,6 +214,9 @@ export const REPORT_SCHEMA = deepFreeze(
         derived: required(T.numericRecord()),
       }),
       degraded: required(T.array(required(T.enum('degraded_input')))),
+      // Omittable, not nullable: a run that makes no decisions leaves the key out
+      // entirely, and a null would be an unnamed gap the degraded rule rejects.
+      decisions: { ...T.array(required(decisionElement())), optional: true, nullable: false },
     }),
   ),
 )
@@ -249,6 +269,9 @@ function walk(spec, value, path, out, state) {
       if (spec.int && !Number.isInteger(value)) out.push(`${path}: must be an integer`)
       if (spec.min !== undefined && value < spec.min) out.push(`${path}: must be ≥ ${spec.min}`)
       return
+    case 'bool':
+      if (typeof value !== 'boolean') out.push(`${path}: must be a boolean`)
+      return
     case 'pattern':
       if (typeof value !== 'string' || !PATTERNS[spec.name].test(value)) out.push(`${path}: does not match ${spec.name}`)
       return
@@ -258,7 +281,9 @@ function walk(spec, value, path, out, state) {
         if (!Object.hasOwn(spec.fields, k)) out.push(`${path}[${keyLabel(k)}]: unknown field`)
       }
       for (const [k, sub] of Object.entries(spec.fields)) {
-        if (!Object.hasOwn(value, k)) out.push(`${path}.${k}: missing`)
+        if (!Object.hasOwn(value, k)) {
+          if (!sub.optional) out.push(`${path}.${k}: missing`)
+        }
         else walk(sub, value[k], `${path}.${k}`, out, state)
       }
       return
@@ -1081,6 +1106,34 @@ export const SECTION_BUILDERS = Object.freeze({
   cost: buildCost,
 })
 
+// The store record keeps the exact tokens and the identity tuple; the report
+// gets only enum tokens and numbers. SOLO_OPUS is a dispatch detail, so it
+// reads as SOLO here. Null fields are omitted: a null is an unnamed gap.
+const reportChoice = (token) => (token === 'SOLO_OPUS' ? 'SOLO' : token)
+
+function buildDecisions(ctx) {
+  const run_id = ctx.marker?.run_id
+  if (!run_id) return []
+  let records
+  try {
+    records = readDecisions(run_id, { cwd: ctx.project })
+  } catch {
+    // Not a git checkout, or an unreadable store: the report is still valid without it.
+    return []
+  }
+  return records.map((r) => ({
+    decision_id: r.decision_id,
+    layer: r.layer,
+    ...(r.rubric != null && { rubric: r.rubric }),
+    ...(isMember('decision_floor', r.floor) && { floor: r.floor }),
+    ...(r.score != null && { score: r.score }),
+    choice: reportChoice(r.choice),
+    ...(r.alternative != null && { alternative: reportChoice(r.alternative) }),
+    overridden: r.overridden,
+    fallback: r.fallback,
+  }))
+}
+
 export function buildReport(ctx) {
   const report = { schema: 1 }
   const named = new Set()
@@ -1091,6 +1144,8 @@ export function buildReport(ctx) {
   }
   // Vocabulary order, so two builds of the same artifacts are byte-identical.
   report.degraded = DEGRADED_INPUT.filter((d) => named.has(d))
+  const decisions = buildDecisions(ctx)
+  if (decisions.length > 0) report.decisions = decisions
   return report
 }
 

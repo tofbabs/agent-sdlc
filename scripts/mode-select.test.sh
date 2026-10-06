@@ -638,5 +638,87 @@ grep -qF 'validates against CLOSED.mode' "$DEBT" && { echo "the resolved TOOLING
 [ "$ac4" -eq 0 ] && ok "build.md calls mode-select; rubric prose lives verbatim in reference/, not duplicated (AC4)" \
   || bad "build.md wiring / reference move / debt removal wrong"
 
+# 16. Decision records (STORY-2-8 AC1/AC2/AC3): `--record` writes the decision
+#     into the shared store (floor, score, override, lane), idempotently, keyed
+#     on the run_id from --run-id or the main worktree's marker. With no run_id
+#     it never invents one: the backlog line is still written, the record is
+#     skipped, stderr says so, and the call still exits 0. Floor and score lines
+#     show their reason inline. Temp git repos only, never the real .git.
+node --input-type=module -e "
+  import { spawnSync, execFileSync } from 'node:child_process'
+  import { writeFileSync, readFileSync, readdirSync, mkdtempSync, mkdirSync, existsSync } from 'node:fs'
+  import { tmpdir } from 'node:os'
+  import { join } from 'node:path'
+  const RUN = '3f2b8c1e-9a4d-4e7f-8b21-6c5d4e3f2a10'
+  const fail = (m) => { console.error(m); process.exit(1) }
+  const run = (cwd, args) => spawnSync('node', ['$MS', ...args], { cwd, encoding: 'utf8' })
+  const repo = mkdtempSync(join(tmpdir(), 'ms-dec-'))
+  execFileSync('git', ['init', '-q'], { cwd: repo })
+  const file = join(repo, 'EPIC-9.md')
+  writeFileSync(file, [
+    '# EPIC-9: t', '- Artifacts: x', '- Lane: fast', '', '### STORY-P: floored', '- status: TODO',
+    '- select: risk_class=money@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=code@AC1', '',
+    '### STORY-Q: scored', '- status: TODO',
+    '- select: risk_class=none@AC1 one_way_doors=0@AC1 existing_pattern=yes@AC1 modules_crossed=1@AC1 review_bounced=no@AC1 risk_kind=data@AC1', '',
+  ].join('\n'))
+  const store = join(repo, '.git', 'agentic-sdlc', 'decisions')
+  const records = () => existsSync(store) ? readdirSync(store).map((f) => JSON.parse(readFileSync(join(store, f), 'utf8'))) : []
+
+  // No run_id anywhere: backlog line written, record skipped, stderr says so, exit 0.
+  let r = run(repo, ['story', '--file', file, '--id', 'STORY-P', '--record'])
+  if (r.status !== 0) fail('no run_id must not fail the call: ' + r.stderr)
+  if (!/no run_id/.test(r.stderr)) fail('no run_id must be said on stderr, got: ' + r.stderr)
+  if (records().length !== 0) fail('no run_id: nothing may be recorded')
+  if (!/^- mode: PAIR — recommended PAIR .*hard floor risk_class forces PAIR/m.test(readFileSync(file, 'utf8'))) fail('floor line must carry its reason inline')
+
+  // --run-id: a floor decision, then a score decision with an override.
+  r = run(repo, ['story', '--file', file, '--id', 'STORY-P', '--record', '--run-id', RUN])
+  if (r.status !== 0) fail('floor record failed: ' + r.stderr)
+  r = run(repo, ['story', '--file', file, '--id', 'STORY-Q', '--record', '--run-id', RUN, '--chosen', 'PAIR'])
+  if (r.status !== 0) fail('score record failed: ' + r.stderr)
+  const by = (layer, subject) => records().find((x) => x.layer === layer && x.subject === subject)
+  const fl = by('floor', 'STORY-P')
+  if (!fl || fl.floor !== 'money' || fl.choice !== 'PAIR' || fl.rubric !== 1 || fl.run_id !== RUN) fail('floor record wrong: ' + JSON.stringify(fl))
+  if (!fl.inputs || fl.inputs.risk_class !== 'money') fail('record must carry the input enums')
+  if (!/^[0-9a-f]{16}\$/.test(fl.decision_id)) fail('decision_id must be 16 hex')
+  const sc = by('score', 'STORY-Q')
+  if (!sc || sc.choice !== 'SOLO_OPUS' || sc.score !== 0 || sc.floor !== null) fail('score record wrong (exact SOLO_OPUS token kept): ' + JSON.stringify(sc))
+  const ov = by('override', 'STORY-Q')
+  if (!ov || ov.choice !== 'PAIR' || ov.alternative !== 'SOLO_OPUS' || ov.overridden !== true) fail('override record wrong: ' + JSON.stringify(ov))
+  if (!/^- mode: PAIR — recommended SOLO_OPUS .*score 0 at or below 2/m.test(readFileSync(file, 'utf8'))) fail('score line must carry its reason inline')
+
+  // AC2: reaching the same decision points again adds nothing and keeps the same IDs.
+  const before = records().map((x) => x.decision_id).sort().join()
+  run(repo, ['story', '--file', file, '--id', 'STORY-P', '--record', '--run-id', RUN])
+  run(repo, ['story', '--file', file, '--id', 'STORY-Q', '--record', '--run-id', RUN, '--chosen', 'PAIR'])
+  if (records().map((x) => x.decision_id).sort().join() !== before) fail('a repeated decision must reuse the stored record, no duplicate')
+
+  // Lane: marker in the main worktree supplies the run_id; override is its own record.
+  mkdirSync(join(repo, '.agentic-sdlc'), { recursive: true })
+  writeFileSync(join(repo, '.agentic-sdlc', 'run-state.json'), JSON.stringify({ run_id: RUN }))
+  r = run(repo, ['record', '--file', file, '--chosen', 'fast'])
+  if (r.status !== 0) fail('lane record failed: ' + r.stderr)
+  const lane = by('lane', 'lane')
+  if (!lane || lane.choice !== 'deliberate' || lane.rubric !== 1) fail('lane record wrong: ' + JSON.stringify(lane))
+  const lov = by('override', 'lane')
+  if (!lov || lov.choice !== 'fast' || lov.alternative !== 'deliberate') fail('lane override record wrong: ' + JSON.stringify(lov))
+  if (!/^- Lane: fast — recommended deliberate .*floor risk_class.*lane is deliberate/m.test(readFileSync(file, 'utf8'))) fail('lane line must carry its reason inline')
+
+  // A bad --run-id is skipped, not invented.
+  const n = records().length
+  r = run(repo, ['story', '--file', file, '--id', 'STORY-Q', '--record', '--run-id', 'nope', '--chosen', 'SOLO'])
+  if (r.status !== 0 || records().length !== n) fail('a malformed --run-id must skip the record without failing')
+" && ok "--record writes floor/score/override/lane decisions idempotently; no run_id skips with a stderr note (AC1/AC2/AC3)" \
+  || bad "decision recording via mode-select --record is wrong"
+
+# 17. The usage string lists every accepted form, including the per-story --record.
+node --input-type=module -e "
+  import { spawnSync } from 'node:child_process'
+  const r = spawnSync('node', ['$MS', 'bogus'], { encoding: 'utf8' })
+  for (const frag of ['story --file', '--id', '--record', '--run-id', 'record --file']) {
+    if (!r.stderr.includes(frag)) { console.error('usage must mention ' + frag); process.exit(1) }
+  }
+" && ok "usage string lists the --file/--id/--record forms" || bad "usage string is stale"
+
 [ "$fail" -eq 0 ] || { printf '\nmode-select tests failed\n' >&2; exit 1; }
 printf '\nmode-select tests passed\n'
