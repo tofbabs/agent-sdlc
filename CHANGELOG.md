@@ -2,6 +2,19 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.5](https://github.com/tofbabs/agent-sdlc/compare/v0.2.4...v0.2.5) (2026-10-06)
+
+
+### Features
+
+* **agentic-sdlc:** cut TDD pair-loop cost — scripted loop, pair by risk, one behaviour per round ([6c34406](https://github.com/tofbabs/agent-sdlc/commit/6c34406b3de7222cbc8797b5ec27545753162069))
+* **agentic-sdlc:** script the pair loop, pair by risk, one behaviour per round ([b31f8d5](https://github.com/tofbabs/agent-sdlc/commit/b31f8d5085575e509d060720b876b11e9f877de6))
+
+
+### Bug Fixes
+
+* **agentic-sdlc:** say pair-log read is the only log read, not the whole context ([4e38524](https://github.com/tofbabs/agent-sdlc/commit/4e38524041abf8da156d83629d65ca48292b21f7))
+
 ## [0.2.4](https://github.com/tofbabs/agent-sdlc/compare/v0.2.3...v0.2.4) (2026-09-27)
 
 
