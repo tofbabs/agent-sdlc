@@ -146,17 +146,6 @@ an ignored ledger is worse than none.
 - Address when: the build and review sections land — each refines its own
   entry in `COMPLETION` in `run-report.mjs`
 
-### run-report-categories.mjs CLI is silent when run through a symlink
-- Raised: 2026-10-06 by coder (STORY-1-2)
-- Current: its `isMain` compares `import.meta.url` (realpath-resolved) with
-  the unresolved `argv[1]`, so `node <symlinked path>` prints nothing (macOS
-  `/var` → `/private/var` reproduces it). `run-report.mjs` compares realpaths
-  instead; the vocabulary module was left as shipped (out of this story)
-- Risk: LOW
-- Category: robustness
-- Address when: the next change that touches `run-report-categories.mjs`, or
-  an agent reports an empty vocabulary dump
-
 ### Run-report's gh timeout path is untested
 - Raised: 2026-10-06 by coder (STORY-1-4)
 - Current: `run-report.mjs` reads PR comments with one `gh pr view` capped at

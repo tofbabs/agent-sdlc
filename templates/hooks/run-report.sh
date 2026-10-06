@@ -15,11 +15,13 @@
 #   away, never let through.
 #
 #   SessionEnd — finalizes whatever run is open. Its 1.5-second budget is
-#   SHARED by every SessionEnd hook in the project, so this spawns
-#   `run-report.mjs report` DETACHED (the pipeline's own completion artifacts —
-#   the backlog file's statuses, the PR comments — are usually not even
-#   written yet the instant the session ends) and returns at once. No marker
-#   file at all → nothing to finalize, exit 0 without spawning.
+#   SHARED by every SessionEnd hook in the project, and the report can spend up
+#   to 5s on `gh pr view`, so this spawns `run-report.mjs report` DETACHED and
+#   returns at once. Nothing is left to wait for: SessionEnd fires after the
+#   session's last turn, so every artifact the pipeline writes locally (backlog
+#   statuses, pair sessions, the ledger) and every PR comment it posted through
+#   a synchronous `gh` call is already in place. No marker file at all →
+#   nothing to finalize, exit 0 without spawning.
 #
 # Like meter.sh, this is ADVISORY AND BEST-EFFORT: it never fails the session
 # (always exits 0) and degrades quietly if node is missing or the payload
@@ -119,8 +121,9 @@ case "$event" in
     fi
 
     # Detached: the 1.5s SessionEnd budget is shared by every hook in the
-    # project, and this report reads completion artifacts the pipeline may
-    # not have finished writing yet.
+    # project, and the report's gh read alone can take longer. If the next
+    # prompt moves the marker on before this finishes, run-report.mjs notices
+    # and leaves the newer state alone.
     if command -v setsid >/dev/null 2>&1; then
       setsid nohup node "$run_report" report --project "$cwd" </dev/null >/dev/null 2>&1 &
     else

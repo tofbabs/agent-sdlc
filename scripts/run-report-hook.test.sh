@@ -46,15 +46,17 @@ project() { local p="$TMP/$1"; mkdir -p "$p"; printf '%s' "$p"; }
 
 # run_hook <event-json> [env…] — feed a payload to the hook under /bin/bash,
 # capturing stdout and the elapsed wall time in milliseconds.
+# BSD date has no %N, so the millisecond clock comes from node.
+now_ms() { node -e "process.stdout.write(String(Date.now()))"; }
 HOOK_STDOUT=""
 HOOK_MS=0
 run_hook() {
   local payload="$1"; shift
   local start end
-  start=$(date +%s%N)
+  start=$(now_ms)
   HOOK_STDOUT="$(printf '%s' "$payload" | env "$@" /bin/bash "$HOOK")"
-  end=$(date +%s%N)
-  HOOK_MS=$(( (end - start) / 1000000 ))
+  end=$(now_ms)
+  HOOK_MS=$(( end - start ))
 }
 
 # marker_json <project> <event> <session> [prompt] — the payload body.

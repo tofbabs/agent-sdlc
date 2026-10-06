@@ -88,7 +88,7 @@
 //
 // Zero dependencies, Node 22 (the repo floor).
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { join, dirname, resolve, isAbsolute, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
@@ -305,6 +305,21 @@ const readJson = (path) => {
   }
 }
 
+// Which session of which run a marker describes. A detached SessionEnd report
+// can outlive its session: by the time it finishes, the next prompt may have
+// continued the run in a new session or replaced it outright, and anything it
+// writes back must be checked against this first.
+const generationOf = (raw) => (isPlainObject(raw) ? JSON.stringify([raw.run_id, raw.session_id, raw.started_at]) : null)
+
+// Rename is atomic on one filesystem, so a concurrent reader of the marker or a
+// report sees the old file or the new one, never a torn write.
+function writeJsonAtomic(path, value) {
+  mkdirSync(dirname(resolve(path)), { recursive: true })
+  const tmp = `${path}.${process.pid}.tmp`
+  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`)
+  renameSync(tmp, path)
+}
+
 function readMarker(project) {
   const raw = readJson(join(project, MARKER))
   if (!isPlainObject(raw)) return null
@@ -329,6 +344,7 @@ function readMarker(project) {
       ? raw.debt_snapshot
       : undefined,
     backlog: typeof raw.backlog === 'string' && raw.backlog ? raw.backlog : null,
+    generation: generationOf(raw),
   }
   const requiredKeys = ['run_id', 'command', 'lane', 'target', 'started_ms', 'sessions', 'wall_clock_s_prior', 'arch_snapshot']
   m.complete = requiredKeys.every((k) => m[k] !== null) && m.debt_snapshot !== undefined
@@ -468,13 +484,15 @@ function isBlocked(ctx) {
       if (!snapshot.has(id) && a.status?.toUpperCase() === 'OPEN') return { blocked: true, degraded }
     }
   }
+  // Only this backlog's stories: a stale blocked session from another epic must
+  // not mark this run blocked. With no readable backlog there is no way to tell
+  // which sessions are ours, and the completion check already degrades.
+  if (!p) return { blocked: false, degraded }
   const pairDir = join(ctx.project, 'backlog', 'pair')
   if (!existsSync(pairDir)) return { blocked: false, degraded }
-  // Only this backlog's stories: a stale blocked session from another epic must
-  // not mark this run blocked.
-  const ours = p ? new Set(p.stories.map((s) => s.id)) : null
+  const ours = new Set(p.stories.map((s) => s.id))
   for (const name of readdirSync(pairDir)) {
-    if (ours && !ours.has(name)) continue
+    if (!ours.has(name)) continue
     const sessionPath = join(pairDir, name, 'session.json')
     if (!existsSync(sessionPath)) continue
     const s = readJson(sessionPath)
@@ -949,10 +967,7 @@ function finalizeRun(root, now) {
   if (!ctx.marker) return
   const report = buildReport(ctx)
   if (validate(report).length || !report.run.run_id) return
-  banksSession(ctx, report.run.wall_clock_s)
-  const out = join(root, RUNS_DIR, `${report.run.run_id}.json`)
-  mkdirSync(dirname(out), { recursive: true })
-  writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`)
+  commitReport(ctx, report, join(root, RUNS_DIR, `${report.run.run_id}.json`))
 }
 
 // Continuation (same command+target) and same-session re-prompts are handled
@@ -979,8 +994,7 @@ function mark({ project, promptFile, session, now }) {
       session_id: session,
       session_open: true,
     }
-    mkdirSync(join(root, '.agentic-sdlc'), { recursive: true })
-    writeFileSync(join(root, MARKER), `${JSON.stringify(marker, null, 2)}\n`)
+    writeJsonAtomic(join(root, MARKER), marker)
     return marker
   }
 
@@ -1031,8 +1045,7 @@ function mark({ project, promptFile, session, now }) {
     session_id: session,
     session_open: true,
   }
-  mkdirSync(join(root, '.agentic-sdlc'), { recursive: true })
-  writeFileSync(join(root, MARKER), `${JSON.stringify(marker, null, 2)}\n`)
+  writeJsonAtomic(join(root, MARKER), marker)
   return marker
 }
 
@@ -1064,17 +1077,36 @@ export function buildReport(ctx) {
 // the SessionEnd hook spawns `report` detached to close out a run, so this is
 // the only place the fold can happen. Folds wall_clock_s (already prior +
 // elapsed) back into the marker as the new prior and closes session_open, so a
-// later rebuild of this same session reports the banked prior alone. A no-op
-// on a closed session, an incomplete marker, or no marker at all.
-function banksSession(ctx, wall_clock_s) {
+// later rebuild of this same session reports the banked prior alone.
+//
+// The marker is re-read here, after the (possibly slow) build, because a newer
+// prompt may have moved it on in the meantime:
+//   - same generation: bank, then write the report;
+//   - same run, newer session (continuation raced ahead of this fold): add only
+//     this session's elapsed time to the newer marker's prior, leave the newer
+//     session open, and write no report — the newer session's own SessionEnd
+//     writes a fuller one, and this one must not overwrite it;
+//   - a different run (supersession already finalized ours) or no marker:
+//     touch nothing.
+// Returns whether the report was written.
+export function commitReport(ctx, report, out) {
   const m = ctx.marker
-  if (!m || m.session_open === false) return
-  if (m.wall_clock_s_prior === null || m.started_ms === null) return
-  const markerPath = join(ctx.project, MARKER)
-  const raw = readJson(markerPath)
-  if (!isPlainObject(raw)) return
-  const updated = { ...raw, wall_clock_s_prior: wall_clock_s, session_open: false }
-  writeFileSync(markerPath, `${JSON.stringify(updated, null, 2)}\n`)
+  if (m) {
+    const markerPath = join(ctx.project, MARKER)
+    const raw = readJson(markerPath)
+    const foldable = m.session_open !== false && m.wall_clock_s_prior !== null && m.started_ms !== null
+    if (generationOf(raw) !== m.generation) {
+      if (foldable && raw?.run_id === m.run_id && typeof report.run.wall_clock_s === 'number') {
+        const elapsed = report.run.wall_clock_s - m.wall_clock_s_prior
+        const prior = typeof raw.wall_clock_s_prior === 'number' ? raw.wall_clock_s_prior : 0
+        writeJsonAtomic(markerPath, { ...raw, wall_clock_s_prior: prior + elapsed })
+      }
+      return false
+    }
+    if (foldable) writeJsonAtomic(markerPath, { ...raw, wall_clock_s_prior: report.run.wall_clock_s, session_open: false })
+  }
+  writeJsonAtomic(out, report)
+  return true
 }
 
 // -------------------------------------------------------------------- CLI
@@ -1147,14 +1179,15 @@ function main(argv) {
     const v = validate(report)
     if (v.length) die(1, `refusing to write an invalid report:\n  ${v.join('\n  ')}`)
     if (report.degraded.length) process.stderr.write(`run-report: degraded: ${report.degraded.join(', ')}\n`)
-    banksSession(ctx, report.run.wall_clock_s)
     const out = str('out') ?? (report.run.run_id ? join(ctx.project, RUNS_DIR, `${report.run.run_id}.json`) : null)
     if (!out) {
       process.stderr.write('run-report: no run marker, so no run_id to name the report; nothing written\n')
       process.exit(0)
     }
-    mkdirSync(dirname(resolve(out)), { recursive: true })
-    writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`)
+    if (!commitReport(ctx, report, out)) {
+      process.stderr.write('run-report: the run marker moved on while this report was built; nothing written\n')
+      process.exit(0)
+    }
     process.stdout.write(`${out}\n`)
     process.exit(0)
   }

@@ -97,6 +97,17 @@ report --project "$P" >/dev/null
 [ "$(q "$(OUT "$P")" 'r.run.outcome')" = "aborted" ] && ok "another epic's blocked session does not block this run" \
   || bad "foreign session gave $(q "$(OUT "$P")" 'r.run.outcome')"
 
+# With no readable backlog, nothing says which pair sessions are this run's, so
+# a stray blocked one must not decide the outcome.
+P=$(mkproj build-no-backlog)
+marker "$P" build deliberate "EPIC-9" 'null' '[]'
+mkdir -p "$P/backlog/pair/STORY-2-1"
+echo '{"session":"blocked","arch":"ARCH-1"}' > "$P/backlog/pair/STORY-2-1/session.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'r.run.outcome+" "+r.degraded.includes("backlog_file")')
+[ "$got" = "null true" ] && ok "no backlog: a stray blocked session does not block; outcome null, backlog_file degraded" \
+  || bad "no-backlog build gave outcome/degraded: $got"
+
 P=$(mkproj build-open-arch)
 marker "$P" build deliberate "EPIC-7" 'null' '["ARCH-1","ARCH-2","ARCH-3","ARCH-4","ARCH-5"]'
 printf '\n### ARCH-6: raised mid-build\n- status: OPEN\n- category: data\n' >> "$P/backlog/EPIC-7.md"
@@ -774,5 +785,41 @@ got=$(q "$(OUT "$P")" 'r.run.wall_clock_s')
 got=$(q "$(MARK_OUT "$P")" '[r.wall_clock_s_prior,r.session_open].join(" ")')
 [ "$got" = "700 false" ] \
   && ok "rebuilding a closed session leaves the banked clock untouched" || bad "rebuild mutated the banked clock: $got"
+
+echo "stale detached report (the marker moved on mid-build)"
+
+# commitreport <project> <now> <js-run-between-load-and-commit> — load and build
+# against the marker as it is, run the interleaved step, then commit: what a
+# detached SessionEnd report sees when the next prompt lands while it builds.
+commitreport() {
+  node --input-type=module -e '
+    import { loadContext, buildReport, commitReport } from "'"$R"'"
+    import { execFileSync } from "node:child_process"
+    const [project, now, between] = process.argv.slice(1)
+    const ctx = loadContext({ project, now: new Date(now) })
+    const report = buildReport(ctx)
+    execFileSync("bash", ["-c", between])
+    process.stdout.write(String(commitReport(ctx, report, project + "/stale.json")))
+  ' "$1" "$2" "$3"
+}
+
+P=$(mkproj stale-continuation)
+foldmarker "$P" true 100
+PF=$(mkprompt stale-cont '/agentic-sdlc:build EPIC-7')
+got=$(commitreport "$P" "$TB" "node '$R' mark --project '$P' --prompt-file '$PF' --session sess-B --now '$TC'")
+[ "$got" = "false" ] && [ ! -e "$P/stale.json" ] \
+  && ok "continuation raced ahead: the stale report is not written" || bad "stale continuation report written (commit=$got)"
+got=$(q "$(MARK_OUT "$P")" '[r.session_id,r.started_at,r.session_open,r.wall_clock_s_prior,r.sessions].join(" ")')
+[ "$got" = "sess-B $TC true 700 2" ] \
+  && ok "continuation raced ahead: the old session's 600s is banked into the newer, still-open session" \
+  || bad "newer session state after stale commit: $got"
+
+P=$(mkproj stale-supersession)
+foldmarker "$P" true 100
+PF=$(mkprompt stale-sup '/agentic-sdlc:review 42')
+got=$(commitreport "$P" "$TB" "node '$R' mark --project '$P' --prompt-file '$PF' --session sess-B --now '$TC'")
+NEWM=$(cat "$(MARK_OUT "$P")")
+[ "$got" = "false" ] && [ ! -e "$P/stale.json" ] && [ "$(q "$(MARK_OUT "$P")" 'r.command+" "+r.session_open+" "+r.wall_clock_s_prior')" = "review true 0" ] \
+  && ok "superseded mid-build: the stale report leaves the new run's marker alone" || bad "supersession stale commit=$got marker=$NEWM"
 
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }

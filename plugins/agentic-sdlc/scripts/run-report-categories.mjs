@@ -14,6 +14,7 @@
 //
 // Zero dependencies, Node 22 (the repo floor).
 
+import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 // Closed sets: the pipeline cannot produce a value outside these, so there is
@@ -97,7 +98,15 @@ export function toCategory(vocabName, token) {
 
 export default ALL
 
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+// Compared by realpath: import.meta.url is already resolved, so a symlinked
+// invocation (a plugin cache link) would otherwise never match argv[1].
+const isMain = (() => {
+  try {
+    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+  } catch {
+    return false
+  }
+})()
 if (isMain) {
   process.stdout.write(`${JSON.stringify(ALL, null, 2)}\n`)
 }
