@@ -150,14 +150,84 @@ got=$(q "$(OUT "$P")" '[r.plan.arch_handoffs.contract,r.plan.arch_handoffs.lifec
 [ "$got" = "1 1 0" ] && ok "build run counts only handoffs in arch_snapshot as plan-time" || bad "plan-time handoffs: $got"
 
 # ============================================================= build (stub)
-# ============================================================ review (stub)
+# ================================================================= review
+
+echo "review section"
+RF="$F/review"
+export FAKE_GH_ARGS="$TMP/gh-args" FAKE_GH_OUT="$RF/gh-view.json"
+review_report() { RUN_REPORT_GH="$RF/fake-gh" report "$@"; }
+
+P=$(mkproj review-file)
+marker "$P" review deliberate "42" 'null' '[]'
+review_report --project "$P" --pr-comments "$RF/comments.json" >/dev/null
+node "$R" validate "$(OUT "$P")" >/dev/null 2>&1 && ok "review report validates" || bad "review report is invalid"
+[ "$(q "$(OUT "$P")" 'r.review.rounds')" = "2" ] && ok "two round comments → rounds 2" \
+  || bad "rounds=$(q "$(OUT "$P")" 'r.review.rounds')"
+got=$(q "$(OUT "$P")" 'r.review.findings.map(f=>[f.round,f.category,f.severity].join(":")).join(" ")')
+[ "$got" = "1:correctness:BLOCKER 1:other:MINOR 1:other:MAJOR 2:clarity:MINOR" ] \
+  && ok "one {round,category,severity} per finding; untagged/unknown tag → other; rulings and unknown severity skipped" \
+  || bad "findings: $got"
+[ "$(q "$(OUT "$P")" 'r.review.verdict')" = "COMMENT" ] && ok "verdict is the latest round's GitHub state (COMMENT fallback)" \
+  || bad "verdict=$(q "$(OUT "$P")" 'r.review.verdict')"
+grep -q 'SECRET-FINDING-TEXT\|src/secret\|1111111' "$(OUT "$P")" && bad "finding text or sha leaked into the report" \
+  || ok "finding text never reaches the report"
+[ "$(q "$(OUT "$P")" 'r.run.outcome')" = "completed" ] && ok "review run with a round comment → completed" \
+  || bad "review outcome=$(q "$(OUT "$P")" 'r.run.outcome')"
+
+P=$(mkproj review-gh)
+marker "$P" review deliberate "#42 --fable" 'null' '[]'
+rm -f "$FAKE_GH_ARGS"
+review_report --project "$P" >/dev/null
+[ "$(cat "$FAKE_GH_ARGS" 2>/dev/null)" = "pr view 42 --json comments,reviews" ] && ok "review run asks gh for the target PR" \
+  || bad "gh args: $(cat "$FAKE_GH_ARGS" 2>/dev/null)"
+got=$(q "$(OUT "$P")" '[r.review.rounds,r.review.verdict,r.review.findings.length].join(" ")')
+[ "$got" = "2 APPROVE 1" ] && ok "gh comments and reviews merge oldest-first; issue-comment round → its verdict line" \
+  || bad "gh review: $got"
+
+P=$(mkproj review-gh-build)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+rm -f "$FAKE_GH_ARGS"
+review_report --project "$P" >/dev/null
+[ "$(cat "$FAKE_GH_ARGS" 2>/dev/null)" = "pr view --json comments,reviews" ] && ok "build run asks gh for the current branch's PR" \
+  || bad "gh args: $(cat "$FAKE_GH_ARGS" 2>/dev/null)"
+
+P=$(mkproj review-gh-fails)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+RUN_REPORT_GH="$TMP/no-such-gh" report --project "$P" >/dev/null; rc=$?
+got=$(q "$(OUT "$P")" '[r.review.rounds,r.review.verdict,r.review.findings].map(String).join(" ")+" "+r.degraded.includes("pr_comments")')
+[ "$rc" -eq 0 ] && [ "$got" = "null null null true" ] && ok "gh unavailable → review fields null + pr_comments, exit 0" \
+  || bad "gh unavailable: rc=$rc $got"
+
+P=$(mkproj review-none)
+marker "$P" review deliberate "42" 'null' '[]'
+echo '[]' > "$TMP/empty-comments.json"
+review_report --project "$P" --pr-comments "$TMP/empty-comments.json" >/dev/null
+got=$(q "$(OUT "$P")" 'JSON.stringify(r.review)+" "+r.run.outcome')
+[ "$got" = '{"rounds":0,"verdict":"NONE","findings":[]} aborted' ] && ok "PR with no review → rounds 0, verdict NONE, not omitted" \
+  || bad "no review: $got"
+
+P=$(mkproj review-plan)
+marker "$P" plan deliberate "x" '"backlog/EPIC-7.md"' '[]'
+rm -f "$FAKE_GH_ARGS"
+review_report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'JSON.stringify(r.review)')
+[ "$got" = '{"rounds":0,"verdict":"NONE","findings":[]}' ] && [ ! -f "$FAKE_GH_ARGS" ] \
+  && ok "plan run: review measured as none, gh never called" || bad "plan review: $got"
+
+P=$(mkproj review-bad-file)
+marker "$P" review deliberate "42" 'null' '[]'
+echo '{"not":"an array"}' > "$TMP/bad-comments.json"
+review_report --project "$P" --pr-comments "$TMP/bad-comments.json" >/dev/null
+got=$(q "$(OUT "$P")" 'String(r.review.rounds)+" "+String(r.run.outcome)+" "+r.degraded.includes("pr_comments")')
+[ "$got" = "null null true" ] && ok "unreadable --pr-comments → null + pr_comments" || bad "bad comments file: $got"
+
 # ============================================================== debt (stub)
 
 echo "stub sections"
 P=$(mkproj stubs)
 marker "$P" plan deliberate "x" '"backlog/EPIC-7.md"' '[]'
 report --project "$P" >/dev/null
-got=$(q "$(OUT "$P")" '["pair_sessions","gate_history","pr_comments","debt_ledger"].every(d=>r.degraded.includes(d))&&r.build.gate_runs===null&&r.review.rounds===null&&r.debt.rows_logged===null')
+got=$(q "$(OUT "$P")" '["pair_sessions","gate_history","pr_comments","debt_ledger"].every(d=>r.degraded.includes(d))&&r.build.gate_runs===null&&r.debt.rows_logged===null')
 [ "$got" = "true" ] && ok "stub sections are null with their inputs named" || bad "stub sections not degraded correctly"
 
 # =================================================================== cost

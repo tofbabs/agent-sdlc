@@ -1,0 +1,12 @@
+[
+  "Thanks, looking now.",
+  {
+    "body": "## Review — round 1\n- verdict: REQUEST_CHANGES\n- reviewed sha: 1111111\n\n- F1: BLOCKER [correctness] — SECRET-FINDING-TEXT in src/secret.js — fix it\n- F2: minor — untagged older line — tag it\nF3: MAJOR [bogus] — stale tag, no leading dash — fix\n- F4: SEVERE [testing] — severity outside the closed set — skipped",
+    "state": "CHANGES_REQUESTED"
+  },
+  "## Response — round 1\n- F1: FIXED — abc\n- F2: DISPUTED — reason",
+  {
+    "body": "## Review — round 2\n- verdict: REQUEST_CHANGES\n- reviewed sha: 2222222\n\n- F1: FIXED — confirmed\n- F2: MINOR [Clarity] — still open — rename",
+    "state": "COMMENTED"
+  }
+]

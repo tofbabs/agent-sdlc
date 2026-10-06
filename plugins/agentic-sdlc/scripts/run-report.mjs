@@ -62,7 +62,8 @@
 //
 // CLI
 //   run-report.mjs report --project <dir> [--out <file>] [--backlog <file>]
-//                         [--meter <record.json>] [--now <ISO-8601>]
+//                         [--meter <record.json>] [--pr-comments <comments.json>]
+//                         [--now <ISO-8601>]
 //     Writes <project>/.agentic-sdlc/runs/<run_id>.json (or --out). With no
 //     marker there is no run_id to name the file, so it writes nothing and exits
 //     0 unless --out is given. Degraded inputs always exit 0; a report that fails
@@ -75,6 +76,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { join, dirname, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -384,7 +386,7 @@ function resolveBacklogPath(project, marker, override) {
   return best?.p ?? null
 }
 
-export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSON, backlog, meter } = {}) {
+export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSON, backlog, meter, prComments } = {}) {
   const root = resolve(project ?? process.cwd())
   const marker = readMarker(root)
   const path = resolveBacklogPath(root, marker, backlog)
@@ -402,6 +404,7 @@ export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSO
     pluginJson,
     marker,
     meterOverride: meter ?? null,
+    ...loadPrComments(root, marker, prComments),
     backlog: {
       path,
       exists: Boolean(path && existsSync(path)),
@@ -429,8 +432,10 @@ const COMPLETION = {
     const allDone = p.stories.length > 0 && p.stories.every((s) => s.status?.toUpperCase() === 'DONE')
     return { done: allDone || p.status?.toUpperCase() === 'DONE' }
   },
-  // Completion is a round comment on the PR, which only the review section reads.
-  review: () => ({ done: null, degraded: ['pr_comments'] }),
+  review: (ctx) => {
+    if (ctx.prComments === null) return { done: null, degraded: ['pr_comments'] }
+    return { done: reviewRounds(ctx.prComments).size > 0 }
+  },
 }
 
 function isBlocked(ctx) {
@@ -555,12 +560,148 @@ export function buildBuild(_ctx) {
 }
 
 // ========================================================= section: review
-// Stub: every field null with its inputs named. Replace only this region.
+//
+// PR COMMENTS — ctx.prComments / ctx.prReviewStates (loadContext)
+//
+//   prComments:     string[] | null — every review body AND issue-comment body on
+//                   the PR, oldest first; null means the PR could not be read.
+//   prReviewStates: (string | null)[] | null — parallel to prComments: the GitHub
+//                   review state (APPROVED, CHANGES_REQUESTED, COMMENTED, …) for a
+//                   review body, null for an issue comment.
+//
+// Both kinds are read because the code-reviewer posts its round comment as a
+// review (`gh pr review`), while review.md counts rounds across all bodies.
+//
+// Sources, in order: --pr-comments <file.json> (a JSON array whose elements are
+// a body string or { "body", "state" }); else one `gh pr view [<n>] --json
+// comments,reviews` in the project — <n> from a review run's target, none for a
+// build run so gh picks the current branch's PR. A plan run, or a run with no
+// marker, never calls gh. RUN_REPORT_GH overrides the gh binary (tests).
 
-export function buildReview(_ctx) {
+const GH_TIMEOUT_MS = 5000
+
+function readPrCommentsFile(file) {
+  const raw = readJson(file)
+  if (!Array.isArray(raw)) return null
+  const bodies = []
+  const states = []
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      bodies.push(item)
+      states.push(null)
+    } else if (isPlainObject(item) && typeof item.body === 'string') {
+      bodies.push(item.body)
+      states.push(typeof item.state === 'string' ? item.state : null)
+    } else return null
+  }
+  return { bodies, states }
+}
+
+function readPrCommentsGh(root, marker) {
+  const args = ['pr', 'view']
+  if (marker.command === 'review') {
+    // `#42`, `42 --fable` and a PR URL all name PR 42.
+    const n = /(\d+)\/?$/.exec((marker.target ?? '').trim().split(/\s+/)[0] ?? '')?.[1]
+    if (!n) return null
+    args.push(n)
+  }
+  args.push('--json', 'comments,reviews')
+  const r = spawnSync(process.env.RUN_REPORT_GH || 'gh', args, {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: GH_TIMEOUT_MS,
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  if (r.error || r.status !== 0) return null
+  let data
+  try {
+    data = JSON.parse(r.stdout)
+  } catch {
+    return null
+  }
+  if (!isPlainObject(data)) return null
+  const entries = []
+  const add = (list, timeKey, isReview) => {
+    if (!Array.isArray(list)) return
+    for (const c of list) {
+      if (!isPlainObject(c) || typeof c.body !== 'string') continue
+      const t = Date.parse(c[timeKey] ?? '')
+      entries.push({ body: c.body, state: isReview && typeof c.state === 'string' ? c.state : null, t: Number.isFinite(t) ? t : 0 })
+    }
+  }
+  add(data.comments, 'createdAt', false)
+  add(data.reviews, 'submittedAt', true)
+  entries.sort((a, b) => a.t - b.t)
+  return { bodies: entries.map((e) => e.body), states: entries.map((e) => e.state) }
+}
+
+function loadPrComments(root, marker, file) {
+  let got = null
+  if (file) got = readPrCommentsFile(file)
+  else if (marker?.command === 'build' || marker?.command === 'review') got = readPrCommentsGh(root, marker)
+  return { prComments: got?.bodies ?? null, prReviewStates: got?.states ?? null }
+}
+
+const ROUND_HEADING = /^##\s+Review\s+[—–-]\s+round\s+(\d+)\b/m
+
+// round k → index of its body. A round posted twice (a retry after a failed
+// `gh pr review`) keeps the later copy, so it is counted once.
+function reviewRounds(bodies) {
+  const rounds = new Map()
+  bodies.forEach((body, i) => {
+    const k = Number(ROUND_HEADING.exec(body)?.[1])
+    if (Number.isInteger(k) && k >= 1) rounds.set(k, i)
+  })
+  return rounds
+}
+
+// The GitHub review state is the verdict as posted, so a COMMENT fallback reads
+// COMMENT even though its body says REQUEST_CHANGES. A body with no usable state
+// (an issue comment, a dismissed review) falls back to its own verdict line.
+const STATE_TO_VERDICT = { APPROVED: 'APPROVE', CHANGES_REQUESTED: 'REQUEST_CHANGES', COMMENTED: 'COMMENT' }
+
+function roundVerdict(body, state) {
+  if (state && STATE_TO_VERDICT[state]) return STATE_TO_VERDICT[state]
+  const line = /^-\s*verdict:\s*`?([A-Z_]+)/m.exec(body)?.[1]
+  return isMember('verdict', line) && line !== 'NONE' ? line : null
+}
+
+// Severity is closed with no `other`, so a line whose severity is not BLOCKER,
+// MAJOR or MINOR is not a finding entry at all. That is also what drops a
+// re-review's rulings on earlier IDs (`F1: FIXED — …`).
+const FINDING_LINE = /^\s*(?:-\s*)?F\d+:\s*([A-Za-z]+)\b\s*(?:\[([^\]\n]*)\])?/
+
+function roundFindings(body, round) {
+  const findings = []
+  const lines = body.slice(ROUND_HEADING.exec(body).index).split('\n')
+  for (const line of lines) {
+    const m = FINDING_LINE.exec(line)
+    if (!m) continue
+    const severity = m[1].toUpperCase()
+    if (!isMember('severity', severity)) continue
+    const category = toCategory('finding_category', m[2]?.trim().toLowerCase())
+    findings.push({ round, category, severity })
+  }
+  return findings
+}
+
+export function buildReview(ctx) {
+  const none = { rounds: 0, verdict: 'NONE', findings: [] }
+  if (ctx.marker?.command === 'plan' && ctx.prComments === null) return { section: none, degraded: [] }
+  if (ctx.prComments === null) {
+    return { section: { rounds: null, verdict: null, findings: null }, degraded: ['pr_comments'] }
+  }
+  const rounds = reviewRounds(ctx.prComments)
+  if (rounds.size === 0) return { section: none, degraded: [] }
+  const ordered = [...rounds.keys()].sort((a, b) => a - b)
+  const latest = ordered.at(-1)
+  const latestIdx = rounds.get(latest)
+  const verdict = roundVerdict(ctx.prComments[latestIdx], ctx.prReviewStates?.[latestIdx] ?? null)
+  const findings = ordered.flatMap((k) => roundFindings(ctx.prComments[rounds.get(k)], k))
   return {
-    section: { rounds: null, verdict: null, findings: null },
-    degraded: ['pr_comments'],
+    section: { rounds: latest, verdict, findings },
+    degraded: verdict === null ? ['pr_comments'] : [],
   }
 }
 
@@ -644,7 +785,8 @@ function main(argv) {
     } else positional.push(a)
   }
   const USAGE = `usage:
-  run-report.mjs report --project <dir> [--out <file>] [--backlog <file>] [--meter <record.json>] [--now <ISO-8601>]
+  run-report.mjs report --project <dir> [--out <file>] [--backlog <file>] [--meter <record.json>]
+                        [--pr-comments <comments.json>] [--now <ISO-8601>]
   run-report.mjs validate <file>`
   const die = (code, msg) => {
     process.stderr.write(`run-report: ${msg}\n`)
@@ -668,7 +810,13 @@ function main(argv) {
       now = new Date(str('now'))
       if (!Number.isFinite(now.getTime())) die(2, `--now is not a date: ${str('now')}`)
     }
-    const ctx = loadContext({ project: str('project'), now, backlog: str('backlog'), meter: str('meter') })
+    const ctx = loadContext({
+      project: str('project'),
+      now,
+      backlog: str('backlog'),
+      meter: str('meter'),
+      prComments: str('pr-comments'),
+    })
     const report = buildReport(ctx)
     const v = validate(report)
     if (v.length) die(1, `refusing to write an invalid report:\n  ${v.join('\n  ')}`)

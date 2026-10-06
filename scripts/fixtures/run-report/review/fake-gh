@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stands in for gh: records its argv and prints a canned `--json comments,reviews` payload.
+printf '%s\n' "$*" > "$FAKE_GH_ARGS"
+cat "$FAKE_GH_OUT"

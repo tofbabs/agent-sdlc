@@ -156,3 +156,15 @@ an ignored ledger is worse than none.
 - Category: robustness
 - Address when: the next change that touches `run-report-categories.mjs`, or
   an agent reports an empty vocabulary dump
+
+### Run-report's gh timeout path is untested
+- Raised: 2026-10-06 by coder (STORY-1-4)
+- Current: `run-report.mjs` reads PR comments with one `gh pr view` capped at
+  5 s (`spawnSync` timeout → `pr_comments` degraded). The test suite covers gh
+  missing and gh failing, but not a hung gh, because the cap is a constant and
+  a test would add 5 s to every preflight; the run-section review case also
+  still reaches the real `gh` (it fails fast outside a git repo)
+- Risk: LOW
+- Category: missing_test
+- Address when: the timeout becomes configurable, or a hook run is seen
+  hanging on gh
