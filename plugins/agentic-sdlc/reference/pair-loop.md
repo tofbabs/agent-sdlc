@@ -154,7 +154,7 @@ the in-tree path for pair logs committed before this change.
 
 The log has to stay **O(1) to read**, because a fresh agent reads it every turn
 and an unboundedly growing log just moves the quadratic out of the agent's context
-and into the file. It is a **directory of four files**, and only one of them grows:
+and into the file. It is a **directory of five entries**, and only one of them grows:
 
 | File | Written by | Growth | Read by |
 |---|---|---|---|
@@ -162,12 +162,26 @@ and into the file. It is a **directory of four files**, and only one of them gro
 | `state.md` | navigator, overwritten every turn | ≤15 lines | both |
 | `turns.md` | `append` only | grows | last 2 entries only |
 | `session.json` | the script only | fixed | orchestrator |
+| `drafts/` | the agent's own Write tool | transient | — |
 
-**Nothing reads or writes these files directly — `pair-log.mjs` is the whole
-surface.** That is not ceremony. Both limits below were prose in the previous
-version of this document and neither had ever been exercised by a run; the
-script makes them things the tooling cannot do, rather than things an agent is
-asked not to do.
+**Nothing reads or writes `state.md`, `turns.md` or `session.json` directly —
+`pair-log.mjs` is the whole surface.** That is not ceremony. Both limits below
+were prose in the previous version of this document and neither had ever been
+exercised by a run; the script makes them things the tooling cannot do, rather
+than things an agent is asked not to do.
+
+**Write shape (ARCH-1):** under `claude -p`, a piped heredoc into
+`${CLAUDE_PLUGIN_ROOT}/...` matches no permission rule and is denied — about
+20% of turns measured. `state` and `append` instead take `--from <path>`: the
+agent Writes the body to `<drafts>/state.md` or `<drafts>/entry.md` (the
+absolute drafts dir comes from the prompt, never `${CLAUDE_PLUGIN_ROOT}`), then
+runs one literal `node <abs> state|append <ID> --from <drafts>/<file>` Bash
+call. The body goes through the same `clamp()` as stdin always did — same caps,
+same fence-stripping, same truncation warnings. On a successful write `--from`
+deletes the file *only if* it resolves inside that story's `drafts/`; anything
+else is read and left alone, so the grant is never a way to delete a file.
+Stdin still works unchanged for a mid-upgrade caller or the manual fallback.
+`session` takes no body, so it is unaffected. `init` creates `drafts/`.
 
 **The driver never sees `brief.md`, and there is no flag that shows it one.**
 The driver runs 42 internal round trips per turn to the navigator's 18, so a byte

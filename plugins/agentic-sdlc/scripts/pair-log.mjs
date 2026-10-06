@@ -25,8 +25,8 @@
 // Zero dependencies, Node 22 (the repo floor). See
 // docs/superpowers/specs/2026-07-31-pair-log-carryover-design.md
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync, realpathSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const ENTRY_MAX_LINES = 10
@@ -76,8 +76,8 @@ const die = (code, msg) => {
 const USAGE = `usage:
   pair-log.mjs init    <STORY-ID> --brief <path> [--root <dir>] [--force]
   pair-log.mjs read    <STORY-ID> --role navigator|driver [--entries <n>] [--no-git]
-  pair-log.mjs append  <STORY-ID> --role navigator|driver [--rejected]  (body on stdin)
-  pair-log.mjs state   <STORY-ID>                              (STATE on stdin)
+  pair-log.mjs append  <STORY-ID> --role navigator|driver [--rejected] (--from <path> | body on stdin)
+  pair-log.mjs state   <STORY-ID>                         (--from <path> | STATE on stdin)
   pair-log.mjs session <STORY-ID> --set active|complete|blocked [--arch ARCH-<n>]
   pair-log.mjs status  <STORY-ID>
   pair-log.mjs handoff <STORY-ID> --base <branch>              (PAIR to SOLO: freeze the tests)
@@ -99,6 +99,7 @@ const F = {
   state: join(dir, 'state.md'),
   turns: join(dir, 'turns.md'),
   session: join(dir, 'session.json'),
+  drafts: join(dir, 'drafts'),
 }
 
 const requireLog = () => {
@@ -138,6 +139,29 @@ const readStdin = () => {
     return readFileSync(0, 'utf8')
   } catch {
     return ''
+  }
+}
+
+// ARCH-1: under `-p`, only one shape rests on documented permission matching —
+// one literal command, no pipes, no expansion. `--from` is that shape; stdin
+// stays so a mid-upgrade caller and the manual fallback loop keep working.
+const readBody = () => {
+  if (typeof flags.from !== 'string') return { text: readStdin(), fromPath: null }
+  if (!existsSync(flags.from)) die(2, `--from file not found: ${flags.from}`)
+  return { text: readFileSync(flags.from, 'utf8'), fromPath: flags.from }
+}
+
+// The grant lets an agent delete a file, so it must never reach outside the
+// draft it was given. realpath resolves `..` and symlinks before the
+// containment check, so neither can walk the delete out of drafts/.
+const consumeDraft = (fromPath) => {
+  if (!fromPath) return
+  try {
+    const real = realpathSync(resolve(fromPath))
+    const draftsReal = realpathSync(F.drafts) + sep
+    if (real.startsWith(draftsReal)) unlinkSync(fromPath)
+  } catch {
+    // Resolution failure means "not provably inside drafts" — leave it alone.
   }
 }
 
@@ -197,12 +221,13 @@ if (command === 'init') {
   if (!existsSync(flags.brief)) die(2, `brief not found: ${flags.brief}`)
 
   mkdirSync(dir, { recursive: true })
+  mkdirSync(F.drafts, { recursive: true })
   writeFileSync(F.brief, readFileSync(flags.brief, 'utf8'))
   writeFileSync(F.state, STATE_TEMPLATE)
   writeFileSync(F.turns, `# Turn log — ${storyId}\n`)
   writeSession({ story: storyId, session: 'active', arch: null, alternation: 0, rejections: 0 })
 
-  process.stdout.write(`initialised ${dir} (brief.md, state.md, turns.md, session.json)\n`)
+  process.stdout.write(`initialised ${dir} (brief.md, state.md, turns.md, session.json, drafts/)\n`)
   process.exit(0)
 }
 
@@ -267,13 +292,15 @@ if (command === 'append') {
   // entry would advance the next role and duplicate the turn on retry.
   if (flags.rejected && role !== 'navigator') die(2, '--rejected is a navigator flag')
 
-  const { text, original, truncated, strippedFence } = clamp(readStdin(), ENTRY_MAX_LINES)
+  const { text: rawBody, fromPath } = readBody()
+  const { text, original, truncated, strippedFence } = clamp(rawBody, ENTRY_MAX_LINES)
   if (!text.trim()) die(2, 'refusing to append an empty entry')
 
   const number = parseEntries().length + 1
   const heading = `## ${number}. ${role} — ${new Date().toISOString()}`
   const existing = readFileSync(F.turns, 'utf8').replace(/\n+$/, '')
   writeFileSync(F.turns, `${existing}\n\n${heading}\n${text}\n`)
+  consumeDraft(fromPath)
 
   // The navigator opens each alternation, so counting its turns counts
   // alternations. The count lives here rather than in STATE's prose so it cannot
@@ -313,9 +340,11 @@ if (command === 'append') {
 
 if (command === 'state') {
   requireLog()
-  const { text, original, truncated } = clamp(readStdin(), STATE_MAX_LINES)
+  const { text: rawBody, fromPath } = readBody()
+  const { text, original, truncated } = clamp(rawBody, STATE_MAX_LINES)
   if (!text.trim()) die(2, 'refusing to write an empty STATE')
   writeFileSync(F.state, `${text}\n`)
+  consumeDraft(fromPath)
   if (truncated) {
     process.stderr.write(
       `pair-log: STATE truncated ${original}→${STATE_MAX_LINES} lines. STATE is overwritten every ` +
