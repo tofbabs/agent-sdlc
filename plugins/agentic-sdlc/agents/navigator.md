@@ -94,8 +94,8 @@ pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
    - Run the **full gate** `CLAUDE.md` lists (typecheck, lint, test, build — run
      it, don't recall it). **Red → not complete**: route the failure into STATE
      as `REDO: <gate failure>` for the driver and end the turn normally.
-   - Green → commit the pair log (`chore(<scope>): pair log [<STORY-ID>]`), then
-     `pair-log.mjs session <STORY-ID> --set complete`.
+   - Green → `pair-log.mjs session <STORY-ID> --set complete`. Never commit
+     the log: local scaffolding, it dies with the worktree.
    - Report the story's one-line **title** and every release-please **scope** the
      branch touched (`git diff --stat <base-or-epic>...HEAD`) — the orchestrator
      writes the landing message from them. Never push, never open a PR.

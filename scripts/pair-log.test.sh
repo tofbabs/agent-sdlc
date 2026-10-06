@@ -109,6 +109,22 @@ seq 1 500 > big.txt && git add -A && git commit -qm "feat(x): big"
 node "$PL" read STORY-G --role navigator > nav.txt 2>/dev/null
 grep -q 'more lines' nav.txt && ! grep -q '^+500$' nav.txt \
   && ok "a large last commit is capped" || bad "large last commit was not capped"
+
+# 10. The in-tree log is gitignored and dies with the worktree, so every session
+#     write is mirrored into the git common dir, which all worktrees share.
+M=.git/agentic-sdlc/pair/STORY-G/session.json
+[ -f "$M" ] && cmp -s "$M" backlog/pair/STORY-G/session.json \
+  && ok "init mirrors session.json into the git common dir" || bad "no mirror after init"
+node "$PL" session STORY-G --set blocked --arch ARCH-9 >/dev/null 2>&1
+grep -q '"blocked"' "$M" && cmp -s "$M" backlog/pair/STORY-G/session.json \
+  && ok "session --set keeps the mirror in sync" || bad "mirror drifted after session --set"
+echo "- steer: y" | node "$PL" append STORY-G --role navigator 2>/dev/null
+cmp -s "$M" backlog/pair/STORY-G/session.json \
+  && ok "navigator append keeps the mirror in sync" || bad "mirror drifted after append"
+git worktree add -q ../wt-g -b feat/g 2>/dev/null
+( cd ../wt-g && node "$PL" init STORY-W --brief ../brief-src.md >/dev/null 2>&1 )
+[ -f .git/agentic-sdlc/pair/STORY-W/session.json ] \
+  && ok "a worktree's session lands in the shared common-dir store" || bad "worktree session not mirrored to the common dir"
 cd ..
 
 [ "$fail" -eq 0 ] || { printf '\npair-log tests failed\n' >&2; exit 1; }

@@ -384,6 +384,37 @@ degrade to exit 0/null on failure. `scripts/<name>.test.sh` per
 Out of scope: 03's threshold proposals; applying threshold changes
 automatically.
 
+### STORY-2-10: Pair logs are local scaffolding, never committed
+
+- status: DONE
+- estimate: S
+- risk: data sourcing — run-report's PAIR evidence moves from a committed
+  file to the machine-local ADR-0002 common-dir store; the in-tree path stays
+  as the fallback for pair logs committed before the change
+- depends_on: []
+- blocked_by_arch: []
+
+Added mid-epic at the human's request: `backlog/pair/` is gitignored, so the
+pair log no longer lands with the squash, while run-report still reports a
+paired story as PAIR after its worktree is gone.
+
+**Acceptance criteria**
+1. Given this repo, when a pair log is created, then `backlog/pair/` is
+   ignored by `.gitignore` and the STORY-2-3 pair log is untracked.
+2. Given a PAIR story closing, when the navigator runs CLOSE, then it does not
+   commit the pair log; navigator.md and pair-loop.md call the log local
+   scaffolding that dies with the worktree, and navigator.md does not grow.
+3. Given a PAIR story whose worktree was removed after landing, when
+   run-report builds the build section, then the story is still PAIR —
+   `pair-log.mjs` mirrors session.json to
+   `<git common dir>/agentic-sdlc/pair/<STORY-ID>/`, run-report reads it, and
+   the in-tree path remains a fallback.
+4. Given consuming projects, when they adopt this version, then their setup
+   guidance tells them to ignore `backlog/pair/`.
+5. Given the shipped scripts, when preflight runs, then `pair-log.test.sh`
+   (mirror written, kept in sync) and `run-report.test.sh` (PAIR from the
+   mirror with no in-tree log; in-tree fallback) cover the change.
+
 ## Debt
 
 Ledgered in docs/TOOLING-DEBT.md by the plan commit.

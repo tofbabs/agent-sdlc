@@ -229,3 +229,16 @@ an ignored ledger is worse than none.
   (`machine_local`); the gh sweep narrows but does not remove the gap
 - Risk: MEDIUM
 - Address when: 02's central storage is live (ADR-0002 "Revisit if")
+
+### Pair-session mirror is never pruned, and is machine-local
+- Raised: 2026-10-06 by coder (STORY-2-10)
+- Current: `pair-log.mjs` writes `<git common dir>/agentic-sdlc/pair/<STORY-ID>/session.json`
+  and nothing deletes it (a few hundred bytes per paired story); a run report
+  built on another machine or a fresh clone, with no in-tree log, reports a
+  paired story as SOLO. STORY-1-6's committed pair log stays tracked as the
+  in-tree fallback for EPIC-1 history
+- Risk: LOW
+- Category: robustness
+- Address when: the store holds more than ~500 story directories, or run
+  reports start being built somewhere other than the machine that ran the
+  build (02's central storage — same trigger as "Decision store is machine-local")

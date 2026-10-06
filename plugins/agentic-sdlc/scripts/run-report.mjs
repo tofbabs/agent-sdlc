@@ -421,6 +421,28 @@ function resolveBacklogPath(project, marker, override) {
   return best?.p ?? null
 }
 
+// pair-log.mjs mirrors each session.json into the git common dir, because the
+// in-tree pair log is gitignored and vanishes with the story worktree.
+function pairStore(root) {
+  const r = spawnSync('git', ['-C', root, 'rev-parse', '--git-common-dir'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  if (r.status !== 0 || typeof r.stdout !== 'string' || !r.stdout.trim()) return null
+  return join(resolve(root, r.stdout.trim()), 'agentic-sdlc', 'pair')
+}
+
+// The mirror first; the in-tree path still answers for pair logs committed
+// before the log was gitignored.
+function pairSessionPath(ctx, id) {
+  if (ctx.pairStore) {
+    const mirrored = join(ctx.pairStore, id, 'session.json')
+    if (existsSync(mirrored)) return mirrored
+  }
+  const inTree = join(ctx.project, 'backlog', 'pair', id, 'session.json')
+  return existsSync(inTree) ? inTree : null
+}
+
 export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSON, backlog, meter, prComments } = {}) {
   const root = resolve(project ?? process.cwd())
   const marker = readMarker(root)
@@ -439,6 +461,7 @@ export function loadContext({ project, now = new Date(), pluginJson = PLUGIN_JSO
     pluginJson,
     marker,
     meterOverride: meter ?? null,
+    pairStore: pairStore(root),
     ...loadPrComments(root, marker, prComments),
     backlog: {
       path,
@@ -488,13 +511,9 @@ function isBlocked(ctx) {
   // not mark this run blocked. With no readable backlog there is no way to tell
   // which sessions are ours, and the completion check already degrades.
   if (!p) return { blocked: false, degraded }
-  const pairDir = join(ctx.project, 'backlog', 'pair')
-  if (!existsSync(pairDir)) return { blocked: false, degraded }
-  const ours = new Set(p.stories.map((s) => s.id))
-  for (const name of readdirSync(pairDir)) {
-    if (!ours.has(name)) continue
-    const sessionPath = join(pairDir, name, 'session.json')
-    if (!existsSync(sessionPath)) continue
+  for (const { id } of p.stories) {
+    const sessionPath = pairSessionPath(ctx, id)
+    if (!sessionPath) continue
     const s = readJson(sessionPath)
     if (!isPlainObject(s)) {
       if (!degraded.includes('pair_sessions')) degraded.push('pair_sessions')
@@ -594,7 +613,9 @@ export function buildPlan(ctx) {
 // TOUCHED BY THE BUILD — a story appears in build.stories only on evidence that
 // survives the run, never on its mere presence in the backlog file (an untouched
 // story is absent, not zeroed). Any one of:
-//   1. a pair session: backlog/pair/<STORY-ID>/session.json exists;
+//   1. a pair session: its session.json exists, mirrored at
+//      <git common dir>/agentic-sdlc/pair/<STORY-ID>/ or, for history that
+//      predates the mirror, in-tree at backlog/pair/<STORY-ID>/;
 //   2. its `- status:` is set and no longer TODO (IN_PROGRESS, DONE, BLOCKED…);
 //   3. a commit subject on the current branch carries its `[<ID>]` tag — the
 //      only evidence a FAST task leaves, since fast task blocks have no status.
@@ -633,8 +654,8 @@ function buildStories(ctx, p) {
   const subjects = commitSubjects(ctx.project)
   const stories = []
   for (const unit of buildUnits(ctx, p)) {
-    const sessionPath = join(ctx.project, 'backlog', 'pair', unit.id, 'session.json')
-    const paired = existsSync(sessionPath)
+    const sessionPath = pairSessionPath(ctx, unit.id)
+    const paired = sessionPath !== null
     const statusMoved = Boolean(unit.status) && unit.status.toUpperCase() !== 'TODO'
     const tagged = subjects.includes(`[${unit.id}]`)
     if (!paired && !statusMoved && !tagged) continue

@@ -214,6 +214,7 @@ marker "$P" build deliberate "EPIC-8" 'null' '["ARCH-1"]'
 git init -q "$P" && commit "$P" "feat(x): fourth [STORY-8-4]" && commit "$P" "feat(x): not ours [STORY-8-40]"
 report --project "$P" >/dev/null
 got=$(q "$(OUT "$P")" 'r.build.stories.map(s=>s.mode+s.alternations).join(" ")')
+# Also the fallback: a git repo with no mirror still reads PAIR from the in-tree log.
 [ "$got" = "SOLO0 PAIR7 SOLO0 SOLO0 PAIR2" ] && ok "a [STORY-ID] commit tag marks a TODO story touched (exact tag only)" \
   || bad "git-tagged stories: $got"
 
@@ -230,6 +231,37 @@ echo 'not json' > "$P/backlog/pair/STORY-8-2/session.json"
 report --project "$P" >/dev/null
 got=$(q "$(OUT "$P")" 'r.build.stories[1].mode+" "+r.build.stories[1].alternations+" "+r.degraded.includes("pair_sessions")')
 [ "$got" = "PAIR null true" ] && ok "unreadable session.json → PAIR, alternations null + pair_sessions" || bad "bad session: $got"
+
+# The pair log is gitignored and dies with its story worktree; pair-log.mjs
+# mirrors session.json into the git common dir so the story still reads PAIR
+# after the worktree is removed. Driven end to end through pair-log.mjs.
+PL="$ROOT/plugins/agentic-sdlc/scripts/pair-log.mjs"
+P=$(mkbuild build-mirror)
+marker "$P" build deliberate "EPIC-8" 'null' '["ARCH-1"]'
+rm -rf "$P/backlog/pair"
+git init -q "$P" && commit "$P" "chore: root"
+git -C "$P" worktree add -q "$TMP/wt-mirror" -b feat/STORY-8-2 2>/dev/null
+printf 'brief\n' > "$TMP/mirror-brief.md"
+( cd "$TMP/wt-mirror" \
+  && node "$PL" init STORY-8-2 --brief "$TMP/mirror-brief.md" >/dev/null 2>&1 \
+  && echo "- steer: x" | node "$PL" append STORY-8-2 --role navigator 2>/dev/null \
+  && node "$PL" session STORY-8-2 --set complete >/dev/null 2>&1 )
+git -C "$P" worktree remove --force "$TMP/wt-mirror"
+[ ! -e "$P/backlog/pair" ] && [ ! -e "$TMP/wt-mirror" ] && ok "mirror case: no in-tree pair log survives" \
+  || bad "mirror case: an in-tree pair log is still present"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'r.build.stories.map(s=>s.mode+s.alternations).join(" ")')
+[ "$got" = "SOLO0 PAIR1 SOLO0 SOLO0" ] && ok "PAIR read from the git-common-dir mirror after the worktree is gone" \
+  || bad "mirrored stories: $got"
+
+P=$(mkproj build-mirror-blocked)
+marker "$P" build deliberate "EPIC-7" 'null' '["ARCH-1","ARCH-2","ARCH-3","ARCH-4","ARCH-5"]'
+git init -q "$P"
+mkdir -p "$P/.git/agentic-sdlc/pair/STORY-7-2"
+echo '{"session":"blocked","arch":"ARCH-6","alternation":3}' > "$P/.git/agentic-sdlc/pair/STORY-7-2/session.json"
+report --project "$P" >/dev/null
+[ "$(q "$(OUT "$P")" 'r.run.outcome')" = "blocked" ] && ok "a blocked session in the mirror → blocked" \
+  || bad "mirrored blocked session gave $(q "$(OUT "$P")" 'r.run.outcome')"
 
 got=$(node --input-type=module -e '
   import { buildBuild, loadContext } from "'"$R"'"

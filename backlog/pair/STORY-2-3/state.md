@@ -1,4 +1,0 @@
-- ACs met / remaining: AC1-AC4 all green; all owned scope done (score, floors, borderline, data-risk, rubric injection, lane, CLI). Story COMPLETE.
-- constraints in play: none — no further increment.
-- next reds planned: none.
-- open flag / REDO: none. Gate green on all story-owned checks. Two preflight X are NON-blocking: (1) known 3 meter.test.sh cases (ignore per brief); (2) feat/fix commit-type check — grep MATCHES (feat commits present), but preflight's git log | grep -q trips SIGPIPE under set -o pipefail (git rc=141) producing a false red. Deterministic preflight.sh bug, advisory locally (CI enforces the orchestrator PR title). Not a story defect; candidate TOOLING-DEBT entry.

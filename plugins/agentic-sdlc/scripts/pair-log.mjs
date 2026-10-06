@@ -26,7 +26,7 @@
 // docs/superpowers/specs/2026-07-31-pair-log-carryover-design.md
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const ENTRY_MAX_LINES = 10
@@ -98,8 +98,31 @@ const requireLog = () => {
   }
 }
 
+// The pair log is gitignored and dies with the story worktree, but run-report
+// still has to know the story was paired after the worktree is gone. So the
+// session file is mirrored into the machine-local store in the git common dir,
+// which every worktree of the repo shares (ADR-0002's store). Outside a git repo
+// there is nothing to outlive, so no mirror.
+const mirrorPath = () => {
+  const r = spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' })
+  if (r.status !== 0 || !r.stdout.trim()) return null
+  return join(resolve(r.stdout.trim()), 'agentic-sdlc', 'pair', storyId, 'session.json')
+}
+
 const readSession = () => JSON.parse(readFileSync(F.session, 'utf8'))
-const writeSession = (s) => writeFileSync(F.session, `${JSON.stringify(s, null, 2)}\n`)
+const writeSession = (s) => {
+  const body = `${JSON.stringify(s, null, 2)}\n`
+  writeFileSync(F.session, body)
+  const mirror = mirrorPath()
+  if (!mirror) return
+  try {
+    mkdirSync(join(mirror, '..'), { recursive: true })
+    writeFileSync(mirror, body)
+  } catch (e) {
+    // A failed mirror costs one report's mode label, never the pair loop itself.
+    process.stderr.write(`pair-log: could not mirror session to ${mirror}: ${e.message}\n`)
+  }
+}
 
 const readStdin = () => {
   try {

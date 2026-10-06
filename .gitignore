@@ -2,3 +2,6 @@
 *.swp
 node_modules/
 .agentic-sdlc/
+# Pair logs are scaffolding for one story worktree; run-report reads the
+# session mirror in the git common dir instead.
+backlog/pair/
