@@ -2,6 +2,30 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.6](https://github.com/tofbabs/agent-sdlc/compare/v0.2.5...v0.2.6) (2026-10-06)
+
+
+### Features
+
+* **agentic-sdlc:** category vocabulary module [STORY-1-1] ([e2a87df](https://github.com/tofbabs/agent-sdlc/commit/e2a87df220d5d8c5dda216d6decdc02325dbafcc))
+* **agentic-sdlc:** lifecycle hook and end-to-end report [STORY-1-6] ([2b3dcc2](https://github.com/tofbabs/agent-sdlc/commit/2b3dcc2a53e9c8eec9ba833a078162fb995c8202))
+* **agentic-sdlc:** run report — a code-free decision trace per run [EPIC-1] ([f137b57](https://github.com/tofbabs/agent-sdlc/commit/f137b57c94fa10e18c82ef6960f9b54a7b158c35))
+* **agentic-sdlc:** run-report.mjs — build section [STORY-1-3] ([325fa48](https://github.com/tofbabs/agent-sdlc/commit/325fa48f703785e328f0fd2dc7aadffab44231c8))
+* **agentic-sdlc:** run-report.mjs — debt section [STORY-1-5] ([fc357ac](https://github.com/tofbabs/agent-sdlc/commit/fc357ac95beec7a35cf4926c5b3669681d47ba79))
+* **agentic-sdlc:** run-report.mjs — review section [STORY-1-4] ([4a2cbb7](https://github.com/tofbabs/agent-sdlc/commit/4a2cbb768f424056a986cfb3c8a071b77fbf5513))
+* **agentic-sdlc:** run-report.mjs — run, plan and cost sections [STORY-1-2] ([c7e5f81](https://github.com/tofbabs/agent-sdlc/commit/c7e5f81218f93786b126d825020df0d0a23d4237))
+
+
+### Bug Fixes
+
+* **agentic-sdlc:** stop a stale detached run report from clobbering newer state ([cdf75f1](https://github.com/tofbabs/agent-sdlc/commit/cdf75f1258cf8aca4731da74cc80bf1032804517))
+
+
+### Documentation
+
+* add EPIC-1 plan ([41b2fc5](https://github.com/tofbabs/agent-sdlc/commit/41b2fc5b91f43d5268907ce1e556d63196f7952a))
+* mark EPIC-1 stories done [EPIC-1] ([5438826](https://github.com/tofbabs/agent-sdlc/commit/5438826d2e28e3ec1a428af38b7723b9d366931c))
+
 ## [0.2.5](https://github.com/tofbabs/agent-sdlc/compare/v0.2.4...v0.2.5) (2026-10-06)
 
 
