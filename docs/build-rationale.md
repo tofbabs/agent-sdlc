@@ -92,9 +92,11 @@ one scope anyway.
 
 Coder is on Sonnet 5 by default — it runs the most turns, so it dominates spend,
 and the cheapest capable model belongs there. In a PAIR story the navigator is on
-Opus 4.8 (the escalation tier) — cheaper hands, better eyes — and it runs every
-other turn, which is the other half of why pairing roughly doubles a story's cost
-and why mode selection matters.
+Sonnet 5 too. It runs every other turn, which is the other half of why pairing
+roughly doubles a story's cost and why mode selection matters. On Opus it was ~90%
+of a measured pair's spend (STORY-2-8: $12.37 of $13.63), so Opus review is an
+opt-in: `/build --navigator-model <m>` for one run, or `PAIR_RUN_NAVIGATOR_MODEL`
+in a project's `.claude/settings.json` `env` for every pair.
 
 **Escalate a specific story's coder to Opus 4.8** when it's genuinely hard: novel
 algorithm, tricky concurrency, or a story that's already come back twice. Override

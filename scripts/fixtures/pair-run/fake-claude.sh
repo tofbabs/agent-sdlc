@@ -7,6 +7,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --agent) role="${2#agentic-sdlc:}"; shift 2 ;;
     -p) prompt="$2"; shift 2 ;;
+    --model) [ -n "${FAKE_MODEL_LOG:-}" ] && echo "$role $2" >> "$FAKE_MODEL_LOG"; shift 2 ;;
     *) shift ;;
   esac
 done

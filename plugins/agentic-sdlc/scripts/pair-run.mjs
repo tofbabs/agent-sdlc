@@ -46,7 +46,8 @@ const USAGE = `usage:
   pair-run.mjs <STORY-ID> --worktree <dir> --base <epic branch | origin/<base>>
                [--claude <bin>] [--navigator-model <m>] [--driver-model <m>]
                [--turn-budget-usd <n>]
-  Extra CLI args for every turn (permissions, settings): env PAIR_RUN_CLAUDE_ARGS.`
+  Extra CLI args for every turn (permissions, settings): env PAIR_RUN_CLAUDE_ARGS.
+  Project-wide navigator model when --navigator-model is absent: env PAIR_RUN_NAVIGATOR_MODEL.`
 
 const die = (code, msg) => {
   process.stderr.write(`pair-run: ${msg}\n`)
@@ -82,7 +83,9 @@ const totals = { turns: 0, cost_usd: 0 }
 let lastNavigatorReport = ''
 
 const runTurn = (role) => {
-  const model = flags[`${role}-model`]
+  // The navigator defaults to Sonnet in its frontmatter; a project that wants
+  // Opus review on every pair opts in once in settings.json env, not per run.
+  const model = flags[`${role}-model`] ?? (role === 'navigator' ? process.env.PAIR_RUN_NAVIGATOR_MODEL || undefined : undefined)
   const args = ['-p', PROMPTS[role], '--agent', `agentic-sdlc:${role}`, '--output-format', 'json']
   if (typeof model === 'string') args.push('--model', model)
   if (typeof flags['turn-budget-usd'] === 'string') args.push('--max-budget-usd', flags['turn-budget-usd'])
