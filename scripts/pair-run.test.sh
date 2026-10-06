@@ -101,5 +101,46 @@ fresh
 FAKE_MODEL_LOG="$TMP/m1" run --navigator-model opus >/dev/null 2>&1; code=$?
 [ $code -eq 0 ] && [ "$(sort -u "$TMP/m1")" = "navigator opus" ] && ok "a navigator override reaches only the navigator" || bad "override (exit $code): $(cat "$TMP/m1" 2>/dev/null)"
 
+# 8. ARCH-1: every turn carries the scoped pair-log grant, not a broader one, and
+#    the prompts tell the agent the literal commands that grant covers.
+fresh
+export FAKE_ARGV_LOG="$TMP/argv.log"
+export PAIR_RUN_CLAUDE_ARGS="--extra-flag"
+run >/dev/null 2>&1
+unset FAKE_ARGV_LOG PAIR_RUN_CLAUDE_ARGS
+drafts="$(git -C "$TMP/wt" rev-parse --show-toplevel)/backlog/pair/STORY-R/drafts"
+for role in navigator driver; do
+  block=$(awk -v r="=== $role" 'BEGIN{p=0} /^=== /{p=($0==r)} p' "$TMP/argv.log")
+  for rule in \
+    "Bash(node $PL read *)" \
+    "Bash(node $PL state *)" \
+    "Bash(node $PL append *)" \
+    "Bash(node $PL session *)" \
+    "Edit(/$drafts/**)"
+  do
+    grep -qxF "$rule" <<<"$block" && ok "$role: grant carries $rule" || bad "$role: missing grant $rule"
+  done
+  grep -qxF 'Bash(node *)' <<<"$block" && bad "$role: grant too broad (Bash(node *))" || ok "$role: no Bash(node *)"
+  grep -qxF 'init' <<<"$block" && bad "$role: grant includes init" || ok "$role: no bare init grant"
+  grep -q 'dangerously-skip-permissions\|bypassPermissions' <<<"$block" \
+    && bad "$role: bypass present" || ok "$role: no bypass flag"
+  # --allowedTools must precede the PAIR_RUN_CLAUDE_ARGS extra, never the reverse.
+  allowed_line=$(grep -nxF -- '--allowedTools' <<<"$block" | head -1 | cut -d: -f1)
+  extra_line=$(grep -nxF -- '--extra-flag' <<<"$block" | head -1 | cut -d: -f1)
+  [ -n "$allowed_line" ] && [ -n "$extra_line" ] && [ "$allowed_line" -lt "$extra_line" ] \
+    && ok "$role: --allowedTools precedes PAIR_RUN_CLAUDE_ARGS" \
+    || bad "$role: ordering wrong (allowed=$allowed_line extra=$extra_line)"
+  prompt=$(grep -A1 -xF -- '-p' <<<"$block" | tail -1)
+  grep -qF "$drafts" <<<"$prompt" && ok "$role: prompt carries the absolute drafts dir" \
+    || bad "$role: prompt missing drafts dir"
+  grep -qF -- '--from' <<<"$prompt" && ok "$role: prompt carries a --from command" \
+    || bad "$role: prompt missing --from command"
+done
+grep -qF "node $PL state STORY-R --from $drafts/state.md && node $PL append STORY-R --role navigator --from $drafts/entry.md" \
+  "$TMP/argv.log" && ok "navigator prompt carries the exact combined command" \
+  || bad "navigator prompt missing the exact combined command"
+grep -qF "node $PL append STORY-R --role driver --from $drafts/entry.md" "$TMP/argv.log" \
+  && ok "driver prompt carries the exact append command" || bad "driver prompt missing append command"
+
 [ "$fail" -eq 0 ] || { printf '\npair-run tests failed\n' >&2; exit 1; }
 printf '\npair-run tests passed\n'

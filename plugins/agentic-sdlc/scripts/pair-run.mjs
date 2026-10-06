@@ -74,9 +74,23 @@ const status = () => {
   )
 }
 
+// Headless turns get no permission prompts, so the pair-log write shape has to
+// clear the allow-list itself (ARCH-1) — granted per-turn, scoped to this story's
+// drafts dir, never as a standing project setting.
+const draftsDir = (turnCwd) => {
+  const r = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: turnCwd, encoding: 'utf8' })
+  const top = r.status === 0 ? r.stdout.trim() : turnCwd
+  return join(top, 'backlog', 'pair', storyId, 'drafts')
+}
+
+// Prompts carry the literal commands (no pipes, no heredocs, no $VARS) because
+// the allow-list below matches literal text — a shape the prompt can't drift
+// out of at runtime the way a paraphrase could.
 const PROMPTS = {
-  navigator: `PAIR on ${storyId}. You are already in the story worktree, on the story branch off ${flags.base}; stay in it. Your only read of the pair log is \`node ${PAIR_LOG} read ${storyId} --role navigator\` (bounded: brief, STATE, last 2 entries, last commit); open source files as you need them. Review the last increment, write the failing tests for the next behaviour, refresh STATE. All ACs green → close the story in this same turn per your CLOSE step (scopes: \`git diff --stat ${flags.base}...HEAD\`). Then stop.`,
-  driver: `PAIR driver turn on ${storyId}. You are already in the story worktree; stay in it. Your only read of the pair log is \`node ${PAIR_LOG} read ${storyId} --role driver\` (bounded: STATE, last 2 entries, last commit); open source files as you need them. Make the failing tests pass, implementing only what they demand; commit, log, stop.`,
+  navigator: (drafts) =>
+    `PAIR on ${storyId}. You are already in the story worktree, on the story branch off ${flags.base}; stay in it. Your only read of the pair log is \`node ${PAIR_LOG} read ${storyId} --role navigator\` (bounded: brief, STATE, last 2 entries, last commit); open source files as you need them. Review the last increment, write the failing tests for the next behaviour, refresh STATE. Write STATE to ${drafts}/state.md and the turn entry to ${drafts}/entry.md with the Write tool, both in one message, then run exactly one Bash call: \`node ${PAIR_LOG} state ${storyId} --from ${drafts}/state.md && node ${PAIR_LOG} append ${storyId} --role navigator --from ${drafts}/entry.md\` (add \`--rejected\` right after \`--role navigator\` if this turn rejected the last increment). No pipes, no heredocs, no $VARS in that command. All ACs green → close the story in this same turn per your CLOSE step (scopes: \`git diff --stat ${flags.base}...HEAD\`). Then stop.`,
+  driver: (drafts) =>
+    `PAIR driver turn on ${storyId}. You are already in the story worktree; stay in it. Your only read of the pair log is \`node ${PAIR_LOG} read ${storyId} --role driver\` (bounded: STATE, last 2 entries, last commit); open source files as you need them. Make the failing tests pass, implementing only what they demand; commit. Write the turn entry to ${drafts}/entry.md with the Write tool, then run exactly one Bash call: \`node ${PAIR_LOG} append ${storyId} --role driver --from ${drafts}/entry.md\`. No pipes, no heredocs, no $VARS in that command. Then stop.`,
 }
 
 const totals = { turns: 0, cost_usd: 0 }
@@ -84,9 +98,24 @@ let lastNavigatorReport = ''
 
 const runTurn = (role) => {
   const model = flags[`${role}-model`]
-  const args = ['-p', PROMPTS[role], '--agent', `agentic-sdlc:${role}`, '--output-format', 'json']
+  const drafts = draftsDir(cwd)
+  const prompt = PROMPTS[role](drafts)
+  const args = ['-p', prompt, '--agent', `agentic-sdlc:${role}`, '--output-format', 'json']
   if (typeof model === 'string') args.push('--model', model)
   if (typeof flags['turn-budget-usd'] === 'string') args.push('--max-budget-usd', flags['turn-budget-usd'])
+  // Scoped to exactly the pair-log write shape (ARCH-1) — read/state/append/session on
+  // PAIR_LOG, Edit only inside this story's drafts dir. No `init`, no `Bash(node *)`, no
+  // --dangerously-skip-permissions: the grant must not reach past what STORY-3-2 added.
+  // Leading-slash doubling ("//" + absolute path) is the allow-list's own syntax for an
+  // absolute path rule.
+  args.push(
+    '--allowedTools',
+    `Bash(node ${PAIR_LOG} read *)`,
+    `Bash(node ${PAIR_LOG} state *)`,
+    `Bash(node ${PAIR_LOG} append *)`,
+    `Bash(node ${PAIR_LOG} session *)`,
+    `Edit(/${drafts}/**)`,
+  )
   args.push(...extraArgs)
 
   const started = Date.now()

@@ -43,10 +43,13 @@ in the worktree; you make **one call per story**:
 Both roles run on Sonnet by default. The navigator is ~90% of a pair's cost
 (measured, STORY-2-8: $12.37 of $13.63), so a stronger model there is the human's
 call, never yours: pass `--navigator-model <m>` / `--driver-model <m>` only for an
-override resolved per `reference/models.md`. Also optional: `--turn-budget-usd <n>`. Headless
-turns get no permission prompts: the project's `.claude/settings.json` allow-list
-governs them, and `PAIR_RUN_CLAUDE_ARGS` passes extra CLI flags (e.g.
-`--permission-mode acceptEdits`). Each turn's cost lands in
+override resolved per `reference/models.md`. Also optional: `--turn-budget-usd <n>`. Workspace
+trust gates a project's `permissions.allow`, so under `-p` a never-trusted folder
+ignores it; `pair-run` grants the pair-log write surface itself (ARCH-1: `read`,
+`state`, `append`, `session` on the resolved `pair-log.mjs`, plus `Edit` scoped to
+the story's `drafts/`) on every turn, and everything else — a trusted project's own
+allow-list, `PAIR_RUN_CLAUDE_ARGS` for extra CLI flags (e.g. `--permission-mode
+acceptEdits`) — is governed as before. Each turn's cost lands in
 `.agentic-sdlc/meter/pair-run-<STORY-ID>.jsonl`.
 
 Run the manual loop below **only** when `claude` is not on PATH or headless runs
