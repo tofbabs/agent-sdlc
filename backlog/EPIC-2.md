@@ -415,6 +415,26 @@ paired story as PAIR after its worktree is gone.
    (mirror written, kept in sync) and `run-report.test.sh` (PAIR from the
    mirror with no in-tree log; in-tree fallback) cover the change.
 
+### STORY-2-11: preflight's feat/fix check no longer trips on SIGPIPE
+
+- status: DONE
+- estimate: S
+- risk: none
+- depends_on: []
+- blocked_by_arch: []
+
+Fixed `scripts/preflight.sh` section 4 to avoid SIGPIPE errors when `grep -q`
+closes the pipe under `set -euo pipefail`, which was causing false negatives
+on the feat/fix release-ability check.
+
+**Acceptance criteria**
+1. Given `scripts/preflight.sh` section 4, when it checks for feat/fix commits
+   in branches with multiple commits, then the SIGPIPE trap from `grep -q`
+   closing the pipe is avoided by capturing output first.
+2. Given the fixed script, when run on a branch with feat commits since
+   origin/main and edited plugins/, then the check passes with "plugins/
+   edited, and a feat/fix commit will cut a release".
+
 ## Debt
 
 Ledgered in docs/TOOLING-DEBT.md by the plan commit.

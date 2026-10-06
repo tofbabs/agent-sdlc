@@ -69,8 +69,11 @@ fi
 #    against the PR title, which is what gets squashed onto main.
 if git -C "$ROOT" rev-parse --verify -q origin/main >/dev/null; then
   CHANGED=$(git -C "$ROOT" diff --name-only origin/main...HEAD || true)
-  if printf '%s\n' "$CHANGED" | grep -q '^plugins/'; then
-    if git -C "$ROOT" log --format=%s origin/main..HEAD | grep -qE '^(feat|fix)(\([^)]*\))?!?:|^[a-z]+(\([^)]*\))?!:'; then
+  # grep -q with a pipe under pipefail causes SIGPIPE if grep finds a match and closes the pipe
+  # before the producer finishes, making the whole pipeline fail. Capture first, then grep the output.
+  if grep -q '^plugins/' <<< "$CHANGED"; then
+    COMMITS=$(git -C "$ROOT" log --format=%s origin/main..HEAD)
+    if grep -qE '^(feat|fix)(\([^)]*\))?!?:|^[a-z]+(\([^)]*\))?!:' <<< "$COMMITS"; then
       ok "plugins/ edited, and a feat/fix commit will cut a release"
     else
       bad "plugins/ edited with no feat: or fix: commit — this would ship to nobody"
