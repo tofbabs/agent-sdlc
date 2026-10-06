@@ -52,6 +52,18 @@ else
   note "all three are machine-written; check extra-files in release-please-config.json"
 fi
 
+# 3b. This repo builds itself with its own plugin, pinned in .claude/settings.json
+#     to the latest tag. release-please moves that ref in the release PR; if the
+#     generic extra-file ever breaks, the repo silently keeps building with an old
+#     release. Same failure as 3, aimed at ourselves.
+SELF_REF=$(python3 -c "import json;print(json.load(open('$ROOT/.claude/settings.json'))['extraKnownMarketplaces']['sanimara']['source']['ref'])")
+if [ "$SELF_REF" = "v$PLUGIN" ]; then
+  ok "self-pin tracks the latest release ($SELF_REF)"
+else
+  bad "self-pin is $SELF_REF but plugin.json is $PLUGIN — .claude/settings.json ref must be v$PLUGIN"
+  note "release-please moves it via the generic extra-file; do not hand-edit it"
+fi
+
 # 4. Shipped content edited on this branch needs a releasable commit, or the
 #    change ships to no existing install. Advisory locally; enforced in CI
 #    against the PR title, which is what gets squashed onto main.
