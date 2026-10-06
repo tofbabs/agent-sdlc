@@ -1,5 +1,5 @@
 {
-  "$comment": "COPY-IN registration for the agentic-sdlc hooks, not a live dependency. Merge this 'hooks' block into <project>/.claude/settings.json (alongside the permissions from settings.baseline.json). SessionStart lsp-preflight is detection only (no installs, no network), milliseconds. Stop/SubagentStop meter.sh is advisory and best-effort — it appends a cost record to .agentic-sdlc/meter/ and always exits 0. See templates/hooks/lsp-preflight.sh and templates/hooks/meter.sh for what each does and why.",
+  "$comment": "COPY-IN registration for the agentic-sdlc hooks, not a live dependency. Merge this 'hooks' block into <project>/.claude/settings.json (alongside the permissions from settings.baseline.json). SessionStart lsp-preflight is detection only (no installs, no network), milliseconds. Stop/SubagentStop meter.sh is advisory and best-effort — it appends a cost record to .agentic-sdlc/meter/ and always exits 0. It finds meter.mjs in the plugin install cache (~/.claude/plugins/cache/<marketplace>/agentic-sdlc/<highest version>/), then the marketplace clone (~/.claude/plugins/marketplaces/<marketplace>/plugins/agentic-sdlc/); set METER_MJS in the hook's environment to override. See templates/hooks/lsp-preflight.sh and templates/hooks/meter.sh for what each does and why.",
 
   "hooks": {
     "SessionStart": [

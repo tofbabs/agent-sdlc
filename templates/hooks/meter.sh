@@ -17,8 +17,15 @@
 #
 # Copy it into <project>/.claude/hooks/ and register it (see
 # templates/hooks/settings.hooks.json). ${CLAUDE_PLUGIN_ROOT} does NOT expand in
-# project settings, so the meter.mjs path is resolved from the installed plugin at
-# a fixed location or passed via METER_MJS.
+# project settings, so meter.mjs is resolved in this order:
+#   1. $METER_MJS, if set — an explicit override always wins;
+#   2. the install cache, highest version first:
+#        ~/.claude/plugins/cache/<marketplace>/agentic-sdlc/<version>/scripts/meter.mjs
+#      (where `claude plugin install agentic-sdlc@<marketplace>` puts it);
+#   3. the marketplace clone:
+#        ~/.claude/plugins/marketplaces/<marketplace>/plugins/agentic-sdlc/scripts/meter.mjs
+# ~/.claude is $CLAUDE_CONFIG_DIR when that is set. If none resolves, the hook
+# notes it on stderr (visible under `claude --debug`) and records nothing.
 
 set -uo pipefail
 
@@ -47,9 +54,28 @@ subdir="${transcript%.jsonl}/subagents"
 sub_arg=()
 [ -d "$subdir" ] && sub_arg=(--subagents "$subdir")
 
-# Resolve meter.mjs: explicit override, else the conventional installed location.
-meter="${METER_MJS:-$HOME/.claude/plugins/agentic-sdlc/scripts/meter.mjs}"
-[ -f "$meter" ] || exit 0
+# Resolve meter.mjs (order and paths: see the header).
+resolve_meter() {
+  if [ -n "${METER_MJS:-}" ]; then printf '%s' "$METER_MJS"; return; fi
+  local plugins="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins" c d v key=1,1
+  # Rank by the version directory alone (not the marketplace name), and by
+  # version, not lexically: 0.1.10 beats 0.1.9. `sort -V` is in GNU and recent
+  # BSD/macOS sort; plain sort is the last resort.
+  printf '' | sort -V >/dev/null 2>&1 && key=1,1V
+  c="$(for d in "$plugins"/cache/*/agentic-sdlc/*/; do
+         v="${d%/}"; v="${v##*/}"
+         [ -f "${d}scripts/meter.mjs" ] && printf '%s\t%s\n' "$v" "${d}scripts/meter.mjs"
+       done | sort -t "$(printf '\t')" -k "$key" | tail -n 1 | cut -f 2)"
+  if [ -n "$c" ]; then printf '%s' "$c"; return; fi
+  for c in "$plugins"/marketplaces/*/plugins/agentic-sdlc/scripts/meter.mjs; do
+    [ -f "$c" ] && { printf '%s' "$c"; return; }
+  done
+}
+meter="$(resolve_meter)"
+if [ -z "$meter" ] || [ ! -f "$meter" ]; then
+  echo "meter.sh: meter.mjs not found (set METER_MJS or install agentic-sdlc) — no cost record written" >&2
+  exit 0
+fi
 
 node "$meter" record \
   --stream "$transcript" \
