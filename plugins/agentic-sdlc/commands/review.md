@@ -1,11 +1,11 @@
 ---
 description: Review an open PR — the code-reviewer reads it in its own worktree and posts one "Review — round <k>" comment with findings F1..Fn, then the GitHub verdict. Never edits, never merges. Closing its findings is /build's REVISE loop. --fable escalates the model for a security-critical or contract-changing PR.
-argument-hint: <PR-number> [--fable]
+argument-hint: <PR-number> [--fable] [--model <agent>=<m>]
 allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*), Bash(node:*)
 ---
 
-Target: `$ARGUMENTS` minus the flag — strip `--fable` if present; what remains
-is the PR number.
+Target: `$ARGUMENTS` minus flags.
+**Models:** `--fable`, `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
 Delegate the judgment; do the bookkeeping yourself.
 
@@ -69,7 +69,7 @@ already gathered:
 
 ```
 Agent(subagent_type: "agentic-sdlc:code-reviewer",
-      [model: "claude-fable-5" if --fable was passed],
+      [model: <code-reviewer override>],
       prompt: "Review PR <n>, round <k+1>. Worktree: <abs path>. Head sha:
       <sha>. Base: origin/<base>. Story IDs: <ids> in <backlog file> — read
       only those sections. Mode: FAST — yes|no. CI: <summary>. Previous

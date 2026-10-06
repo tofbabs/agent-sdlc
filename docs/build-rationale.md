@@ -92,18 +92,31 @@ one scope anyway.
 
 Coder is on Sonnet 5 by default — it runs the most turns, so it dominates spend,
 and the cheapest capable model belongs there. In a PAIR story the navigator is on
-Opus 4.8 (the escalation tier) — cheaper hands, better eyes — and it runs every
-other turn, which is the other half of why pairing roughly doubles a story's cost
-and why mode selection matters.
+Sonnet 5 too. It runs every other turn, which is the other half of why pairing
+roughly doubles a story's cost and why mode selection matters. On Opus it was ~90%
+of a measured pair's spend (STORY-2-8: $12.37 of $13.63), so a stronger navigator
+is an opt-in, like every other model change (below).
 
-**Escalate a specific story's coder to Opus 4.8** when it's genuinely hard: novel
+**Escalate a specific story's coder to Opus** when it's genuinely hard: novel
 algorithm, tricky concurrency, or a story that's already come back twice. Override
 the model on that invocation rather than changing the agent's default — one hard
 story shouldn't multiply your rate across every easy one.
 
-**Never Fable on the coder or navigator.** It belongs on the architect, where
-turns are few and judgment is dense. In the loops its cost compounds across
-volume for decisions that are mostly local and cheap to redo.
+**The architect is on Opus**, not Fable, for now: it runs few turns, and Opus
+is judgment enough for most one-way doors. **Fable is never a default anywhere** —
+in the loops its cost compounds across volume for decisions that are mostly local
+and cheap to redo.
+
+**Opus agents name the `opus` alias, not a version.** Claude Code resolves it to
+the current Opus, so a new release (often cheaper per token) arrives without a
+plugin change. A project that wants a fixed version pins it there, with
+`ANTHROPIC_DEFAULT_OPUS_MODEL`, not here.
+
+**Every model is overridable by the human, per agent** — `--model <agent>=<m>` on
+`/plan`, `/build` or `/review` for one run, or an `**Agent models:**` line in the
+project's `CLAUDE.md` for every run (the flag wins). The orchestrator applies it on
+every spawn and never picks one itself beyond the coder escalation above. The
+protocol is `reference/models.md`.
 
 **The model tier is the small lever; the context curve is the big one.** A PAIR
 story's spend is dominated by how much context is re-sent per turn, not by the

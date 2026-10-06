@@ -1,10 +1,11 @@
 ---
 description: Build an epic to completion — stories cascade onto one epic branch, each built SOLO or as a navigator⇄driver TDD pair and landed as ONE squash commit. Architect unblocks mid-build. Opens one PR. Review is `/agentic-sdlc:review`; the REVISE loop that closes its findings runs here separately. `--fast` takes the lean lane instead: one branch, SOLO throughout, gate once.
-argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast]
+argument-hint: [EPIC-n | FAST-n | STORY-id] [--fast] [--model <agent>=<m>]
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(git:*), Bash(gh:*), Bash(cat:*)
 ---
 
-Target: `$ARGUMENTS` minus the flag — strip `--fast` if present; what remains is the target.
+Target: `$ARGUMENTS` minus flags.
+**Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
 Execute the backlog. **Delegate all code.**
 
@@ -119,7 +120,7 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
             data yourself before LAND (see MODE SELECTION).
 
      PAIR → one background `pair-run.mjs` call for <STORY-ID> (PAIR LOOP,
-            below). It ends with the story committed on its branch, the same
+            below), with any navigator/driver model override. It ends with the story committed on its branch, the same
             state SOLO leaves. No PR — this is an epic wave.
 
   3. If any agent reports BLOCKED on an ARCH:
@@ -301,12 +302,10 @@ merge; nothing here merges its own PR.
 
 ## COST NOTE
 
-- **Coder/driver on Sonnet 5 by default** — it runs the most turns, so the cheapest
-  capable model belongs there. **Escalate a story's coder/driver to Opus 4.8** only when
-  it is genuinely hard (novel algorithm, tricky concurrency, or twice-bounced);
-  override on that invocation, not the agent default.
-- **Never Fable on the coder, driver or navigator** — it belongs on the architect, where
-  turns are few and judgment is dense.
+- **Coder, driver and navigator on Sonnet 5 by default** — they run the most
+  turns. A hard story (novel algorithm, tricky concurrency, twice-bounced) earns
+  **one coder call on Opus**, if no override names the coder.
+- **Every other model change is the human's** — never make one yourself.
 - **The model tier is the small lever; whether the agents are fresh is the big
   one.** Get freshness right first.
 
@@ -346,9 +345,7 @@ arithmetic — is in [docs/build-rationale.md](../../../docs/build-rationale.md)
   flag. The forbidden thing is running a story *in* PAIR and skipping its
   navigator turns.
 - **Never drive a PAIR story turn by turn when `pair-run.mjs` can** — each
-  alternation you drive costs two turns of your own growing context. In the
-  manual fallback: fresh `Agent()` every turn, never `SendMessage`, never read a
-  pair-log file yourself.
+  alternation you drive costs two turns of your own growing context.
 - If a coder blocks three times on one story, the **story** is probably wrong.
   Escalate to the human rather than grinding.
 - **Check the epic file's `status:` against `<base>` before starting.** Markers go

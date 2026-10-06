@@ -26,8 +26,8 @@ The flag is per command. `/plan --fast` then `/build --fast` is the common path,
 full cascade.
 
 **Model tiering:** planner Sonnet 5, coder Sonnet 5 — unchanged, both already the
-cost floor. The architect stays on Fable 5 but fires **zero times in the common
-case** and at most once per run. The navigator (Opus 4.8, every other turn in a PAIR
+cost floor. The architect stays on Opus but fires **zero times in the common
+case** and at most once per run. The navigator (every other turn in a PAIR
 story) is not used at all. That last one is the largest single saving in the mode.
 
 ---

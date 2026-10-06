@@ -1,12 +1,13 @@
 ---
 description: Plan a feature — stories from the planner, architecture decisions from the architect. Non-blocking. `--fast` takes the lean lane: a flat task list, no handoffs.
-argument-hint: <path-to-brief.md-or-epic-description> [--fast]
+argument-hint: <path-to-brief.md-or-epic-description> [--fast] [--model <agent>=<m>]
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(cat:*)
 ---
 
-Input: `$ARGUMENTS` minus the flag — strip `--fast` if present; what remains is the brief.
+Input: `$ARGUMENTS` minus flags.
+**Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
 
-Build a backlog. **Delegate — you write no stories yourself.**
+Build a backlog. **Delegate — you write no stories.**
 
 ---
 
@@ -19,8 +20,7 @@ Build a backlog. **Delegate — you write no stories yourself.**
 cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
 ```
 
-**Read it before STEP 1** — that file is the protocol, this is not. A deliberate
-run never reads it and never pays for it.
+**Read it before STEP 1** — that file is the protocol, this is not.
 
 ---
 
@@ -35,7 +35,7 @@ acceptance criteria. Raise ARCH-<n> handoffs for genuine architecture or tooling
 decisions — do NOT decide those yourself. Overwrite <claimed path>.")
 ```
 
-Run epics in parallel if the brief covers several — Sonnet 5, go wide.
+Several epics in the brief → run them in parallel.
 
 ---
 

@@ -1,21 +1,21 @@
 {
   "note": "Ratchet-only per-file byte caps for content in the agent boot path. A byte added to coder.md is paid ~40 times on a PAIR story, so growth here is not a style question. size-budget.mjs fails a file over its cap AND fails a cap that was raised above the one on origin/main — caps may only go DOWN. reference/*.md is deliberately exempt: it is on-demand by design and never in the boot path, and this budget must not punish the split that works. Calibrated once against measured sizes after A3/A4. The aspirational post-Track-C targets (build.md <=9500, coder.md <=8000) need behaviour-changing cuts and are gated on a passing bench/ artifact, not on this ratchet.",
   "files": {
-    "plugins/agentic-sdlc/commands/build.md": 16928,
-    "plugins/agentic-sdlc/commands/plan.md": 2496,
-    "plugins/agentic-sdlc/commands/review.md": 4497,
-    "plugins/agentic-sdlc/agents/architect.md": 4912,
-    "plugins/agentic-sdlc/agents/code-reviewer.md": 8603,
-    "plugins/agentic-sdlc/agents/coder.md": 9333,
+    "plugins/agentic-sdlc/commands/build.md": 16615,
+    "plugins/agentic-sdlc/commands/plan.md": 2493,
+    "plugins/agentic-sdlc/commands/review.md": 4477,
+    "plugins/agentic-sdlc/agents/architect.md": 4830,
+    "plugins/agentic-sdlc/agents/code-reviewer.md": 8552,
+    "plugins/agentic-sdlc/agents/coder.md": 9327,
     "plugins/agentic-sdlc/agents/driver.md": 3412,
-    "plugins/agentic-sdlc/agents/navigator.md": 7034,
-    "plugins/agentic-sdlc/agents/planner.md": 5573
+    "plugins/agentic-sdlc/agents/navigator.md": 7017,
+    "plugins/agentic-sdlc/agents/planner.md": 5565
   },
   "groups": {
     "agents+commands": {
       "dirs": ["plugins/agentic-sdlc/agents", "plugins/agentic-sdlc/commands"],
       "ext": ".md",
-      "cap": 62788
+      "cap": 62288
     }
   }
 }
