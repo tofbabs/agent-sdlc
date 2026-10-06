@@ -169,6 +169,10 @@ one up.
 
 ```
 .claude-plugin/marketplace.json          catalog — the thing projects add
+.claude/settings.json                    this repo consuming itself: pinned to the latest tag,
+                                         ref moved by release-please, checked by preflight
+CLAUDE.md                                the consuming-project contract, for this repo
+backlog/  docs/briefs/  docs/TOOLING-DEBT.md   /plan and /build output when the repo builds itself
 plugins/agentic-sdlc/
   .claude-plugin/plugin.json             manifest — the version authority
   agents/{planner,architect,coder,navigator,code-reviewer}.md

@@ -1,0 +1,41 @@
+{
+  "$comment": "This repo builds itself with its own pipeline. The sanimara marketplace is pinned to the LATEST RELEASED tag, never the working tree, so a branch that edits the planner is planned and built by the released planner. release-please rewrites the ref line below in every release PR (generic updater, keyed on the x-release-please-version marker on the same line), and preflight + CI fail if it ever disagrees with plugin.json. Do not hand-edit the ref. To try unreleased plugin changes, run: claude --plugin-dir ./plugins/agentic-sdlc",
+
+  "extraKnownMarketplaces": {
+    "sanimara": {
+      "source": {
+        "source": "github",
+        "repo": "tofbabs/agent-sdlc",
+        "ref": "v0.2.4", "$release-please": "x-release-please-version"
+      }
+    }
+  },
+  "enabledPlugins": { "agentic-sdlc@sanimara": true },
+
+  "permissions": {
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(gh pr merge*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/id_rsa*)"
+    ]
+  },
+
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/templates/hooks/lsp-preflight.sh" } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "command": "METER_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/meter.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/meter.sh" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "METER_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/meter.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/meter.sh" } ] }
+    ]
+  }
+}

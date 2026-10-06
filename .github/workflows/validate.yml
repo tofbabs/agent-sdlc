@@ -26,7 +26,8 @@ jobs:
           for f in .claude-plugin/marketplace.json \
                    plugins/agentic-sdlc/.claude-plugin/plugin.json \
                    release-please-config.json \
-                   .release-please-manifest.json; do
+                   .release-please-manifest.json \
+                   .claude/settings.json; do
             python3 -m json.tool "$f" > /dev/null || { echo "invalid JSON: $f"; exit 1; }
           done
 
@@ -53,6 +54,19 @@ jobs:
           echo "plugin.json=$PLUGIN  version.txt=$TXT  manifest=$MANIFEST"
           if [ "$PLUGIN" != "$TXT" ] || [ "$PLUGIN" != "$MANIFEST" ]; then
             echo "::error::Version files disagree. plugin.json is the authority Claude Code reads; version.txt and .release-please-manifest.json are release-please bookkeeping. All three are machine-written — do not hand-edit them. If they have drifted, check the extra-files entry in release-please-config.json."
+            exit 1
+          fi
+
+      # The repo builds itself with its own plugin, pinned in .claude/settings.json
+      # to the latest tag; release-please moves that ref via a generic extra-file.
+      # If that entry breaks, the repo silently builds with an old release.
+      - name: Self-pin tracks the latest release
+        run: |
+          PLUGIN=$(python3 -c "import json;print(json.load(open('plugins/agentic-sdlc/.claude-plugin/plugin.json'))['version'])")
+          REF=$(python3 -c "import json;print(json.load(open('.claude/settings.json'))['extraKnownMarketplaces']['sanimara']['source']['ref'])")
+          echo "plugin.json=$PLUGIN  .claude/settings.json ref=$REF"
+          if [ "$REF" != "v$PLUGIN" ]; then
+            echo "::error::.claude/settings.json pins this repo's own plugin at $REF, but plugin.json is $PLUGIN. release-please moves the ref via the generic extra-file in release-please-config.json — do not hand-edit it; fix the extra-file."
             exit 1
           fi
 

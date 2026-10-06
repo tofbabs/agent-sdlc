@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
 
-  "$comment": "One package, so no component and no include-component-in-tag: tags stay v<version>, matching v0.1.0 / v0.1.1 and every consuming project's marketplace ref. Adding a component would produce agentic-sdlc-v0.3.0 and silently strand every existing pin.",
+  "$comment": "One package, so no component and no include-component-in-tag: tags stay v<version>, matching v0.1.0 / v0.1.1 and every consuming project's marketplace ref. Adding a component would produce agentic-sdlc-v0.3.0 and silently strand every existing pin. The generic extra-file is this repo's own pin on itself: it moves .claude/settings.json's ref to the new tag in the same release PR, so the repo always builds with the latest release.",
 
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
@@ -26,6 +26,10 @@
           "type": "json",
           "path": "plugins/agentic-sdlc/.claude-plugin/plugin.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "generic",
+          "path": ".claude/settings.json"
         }
       ]
     }
