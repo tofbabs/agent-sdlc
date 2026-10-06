@@ -94,6 +94,12 @@ docs/TOOLING-DEBT.md, which /build ledgers on the branch.")
 No tags → **no architect invocation at all.** That is the expected case. If the
 architect wrote an ADR, add its path to the `- Artifacts:` line.
 
+Record the lane, same script the deliberate lane uses:
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen fast
+```
+
 Report, non-blocking, same as the deliberate lane: tasks, any one-way items and how
 they were resolved, new debt. If you say nothing, `/build --fast` proceeds.
 

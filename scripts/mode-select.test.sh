@@ -261,5 +261,110 @@ node --input-type=module -e "
 " && ok "CLI: story/lane emit the JSON contract on stdout; bad input refuses non-zero" \
   || bad "CLI story/lane or refusal wrong"
 
+# 9. Override recording (STORY-2-4 AC1/AC2/AC3): `--chosen` disagreeing with the
+#    recommendation returns both values and `overridden: true`; agreeing returns
+#    `overridden: false` and `alternative: null`; omitting `--chosen` defaults
+#    `choice` to the recommendation untouched. Generic over lane and mode tokens
+#    (recordChoice takes the vocabulary as data, STORY-2-5 reuses it for modes).
+node --input-type=module -e "
+  import { parse } from '$MSF'
+  import { decideLane, recordChoice } from '$MS'
+  const mk = (o) => parse('- select: risk_class=' + (o.rc||'none') + '@AC1 one_way_doors=' + (o.owd||'0') + '@AC1 existing_pattern=' + (o.ep||'yes') + '@AC1 modules_crossed=' + (o.mc||'1') + '@AC1 review_bounced=' + (o.rb||'no') + '@AC1 risk_kind=' + (o.rk||'code') + '@AC1')
+
+  // Disagreement: both values visible, overridden true (AC2).
+  const rec = decideLane([mk({owd:'1'})])  // recommends deliberate
+  if (rec.lane !== 'deliberate') { console.error('setup: expected recommendation deliberate, got ' + rec.lane); process.exit(1) }
+  const disagree = recordChoice(rec.lane, 'fast', ['deliberate', 'fast'])
+  if (disagree.choice !== 'fast' || disagree.alternative !== 'deliberate' || disagree.overridden !== true) {
+    console.error('disagreement must record both values: ' + JSON.stringify(disagree)); process.exit(1)
+  }
+
+  // Agreement: no override, alternative null (AC3).
+  const agree = recordChoice(rec.lane, 'deliberate', ['deliberate', 'fast'])
+  if (agree.choice !== 'deliberate' || agree.alternative !== null || agree.overridden !== false) {
+    console.error('agreement must not record an override: ' + JSON.stringify(agree)); process.exit(1)
+  }
+
+  // Omitted --chosen defaults to the recommendation, untouched by vocabulary.
+  const defaulted = recordChoice('SOLO_OPUS', undefined, ['SOLO', 'PAIR', 'FAST'])
+  if (defaulted.choice !== 'SOLO_OPUS' || defaulted.overridden !== false || defaulted.alternative !== null) {
+    console.error('omitted chosen must default to the recommendation untouched: ' + JSON.stringify(defaulted)); process.exit(1)
+  }
+
+  // A chosen token outside the vocabulary refuses, never a guess.
+  let threw = false
+  try { recordChoice('deliberate', 'bogus', ['deliberate', 'fast']) } catch { threw = true }
+  if (!threw) { console.error('a chosen token outside the vocabulary must throw'); process.exit(1) }
+" && ok "recordChoice: disagreement records both values, agreement records neither (AC2/AC3)" \
+  || bad "recordChoice override contract wrong"
+
+# 10. Zero-select-lines fallback (AC4 of selection-fields.md, surfaced here): an
+#     old-format backlog with no '- select:' line must not silently recommend
+#     fast — decideLane returns fallback: true, lane: null, and a reason, and a
+#     normal decision carries fallback: false alongside it.
+node --input-type=module -e "
+  import { decideLane } from '$MS'
+  const empty = decideLane([])
+  if (empty.fallback !== true) { console.error('zero select lines must set fallback: true, got ' + JSON.stringify(empty)); process.exit(1) }
+  if (empty.lane !== null) { console.error('zero select lines must not recommend a lane, got ' + empty.lane); process.exit(1) }
+  if (typeof empty.reason !== 'string' || empty.reason.length === 0) { console.error('fallback must still carry a reason'); process.exit(1) }
+" && ok "decideLane([]) falls back rather than inferring fast (AC4)" \
+  || bad "zero-select-lines fallback wrong"
+
+# 11. CLI `record` (STORY-2-4 AC1/AC2/AC3): writes a deterministic '- Lane:' line
+#     into the backlog header, adds an '- Override:' line only when --chosen
+#     disagrees with the recommendation, and a re-run with the same --chosen does
+#     not duplicate either line.
+node --input-type=module -e "
+  import { execFileSync } from 'node:child_process'
+  import { writeFileSync, readFileSync, mkdtempSync } from 'node:fs'
+  import { tmpdir } from 'node:os'
+  import { join } from 'node:path'
+  const run = (args) => {
+    try { return { code: 0, stdout: execFileSync('node', ['$MS', ...args], { encoding: 'utf8' }) } }
+    catch (e) { return { code: e.status ?? 1, stdout: e.stdout ?? '' } }
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'ms-record-'))
+  const file = join(dir, 'EPIC-9.md')
+  const header = [
+    '# EPIC-9: test',
+    '',
+    '- Outcome: x',
+    '- Status: TODO',
+    '- Artifacts: none',
+    '',
+    '## Stories',
+    '',
+    '- select: risk_class=money@AC1 one_way_doors=0@AC1 existing_pattern=no@AC1 modules_crossed=3@AC1 review_bounced=no@AC1 risk_kind=code@AC1',
+    '',
+  ].join('\n')
+  writeFileSync(file, header)
+
+  // Disagreement: --chosen fast against a deliberate recommendation (risk_class=money floor).
+  const first = run(['record', '--file', file, '--chosen', 'fast'])
+  if (first.code !== 0) { console.error('record must exit 0, got ' + first.code + ': ' + first.stdout); process.exit(1) }
+  let content = readFileSync(file, 'utf8')
+  const laneLines = content.match(/^- Lane:.*$/gm) ?? []
+  const overrideLines = content.match(/^- Override: lane .*$/gm) ?? []
+  if (laneLines.length !== 1 || !laneLines[0].includes('fast') || !laneLines[0].includes('recommended deliberate')) {
+    console.error('record must write exactly one Lane line naming chosen and recommended: ' + content); process.exit(1)
+  }
+  if (overrideLines.length !== 1 || !overrideLines[0].includes('recommended=deliberate') || !overrideLines[0].includes('chosen=fast')) {
+    console.error('record must write exactly one Override line with both values: ' + content); process.exit(1)
+  }
+
+  // Re-run with the same --chosen: idempotent, no duplicate lines.
+  run(['record', '--file', file, '--chosen', 'fast'])
+  const rerun = readFileSync(file, 'utf8')
+  if (rerun !== content) { console.error('re-running record with the same --chosen must not change the file'); process.exit(1) }
+
+  // Agreement: --chosen deliberate matches the recommendation — override removed.
+  run(['record', '--file', file, '--chosen', 'deliberate'])
+  content = readFileSync(file, 'utf8')
+  if ((content.match(/^- Lane:.*$/gm) ?? []).length !== 1) { console.error('agreement must still carry exactly one Lane line'); process.exit(1) }
+  if ((content.match(/^- Override: lane .*$/gm) ?? []).length !== 0) { console.error('agreement must carry no Override line (AC3): ' + content); process.exit(1) }
+" && ok "CLI record: writes Lane/Override lines idempotently, drops Override on agreement" \
+  || bad "CLI record wrong"
+
 [ "$fail" -eq 0 ] || { printf '\nmode-select tests failed\n' >&2; exit 1; }
 printf '\nmode-select tests passed\n'

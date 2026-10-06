@@ -242,3 +242,21 @@ an ignored ledger is worse than none.
 - Address when: the store holds more than ~500 story directories, or run
   reports start being built somewhere other than the machine that ran the
   build (02's central storage — same trigger as "Decision store is machine-local")
+
+### `story --chosen` validates against CLOSED.mode, which has no SOLO_OPUS
+- Raised: 2026-10-06 by coder (STORY-2-4)
+- Current: `mode-select.mjs story --chosen <token>` and `recordChoice`'s
+  vocabulary argument check a chosen mode token against
+  `run-report-categories.mjs` `CLOSED.mode` (`SOLO|PAIR|FAST`) per this
+  story's instruction to import rather than re-hardcode it, but
+  `decideStory`'s own recommendation can be `SOLO_OPUS`, which is not in that
+  set. An explicit `--chosen SOLO_OPUS` would therefore be refused even
+  though it is a real recommendation the human might choose to keep. Omitting
+  `--chosen` still works (the default-to-recommendation path is never
+  vocabulary-checked), so this only bites an explicit override onto
+  `SOLO_OPUS`. Left to STORY-2-5, which wires per-story mode overrides and
+  owns the decision of whether `CLOSED.mode` gains `SOLO_OPUS` or the story
+  command gets its own vocabulary
+- Risk: LOW
+- Category: hardcoded_value
+- Address when: STORY-2-5 wires `/build`'s per-story mode override
