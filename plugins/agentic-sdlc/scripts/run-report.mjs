@@ -424,8 +424,10 @@ const COMPLETION = {
     if (b.exists && !b.parsed) return { done: null, degraded: ['backlog_file'] }
     return { done: Boolean(b.parsed && b.parsed.stories.length + b.parsed.tasks > 0) }
   },
-  // Provisional until the build section reads pair sessions and the epic PR:
-  // every story DONE, or the file's own Status flipped to DONE.
+  // Every story DONE, or the file's own Status flipped to DONE. An open epic PR
+  // would also count, but no local artifact records it, and readable PR
+  // comments prove only that some PR exists — so backlog statuses stay the
+  // only evidence.
   build: (ctx) => {
     const p = ctx.backlog.parsed
     if (!p) return { done: null, degraded: ['backlog_file'] }
@@ -549,13 +551,124 @@ export function buildPlan(ctx) {
 }
 
 // ========================================================== section: build
-// Stub: every field null with its inputs named. Replace only this region.
+//
+// TOUCHED BY THE BUILD — a story appears in build.stories only on evidence that
+// survives the run, never on its mere presence in the backlog file (an untouched
+// story is absent, not zeroed). Any one of:
+//   1. a pair session: backlog/pair/<STORY-ID>/session.json exists;
+//   2. its `- status:` is set and no longer TODO (IN_PROGRESS, DONE, BLOCKED…);
+//   3. a commit subject on the current branch carries its `[<ID>]` tag — the
+//      only evidence a FAST task leaves, since fast task blocks have no status.
+// Git is corroborating evidence only: where it is missing or the project is not
+// a repository, rules 1–2 still decide, so there is no degraded token for it.
+//
+// MODE — PAIR when a session.json exists, else FAST for a FAST-<n> file or a
+// fast-lane run, else SOLO. Only session.json is read: the pair log's markdown
+// is free text, and the alternation count already lives in the session file.
 
-export function buildBuild(_ctx) {
+function commitSubjects(project) {
+  const r = spawnSync('git', ['-C', project, 'log', '--format=%s'], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  return r.status === 0 && typeof r.stdout === 'string' ? r.stdout : ''
+}
+
+// FAST files hold `### T<n>-<m>` tasks, which parseBacklog only counts; the
+// build needs their IDs, in file order, to look for their commit tags.
+function buildUnits(ctx, p) {
+  if (p.kind !== 'FAST') return p.stories
+  let text = ''
+  try {
+    text = readFileSync(ctx.backlog.path, 'utf8')
+  } catch {
+    return []
+  }
+  return [...text.matchAll(/^### (T\d+-\d+)\b/gm)].map((m) => ({ id: m[1], status: null }))
+}
+
+function buildStories(ctx, p) {
+  const degraded = []
+  const fast = p.kind === 'FAST' || ctx.marker?.lane === 'fast'
+  const subjects = commitSubjects(ctx.project)
+  const stories = []
+  for (const unit of buildUnits(ctx, p)) {
+    const sessionPath = join(ctx.project, 'backlog', 'pair', unit.id, 'session.json')
+    const paired = existsSync(sessionPath)
+    const statusMoved = Boolean(unit.status) && unit.status.toUpperCase() !== 'TODO'
+    const tagged = subjects.includes(`[${unit.id}]`)
+    if (!paired && !statusMoved && !tagged) continue
+    if (!paired) {
+      stories.push({ mode: fast ? 'FAST' : 'SOLO', alternations: 0 })
+      continue
+    }
+    const s = readJson(sessionPath)
+    const alt = isPlainObject(s) ? s.alternation : undefined
+    if (Number.isInteger(alt) && alt >= 0) {
+      stories.push({ mode: 'PAIR', alternations: alt })
+    } else {
+      if (!degraded.includes('pair_sessions')) degraded.push('pair_sessions')
+      stories.push({ mode: 'PAIR', alternations: null })
+    }
+  }
+  return { stories, degraded }
+}
+
+// Handoffs absent from the start-of-run snapshot were raised mid-build. A plan
+// run counts every handoff as plan-time (buildPlan), so here it contributes
+// zero rather than counting the same handoffs twice.
+function archBlocks(ctx, p) {
+  const command = ctx.marker?.command
+  const snapshot = ctx.marker?.arch_snapshot
+  if (!command || (command !== 'plan' && !snapshot)) return { value: null, degraded: ['run_state'] }
+  const counts = Object.fromEntries(OPEN.arch_category.map((c) => [c, 0]))
+  if (command === 'plan') return { value: counts, degraded: [] }
+  for (const [id, a] of p.arch) {
+    if (snapshot.has(id)) continue
+    counts[toCategory('arch_category', a.category)]++
+  }
+  return { value: counts, degraded: [] }
+}
+
+// The REVISE loop's orchestrator posts one `## Response — round <k>` per round;
+// distinct k, so a re-posted response does not count as another round.
+const RESPONSE_ROUND = /^##\s+Response\s+[—–-]\s+round\s+(\d+)\b/gim
+
+function reviseRounds(ctx) {
+  const comments = ctx.prComments
+  if (!Array.isArray(comments)) return { value: null, degraded: ['pr_comments'] }
+  const rounds = new Set()
+  for (const body of comments) {
+    if (typeof body !== 'string') continue
+    for (const m of body.matchAll(RESPONSE_ROUND)) rounds.add(Number(m[1]))
+  }
+  return { value: rounds.size, degraded: [] }
+}
+
+export function buildBuild(ctx) {
+  const degraded = []
+  const p = ctx.backlog.parsed
+  let stories = null
+  let arch_blocks = null
+  if (p) {
+    const s = buildStories(ctx, p)
+    stories = s.stories
+    degraded.push(...s.degraded)
+    const a = archBlocks(ctx, p)
+    arch_blocks = a.value
+    degraded.push(...a.degraded)
+  } else {
+    degraded.push('backlog_file')
+  }
+  const r = reviseRounds(ctx)
+  degraded.push(...r.degraded)
+  // Nothing records gate runs yet (ADR 0001); inventing a source would turn a
+  // known gap into a wrong number.
+  degraded.push('gate_history')
   return {
-    section: { stories: null, arch_blocks: null, revise_rounds: null, gate_runs: null, gate_failures: null },
-    // revise_rounds is read from the PR's round comments, hence pr_comments.
-    degraded: ['pair_sessions', 'pr_comments', 'gate_history'],
+    section: { stories, arch_blocks, revise_rounds: r.value, gate_runs: null, gate_failures: null },
+    degraded,
   }
 }
 

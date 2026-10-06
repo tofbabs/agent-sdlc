@@ -149,7 +149,98 @@ report --project "$P" >/dev/null
 got=$(q "$(OUT "$P")" '[r.plan.arch_handoffs.contract,r.plan.arch_handoffs.lifecycle,r.plan.arch_handoffs.other].join(" ")')
 [ "$got" = "1 1 0" ] && ok "build run counts only handoffs in arch_snapshot as plan-time" || bad "plan-time handoffs: $got"
 
-# ============================================================= build (stub)
+# ================================================================== build
+
+echo "build section"
+FB="$F/build"
+# mkbuild <name> — a project holding the build fixture epic and its pair sessions.
+mkbuild() {
+  local p; p=$(mkproj "$1")
+  cp "$FB/EPIC-8.md" "$p/backlog/"
+  cp -R "$FB/pair" "$p/backlog/"
+  printf '%s' "$p"
+}
+# commit <project> <subject> — an empty commit, isolated from the host's git config.
+commit() {
+  git -C "$1" -c user.name=t -c user.email=t@t -c commit.gpgsign=false -c core.hooksPath=/dev/null \
+    commit -q --allow-empty -m "$2"
+}
+
+P=$(mkbuild build-stories)
+marker "$P" build deliberate "EPIC-8" 'null' '["ARCH-1"]'
+report --project "$P" >/dev/null
+node "$R" validate "$(OUT "$P")" >/dev/null 2>&1 && ok "build report validates" || bad "build report is invalid"
+got=$(q "$(OUT "$P")" 'JSON.stringify(r.build.stories)')
+want='[{"mode":"SOLO","alternations":0},{"mode":"PAIR","alternations":7},{"mode":"SOLO","alternations":0},{"mode":"PAIR","alternations":2}]'
+[ "$got" = "$want" ] && ok "touched stories in backlog order; untouched TODO stories absent, not zeroed" \
+  || bad "build.stories: $got"
+got=$(q "$(OUT "$P")" 'r.build.stories[1].alternations+" "+r.build.stories[3].alternations')
+[ "$got" = "7 2" ] && ok "PAIR alternations equal session.json's alternation exactly" || bad "alternations: $got"
+got=$(q "$(OUT "$P")" 'r.build.stories.filter(s=>s.mode==="SOLO").every(s=>Object.hasOwn(s,"alternations")&&s.alternations===0)')
+[ "$got" = "true" ] && ok "SOLO stories read alternations 0, never an omitted field" || bad "SOLO alternations omitted"
+grep -q 'STORY-8' "$(OUT "$P")" && bad "story IDs leaked into the report" || ok "build.stories carries no story IDs"
+got=$(q "$(OUT "$P")" 'JSON.stringify(r.build.arch_blocks)')
+want='{"contract":0,"data":1,"lifecycle":0,"dependency":0,"security":0,"cost":0,"process":0,"other":3}'
+[ "$got" = "$want" ] && ok "arch_blocks: mid-build handoffs by category; untagged, stale and table-only → other" \
+  || bad "arch_blocks: $got"
+got=$(q "$(OUT "$P")" 'String(r.build.gate_runs)+" "+r.build.gate_failures+" "+r.degraded.includes("gate_history")')
+[ "$got" = "null null true" ] && ok "gate_runs/gate_failures null + gate_history (no recorder exists)" || bad "gates: $got"
+
+P=$(mkbuild build-plan-run)
+marker "$P" plan deliberate "x" '"backlog/EPIC-8.md"' '[]'
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'Object.values(r.build.arch_blocks).reduce((a,b)=>a+b)+" "+Object.values(r.plan.arch_handoffs).reduce((a,b)=>a+b)')
+[ "$got" = "0 5" ] && ok "a plan run counts handoffs once, in plan, never again in arch_blocks" || bad "plan-run blocks/handoffs: $got"
+
+P=$(mkbuild build-no-marker)
+node "$R" report --project "$P" --backlog "$P/backlog/EPIC-8.md" --out "$TMP/build-nomarker.json" --now "$NOW" >/dev/null 2>&1
+got=$(q "$TMP/build-nomarker.json" 'String(r.build.arch_blocks)+" "+r.degraded.filter(d=>d==="run_state").length+" "+r.build.stories.length')
+[ "$got" = "null 1 4" ] && ok "no marker → arch_blocks null, run_state named once, stories still derived" \
+  || bad "no-marker build: $got"
+
+P=$(mkbuild build-git-tag)
+marker "$P" build deliberate "EPIC-8" 'null' '["ARCH-1"]'
+git init -q "$P" && commit "$P" "feat(x): fourth [STORY-8-4]" && commit "$P" "feat(x): not ours [STORY-8-40]"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'r.build.stories.map(s=>s.mode+s.alternations).join(" ")')
+[ "$got" = "SOLO0 PAIR7 SOLO0 SOLO0 PAIR2" ] && ok "a [STORY-ID] commit tag marks a TODO story touched (exact tag only)" \
+  || bad "git-tagged stories: $got"
+
+P=$(mkproj build-fast)
+marker "$P" build fast "FAST-3" 'null' '[]'
+git init -q "$P" && commit "$P" "feat(x): second task [T3-2]"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'JSON.stringify(r.build.stories)')
+[ "$got" = '[{"mode":"FAST","alternations":0}]' ] && ok "FAST task touched by its commit tag → mode FAST" || bad "fast stories: $got"
+
+P=$(mkbuild build-bad-session)
+marker "$P" build deliberate "EPIC-8" 'null' '["ARCH-1"]'
+echo 'not json' > "$P/backlog/pair/STORY-8-2/session.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'r.build.stories[1].mode+" "+r.build.stories[1].alternations+" "+r.degraded.includes("pair_sessions")')
+[ "$got" = "PAIR null true" ] && ok "unreadable session.json → PAIR, alternations null + pair_sessions" || bad "bad session: $got"
+
+got=$(node --input-type=module -e '
+  import { buildBuild, loadContext } from "'"$R"'"
+  const ctx = loadContext({ project: process.argv[1], now: new Date("'"$NOW"'") })
+  const run = (prComments) => buildBuild({ ...ctx, prComments })
+  const none = run(null), absent = run(undefined)
+  const counted = run([
+    "## Review — round 1\n- F1: x",
+    "## Response — round 1\n- F1: FIXED",
+    "## Review — round 2",
+    "## Response — round 2\n- F2: DISPUTED",
+    "## Response — round 2\n(re-posted)",
+    "a quote: ## Response — round 9 is not a heading",
+  ])
+  process.stdout.write([
+    none.section.revise_rounds, none.degraded.includes("pr_comments"),
+    absent.section.revise_rounds, counted.section.revise_rounds, counted.degraded.includes("pr_comments"),
+  ].map(String).join(" "))
+' "$P")
+[ "$got" = "null true null 2 false" ] \
+  && ok "revise_rounds = distinct Response rounds; prComments null → null + pr_comments" || bad "revise_rounds: $got"
+
 # ================================================================= review
 
 echo "review section"
@@ -227,7 +318,7 @@ echo "stub sections"
 P=$(mkproj stubs)
 marker "$P" plan deliberate "x" '"backlog/EPIC-7.md"' '[]'
 report --project "$P" >/dev/null
-got=$(q "$(OUT "$P")" '["pair_sessions","gate_history","pr_comments","debt_ledger"].every(d=>r.degraded.includes(d))&&r.build.gate_runs===null&&r.debt.rows_logged===null')
+got=$(q "$(OUT "$P")" '["gate_history","pr_comments","debt_ledger"].every(d=>r.degraded.includes(d))&&r.build.gate_runs===null&&r.debt.rows_logged===null')
 [ "$got" = "true" ] && ok "stub sections are null with their inputs named" || bad "stub sections not degraded correctly"
 
 # =================================================================== cost

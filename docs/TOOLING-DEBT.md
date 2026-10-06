@@ -168,3 +168,17 @@ an ignored ledger is worse than none.
 - Category: missing_test
 - Address when: the timeout becomes configurable, or a hook run is seen
   hanging on gh
+
+### build.stories "touched" is inferred from three indirect signals
+- Raised: 2026-10-06 by coder (STORY-1-3)
+- Current: a story counts as touched by the build when it has a pair
+  session.json, a `- status:` other than TODO, or a `[<ID>]` commit tag in
+  `git log` on the current branch. A SOLO story mid-flight in its own worktree
+  (status not yet moved, nothing landed) is missed; `git log` reads the whole
+  history unbounded; and the build `outcome` still ignores whether the epic PR
+  is open, since no local artifact records it
+- Risk: LOW
+- Category: robustness
+- Address when: the orchestrator writes a per-story "started" marker (or the
+  run marker records the epic PR number), or a report under-counts stories
+  against a build's own summary table
