@@ -8,7 +8,7 @@
   decision, the floor/score that produced it, and its evidence lines); outcome
   coverage (every decision record closed/open/orphaned, ≥95% closed once its
   window passes, fixture-tested). Cost is tracked, not gated, in v1.
-- Status: TODO
+- Status: DONE
 - Artifacts: docs/briefs/self-improvement/04-mode-selection.md,
   docs/adr/0002-decision-records-and-cross-run-outcome-join.md
 
@@ -96,7 +96,7 @@ merge), and every correction is a decision record 03 can audit.
 
 ### STORY-2-1: Selection-field schema module
 
-- status: TODO
+- status: DONE
 - estimate: S
 - risk: schema drift between the selection-field vocabulary and its readers
 - depends_on: []
@@ -128,7 +128,7 @@ Out of scope: floors/scoring (2-3); removing the `risk:` line (2-2).
 
 ### STORY-2-2: Planner emits selection fields instead of the `risk:` line
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: boot-path budget — `planner.md` must shrink to make room, not add
 - depends_on: [STORY-2-1]
@@ -158,7 +158,7 @@ Out of scope: `mode-select.mjs` (2-3); backfilling existing `backlog/` files.
 
 ### STORY-2-3: `mode-select.mjs` — floors and scoring
 
-- status: TODO
+- status: DONE
 - estimate: L
 - risk: the floors — a scoring bug costs one wrong recommendation, a floor bug
   removes the override-proof guarantee ("no score overrides them")
@@ -191,7 +191,7 @@ Out of scope: runtime correction (2-6, 2-7); decision records (2-8).
 
 ### STORY-2-4: `/plan` lane recommendation and override recording
 
-- status: TODO
+- status: DONE
 - estimate: S
 - risk: none — follows `/plan`'s existing non-blocking advisory pattern
 - depends_on: [STORY-2-3]
@@ -218,7 +218,7 @@ Out of scope: per-story modes (2-5); decision-record mechanics (2-8).
 
 ### STORY-2-5: `/build` per-story mode selection via `mode-select.mjs`
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: wiring — the MODE SELECTION section runs before every coder dispatch;
   a wrong call changes which stories pair across the whole epic
@@ -247,7 +247,7 @@ every time.
 
 ### STORY-2-6: Runtime correction — SOLO to PAIR escalation
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: data sourcing — the escalation facts (block count, same-AC gate
   failures, out-of-declared-files edits) are not all recorded today
@@ -276,7 +276,7 @@ Out of scope: PAIR→SOLO, FAST→deliberate (2-7); record mechanics (2-8, 2-9).
 
 ### STORY-2-7: Runtime correction — PAIR to SOLO, and FAST to deliberate
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: rules — de-escalation must not weaken tests already written (the
   brief's hard constraint)
@@ -311,7 +311,7 @@ Out of scope: SOLO→PAIR (2-6).
 
 ### STORY-2-8: Decision records with stable IDs
 
-- status: TODO
+- status: DONE
 - estimate: M
 - risk: contract — the join key every outcome event and verdict depends on;
   ADR-0002 is the spec, deviation from it is the one-way mistake
@@ -344,7 +344,7 @@ Out of scope: outcome events and verdict closing (2-9).
 
 ### STORY-2-9: Outcome events, outcome sweep, and verdict rules
 
-- status: TODO
+- status: DONE
 - estimate: L
 - risk: data sourcing — joining later-run `/review` and post-merge facts to an
   earlier run's decision ID across checkouts; ADR-0002's common-dir store is
