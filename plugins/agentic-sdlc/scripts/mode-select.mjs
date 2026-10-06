@@ -15,7 +15,14 @@ import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parse, findSelectLine, DISPATCH_MODES, FIELD_NAMES } from './mode-select-fields.mjs'
 import { CLOSED, PATTERNS } from './run-report-categories.mjs'
-import { writeDecision, readDecisions, recordCorrection } from './decisions.mjs'
+import {
+  writeDecision,
+  readDecisions,
+  recordCorrection,
+  readAllDecisions,
+  closeDecision,
+  orphanDecision,
+} from './decisions.mjs'
 
 const RUBRIC = JSON.parse(
   readFileSync(new URL('./mode-select-rubric.json', import.meta.url), 'utf8'),
@@ -166,7 +173,7 @@ function resolveRunId(flags, file) {
   return resolveRunIdFrom(flags, dirname(resolve(file)))
 }
 
-function resolveRunIdFrom(flags, cwd) {
+export function resolveRunIdFrom(flags, cwd) {
   if (flags['run-id'] !== undefined) {
     return PATTERNS.uuid_v4.test(flags['run-id']) ? flags['run-id'] : null
   }
@@ -484,6 +491,115 @@ export function laneCheck(deferred, rounds, rubricData = RUBRIC) {
   return { recommend: trigger === null ? null : 'deliberate', trigger }
 }
 
+// ---- Outcome verdicts (ARCH-2) ----------------------------------------------
+// The rules live beside the scoring so a rubric retune moves both in one diff.
+
+const DAY_MS = 86_400_000
+const ceremony = (choice) => (choice === 'SOLO_OPUS' ? 'SOLO' : choice === 'fast' ? 'FAST' : choice)
+// What a decision is called when it turned out right, and when it did not.
+const RIGHT = { SOLO: 'held', FAST: 'held', PAIR: 'earned', deliberate: 'needed' }
+const WRONG = { SOLO: 'missed', FAST: 'under_ceremony', PAIR: 'wasted', deliberate: 'over_ceremony' }
+
+function outcomeFacts(events) {
+  const sum = (k) => events.reduce((n, e) => n + (Number.isFinite(e[k]) ? e[k] : 0), 0)
+  const count = (name) => events.filter((e) => e.event === name).length
+  const merged = events.filter((e) => e.event === 'merged').map((e) => Date.parse(e.at))
+  return {
+    merged_at: merged.length > 0 ? Math.max(...merged) : null,
+    abandoned: count('abandoned') > 0,
+    post_merge: count('post_merge_fix') + count('post_merge_revert'),
+    findings: sum('findings'),
+    revise_rounds: sum('revise_rounds'),
+    rejections: sum('rejections'),
+    gate_failures: sum('gate_failures'),
+    blocks: sum('blocks'),
+  }
+}
+
+// "Right" for the chosen path, on the measured facts alone. Absence of findings
+// is the only evidence a SOLO/FAST had that the lighter path sufficed.
+function choiceWasRight(choice, f, v) {
+  if (choice === 'PAIR') return f.rejections >= v.pair_rejections_at_or_above
+  if (choice === 'deliberate') {
+    const caught = f.rejections + f.findings + f.revise_rounds + f.blocks + f.gate_failures + f.post_merge
+    return caught >= v.deliberate_catches_at_or_above
+  }
+  return f.post_merge + f.findings + f.revise_rounds < v.miss_signals_at_or_above
+}
+
+function isCorrectedBy(record, other) {
+  return (
+    other.layer === 'correction' &&
+    other.decision_id !== record.decision_id &&
+    other.run_id === record.run_id &&
+    other.subject === record.subject &&
+    ceremony(other.alternative) === ceremony(record.choice) &&
+    ceremony(other.choice) !== ceremony(record.choice) &&
+    (record.layer !== 'correction' || other.seq > record.seq)
+  )
+}
+
+const asOutcome = (record) =>
+  record.state === 'closed'
+    ? { action: 'close', verdict: record.verdict }
+    : { action: 'orphan', reason: record.orphan_reason }
+
+// Pure: returns what should happen to one decision; the caller applies it.
+//  - close {verdict}  - orphan {reason}  - open (inside window)  - skip (already settled)
+export function evaluateDecision(record, all, now, rubricData = RUBRIC) {
+  if (record.state !== 'open') return { action: 'skip' }
+  const choice = ceremony(record.choice)
+  const bad = record.layer === 'override' ? 'worse' : WRONG[choice]
+
+  // A correction firing is the closing outcome of what it corrected, so it
+  // does not wait for the window.
+  if (all.some((o) => isCorrectedBy(record, o))) return { action: 'close', verdict: bad }
+
+  // The selector's own record rides on its override: if the human's different
+  // choice turned out better, the selector missed.
+  const override = all.find(
+    (o) => o.layer === 'override' && o.run_id === record.run_id && o.subject === record.subject && o.decision_id !== record.decision_id,
+  )
+  if (override && record.layer !== 'override' && record.layer !== 'correction') {
+    const settled = override.state === 'open' ? evaluateDecision(override, all, now, rubricData) : asOutcome(override)
+    if (settled.action !== 'close') return settled
+    return { action: 'close', verdict: settled.verdict === 'worse' ? RIGHT[choice] : WRONG[choice] }
+  }
+
+  const f = outcomeFacts(record.outcome_events)
+  if (f.abandoned) return { action: 'orphan', reason: 'pr_deleted' }
+  const anchor = f.merged_at ?? Date.parse(record.created_at)
+  if (now < anchor + rubricData.outcome_window_days * DAY_MS) return { action: 'open' }
+  if (record.outcome_events.length === 0) return { action: 'orphan', reason: 'subject_missing' }
+  if (f.merged_at === null) return { action: 'orphan', reason: 'other' }
+
+  const right = choiceWasRight(choice, f, rubricData.verdict)
+  if (record.layer === 'override') return { action: 'close', verdict: right ? 'better' : 'worse' }
+  return { action: 'close', verdict: right ? RIGHT[choice] : WRONG[choice] }
+}
+
+function verdicts(flags) {
+  const cwd = resolve(flags.cwd ?? process.cwd())
+  const now = flags.now === undefined ? Date.now() : Date.parse(flags.now)
+  if (!Number.isFinite(now)) throw new Error('mode-select.mjs: --now must be an ISO timestamp')
+  const at = new Date(now).toISOString()
+  const all = readAllDecisions({ cwd })
+  const out = { closed: [], orphaned: [], open: 0 }
+  for (const record of all) {
+    const r = evaluateDecision(record, all, now)
+    if (r.action === 'close') {
+      closeDecision(record.decision_id, { verdict: r.verdict, rubric: RUBRIC.version, at }, { cwd })
+      out.closed.push({ decision_id: record.decision_id, verdict: r.verdict })
+    } else if (r.action === 'orphan') {
+      orphanDecision(record.decision_id, { reason: r.reason, at }, { cwd })
+      out.orphaned.push({ decision_id: record.decision_id, reason: r.reason })
+    } else if (r.action === 'open') {
+      out.open += 1
+    }
+  }
+  return out
+}
+
 // Argument-shape errors throw, so a bad invocation exits non-zero with no output.
 function runCli(argv) {
   const [command, ...rest] = argv
@@ -550,6 +666,9 @@ function runCli(argv) {
     }
     return laneCheck(d, r)
   }
+  if (command === 'verdicts') {
+    return verdicts(flags)
+  }
   if (command === 'lane' && flags.file !== undefined) {
     const result = decideLane(readSelectLines(flags.file))
     return { ...result, ...recordChoice(result.lane, flags.chosen, CLOSED.lane) }
@@ -564,7 +683,8 @@ function runCli(argv) {
       'record --file <backlog> --chosen <lane> [--run-id <uuid>] | ' +
       'observe --id <story> [--block] [--gate-fail <AC>] [--declared <f,..> --base <branch>] [--run-id <uuid>] | ' +
       'lane-check --deferred-one-way <n> --redispatch-rounds <n> | ' +
-      'correct --file <backlog> --id <story|lane> --from <mode> --to <mode> --trigger <token> [--run-id <uuid>]',
+      'correct --file <backlog> --id <story|lane> --from <mode> --to <mode> --trigger <token> [--run-id <uuid>] | ' +
+      'verdicts [--cwd <dir>] [--now <iso>]',
   )
 }
 

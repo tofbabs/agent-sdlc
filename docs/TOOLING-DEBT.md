@@ -245,3 +245,33 @@ an ignored ledger is worse than none.
   reports start being built somewhere other than the machine that ran the
   build (02's central storage — same trigger as "Decision store is machine-local")
 
+
+### Outcome verdict thresholds are first guesses
+- Raised: 2026-10-06 by coder (STORY-2-9)
+- Current: the rubric's `verdict` block (any miss signal → SOLO/FAST missed; one
+  navigator rejection → PAIR earned) is a transliteration of ARCH-2's intent, not
+  fitted; `findings` counts every finding the caller passes, severity-blind
+- Risk: MEDIUM
+- Category: hardcoded_value
+- Address when: 03 has a month of closed verdicts to retune against, or a
+  nit-only review marks SOLO stories `missed` in practice
+
+### Lane decisions cannot be attributed by the sweep, and tokens/wall time are caller-supplied
+- Raised: 2026-10-06 by coder (STORY-2-9)
+- Current: a `lane` decision carries no `[EPIC-n]`/`[STORY-x-y]` tag, so the gh
+  sweep skips it (it closes on the events /build and /review append, or orphans);
+  build `tokens`/`wall_s` are passed as flags rather than read from the meter,
+  which is keyed by session not story; `machine_local` orphans are never
+  assigned, since a record this machine lacks cannot be seen from here
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: lane orphan rate shows in `account` output, or the meter gains
+  a per-story key
+
+### Sweep reads the latest 200 PRs and 100 commits
+- Raised: 2026-10-06 by coder (STORY-2-9)
+- Current: one `gh pr list --limit 200` and one unpaginated commits page, so a
+  busy repo can push a merge or fix out of view and the decision closes `held`
+- Risk: LOW
+- Category: robustness
+- Address when: the repo merges more than ~100 commits per window

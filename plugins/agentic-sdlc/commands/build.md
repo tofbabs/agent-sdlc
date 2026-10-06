@@ -113,6 +113,7 @@ For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
 
             Watch it: BLOCKED, gate failures, and edits outside the files you
             named may escalate it to PAIR — `reference/runtime-correction.md`.
+            At LAND and run start, record outcomes: `reference/outcomes.md`.
 
      SOLO with data risk → same, plus `model: opus` on the call; check the
             data yourself before LAND (see MODE SELECTION).

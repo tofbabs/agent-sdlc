@@ -603,7 +603,7 @@ got=$(node --input-type=module -e '
     if (spec.type === "pattern") patterns.push(path)
   }
   walk(REPORT_SCHEMA, "$")
-  if (patterns.join() !== "$.run.run_id,$.run.plugin_version,$.run.ended_at,$.decisions[].decision_id") fails.push(`patterns: ${patterns}`)
+  if (patterns.join() !== "$.run.run_id,$.run.plugin_version,$.run.ended_at,$.decisions[].decision_id,$.outcome_events[].decision_id") fails.push(`patterns: ${patterns}`)
   if (Object.keys(PATTERNS).length !== 4) fails.push("patterns whitelist is not exactly four (ADR-0002: decision_id is the fourth)")
   if (validate(base).length) fails.push(`base invalid: ${validate(base)}`)
   // Stuff a long string into every field of the run, plan and cost sections.
@@ -1006,5 +1006,26 @@ got=$(q "$(OUT "$P")" 'r.decisions.map(d=>Object.keys(d).sort().join("+")).join(
 case "$got" in *subject*|*run_id*|*inputs*|*state*|*verdict*) bad "report leaked record internals: $got" ;; *) ok "record internals (subject, run_id, inputs, state) stay out of the report" ;; esac
 got=$(q "$(OUT "$P")" 'r.decisions.filter(d=>"floor" in d).map(d=>d.floor).join(",")')
 [ "$got" = "one_way_door,money" ] && ok "every mode-select floor (one_way_door, money) reaches the report" || bad "floor projection: $got"
+
+echo "outcome_events section"
+[ "$(q "$(OUT "$P")" '"outcome_events" in r')" = "false" ] \
+  && ok "no events appended: outcome_events is omitted" || bad "outcome_events present with no events"
+node --input-type=module -e "
+  import { readAllDecisions, appendEvent, closeDecision } from '$ROOT/plugins/agentic-sdlc/scripts/decisions.mjs'
+  const [a, b] = readAllDecisions({ cwd: '$P' }).filter((d) => d.run_id === '$RUN_ID')
+  appendEvent(a.decision_id, { event: 'build', at: '2026-01-01T00:00:00Z', run_id: '$RUN_ID', alternations: 3, rejections: 1, subject: 'STORY-LEAK', note: 'src/x.ts' }, { cwd: '$P' })
+  appendEvent(b.decision_id, { event: 'merged', at: '2026-01-02T00:00:00Z', run_id: '99999999-2222-4333-8444-555555555555', days_to_merge: 1 }, { cwd: '$P' })
+  closeDecision(a.decision_id, { verdict: 'earned', rubric: 1, at: '2026-02-01T00:00:00Z' }, { cwd: '$P' })
+"
+report --project "$P" >/dev/null
+cp "$(OUT "$P")" "$TMP/oe-1.json"
+report --project "$P" >/dev/null
+cmp -s "$TMP/oe-1.json" "$(OUT "$P")" && ok "outcome_events report is byte-identical across two builds" || bad "outcome_events report differs between builds"
+node "$R" validate "$(OUT "$P")" >/dev/null 2>&1 && ok "report with outcome_events validates" || bad "report with outcome_events is invalid"
+got=$(q "$(OUT "$P")" 'r.outcome_events.length+" "+JSON.stringify(Object.keys(r.outcome_events[0]).sort())')
+[ "$got" = '1 ["alternations","decision_id","event","rejections"]' ] \
+  && ok "only this run's events; only whitelisted measures reach the report (no subject, no free text)" || bad "outcome_events: $got"
+got=$(q "$(OUT "$P")" 'r.decisions.filter(d=>d.verdict).map(d=>d.verdict+"@"+d.verdict_rubric).join(",")')
+[ "$got" = "earned@1" ] && ok "a closed decision reports its verdict and rubric stamp" || bad "verdict projection: $got"
 
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }

@@ -143,11 +143,11 @@ if (baseViolations.length) {
 }
 
 // ADR-0002 amends ADR-0001's "exactly three patterns": decision_id is the
-// fourth, at the one new pattern-bounded path.
+// fourth, at the two paths that carry the join key.
 const leaves = []
 collectLeaves(REPORT_SCHEMA, [], '$', leaves)
 const patternPaths = leaves.filter((l) => l.spec.type === 'pattern').map((l) => l.label).sort()
-const wantPatternPaths = ['$.decisions[0].decision_id', '$.run.ended_at', '$.run.plugin_version', '$.run.run_id'].sort()
+const wantPatternPaths = ['$.decisions[0].decision_id', '$.outcome_events[0].decision_id', '$.run.ended_at', '$.run.plugin_version', '$.run.run_id'].sort()
 if (JSON.stringify(patternPaths) !== JSON.stringify(wantPatternPaths)) {
   fails.push(`pattern leaves are ${JSON.stringify(patternPaths)}, want exactly ${JSON.stringify(wantPatternPaths)} (ADR 0002)`)
 }

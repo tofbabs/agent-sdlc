@@ -16,5 +16,11 @@
   "fast_to_deliberate": {
     "deferred_one_way_at_or_above": 2,
     "redispatch_rounds_at_or_above": 2
+  },
+  "outcome_window_days": 14,
+  "verdict": {
+    "miss_signals_at_or_above": 1,
+    "pair_rejections_at_or_above": 1,
+    "deliberate_catches_at_or_above": 1
   }
 }

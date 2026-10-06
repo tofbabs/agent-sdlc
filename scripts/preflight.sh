@@ -199,6 +199,19 @@ else
   note "node not found — skipping decisions tests"
 fi
 
+# 6c. Outcome events, the gh sweep and the verdict rules: a verdict is only as
+#     trustworthy as its fixture, and the accounting check is the proof that
+#     every decision ends in exactly one state.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/outcomes.test.sh" >/dev/null 2>&1; then
+    ok "outcome events, sweep and verdict invariants hold"
+  else
+    bad "outcomes tests failed — run scripts/outcomes.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping outcomes tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

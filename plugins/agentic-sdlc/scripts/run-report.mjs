@@ -93,8 +93,8 @@ import { join, dirname, resolve, isAbsolute, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { readDecisions } from './decisions.mjs'
-import { CLOSED, OPEN, DEGRADED_INPUT, PATTERNS, isMember, toCategory } from './run-report-categories.mjs'
+import { readAllDecisions, readDecisions } from './decisions.mjs'
+import { CLOSED, OPEN, DEGRADED_INPUT, OUTCOME_MEASURES, PATTERNS, isMember, toCategory } from './run-report-categories.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PLUGIN_JSON = join(HERE, '..', '.claude-plugin', 'plugin.json')
@@ -151,6 +151,19 @@ const decisionElement = () =>
     alternative: omittable(T.enum('decision_choice')),
     overridden: required(T.bool()),
     fallback: required(T.bool()),
+    // Present once the outcome window closed the decision; an open or orphaned
+    // one has no verdict, and a null would demand a degraded entry.
+    verdict: omittable(T.enum('decision_verdict')),
+    verdict_rubric: omittable(T.number({ int: true, min: 1 })),
+  })
+
+// An event this run appended to a decision, possibly an earlier run's. The
+// measures are a closed key list, so the element stays tokens and integers.
+const outcomeEventElement = () =>
+  T.object({
+    decision_id: required(T.pattern('decision_id')),
+    event: required(T.enum('outcome_event')),
+    ...Object.fromEntries(OUTCOME_MEASURES.map((k) => [k, omittable(count())])),
   })
 
 export const REPORT_SCHEMA = deepFreeze(
@@ -217,6 +230,7 @@ export const REPORT_SCHEMA = deepFreeze(
       // Omittable, not nullable: a run that makes no decisions leaves the key out
       // entirely, and a null would be an unnamed gap the degraded rule rejects.
       decisions: { ...T.array(required(decisionElement())), optional: true, nullable: false },
+      outcome_events: { ...T.array(required(outcomeEventElement())), optional: true, nullable: false },
     }),
   ),
 )
@@ -1131,7 +1145,28 @@ function buildDecisions(ctx) {
     ...(r.alternative != null && { alternative: reportChoice(r.alternative) }),
     overridden: r.overridden,
     fallback: r.fallback,
+    ...(isMember('decision_verdict', r.verdict) && { verdict: r.verdict, verdict_rubric: r.verdict_rubric }),
   }))
+}
+
+function buildOutcomeEvents(ctx) {
+  const run_id = ctx.marker?.run_id
+  if (!run_id) return []
+  let records
+  try {
+    records = readAllDecisions({ cwd: ctx.project })
+  } catch {
+    return []
+  }
+  return records.flatMap((r) =>
+    r.outcome_events
+      .filter((e) => e.run_id === run_id && isMember('outcome_event', e.event))
+      .map((e) => ({
+        decision_id: r.decision_id,
+        event: e.event,
+        ...Object.fromEntries(OUTCOME_MEASURES.filter((k) => Number.isInteger(e[k]) && e[k] >= 0).map((k) => [k, e[k]])),
+      })),
+  )
 }
 
 export function buildReport(ctx) {
@@ -1146,6 +1181,8 @@ export function buildReport(ctx) {
   report.degraded = DEGRADED_INPUT.filter((d) => named.has(d))
   const decisions = buildDecisions(ctx)
   if (decisions.length > 0) report.decisions = decisions
+  const outcomeEvents = buildOutcomeEvents(ctx)
+  if (outcomeEvents.length > 0) report.outcome_events = outcomeEvents
   return report
 }
 

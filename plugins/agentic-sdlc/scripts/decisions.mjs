@@ -55,6 +55,9 @@ export function writeDecision(fields, { cwd = process.cwd() } = {}) {
     alternative: fields.alternative,
     overridden: fields.overridden,
     fallback: fields.fallback,
+    // Stored, not exported: outcome routing needs to tell which of a subject's
+    // runs is the latest, and nothing else on the record orders them.
+    created_at: fields.created_at ?? new Date().toISOString(),
     state: 'open',
     outcome_events: [],
     verdict: null,
@@ -62,6 +65,55 @@ export function writeDecision(fields, { cwd = process.cwd() } = {}) {
   mkdirSync(dir, { recursive: true })
   writeFileSync(file, JSON.stringify(record, null, 2) + '\n')
   return record
+}
+
+function readFile(file) {
+  return JSON.parse(readFileSync(file, 'utf8'))
+}
+
+function writeRecord(record, cwd) {
+  writeFileSync(join(storeDir(cwd), record.decision_id + '.json'), JSON.stringify(record, null, 2) + '\n')
+  return record
+}
+
+// Outcome joins and the sweep span runs, so they read the whole store rather
+// than one run's slice. Sorted for the same byte-identical-rebuild reason.
+export function readAllDecisions({ cwd = process.cwd() } = {}) {
+  const dir = storeDir(cwd)
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => readFile(join(dir, name)))
+    .sort((a, b) => (a.decision_id < b.decision_id ? -1 : a.decision_id > b.decision_id ? 1 : 0))
+}
+
+function readOne(decision_id, cwd) {
+  const file = join(storeDir(cwd), decision_id + '.json')
+  if (!existsSync(file)) throw new Error(`decisions: no record ${decision_id}`)
+  return readFile(file)
+}
+
+// An event with a `ref` already on the record is skipped, so a re-run sweep
+// finds the same merge or fix and attaches it once. A closed or orphaned
+// record takes no further events: its verdict was computed without them.
+export function appendEvent(decision_id, event, { cwd = process.cwd() } = {}) {
+  const record = readOne(decision_id, cwd)
+  if (record.state !== 'open') return { appended: false, record }
+  if (event.ref !== undefined && record.outcome_events.some((e) => e.ref === event.ref)) {
+    return { appended: false, record }
+  }
+  record.outcome_events.push(event)
+  return { appended: true, record: writeRecord(record, cwd) }
+}
+
+export function closeDecision(decision_id, { verdict, rubric, at }, { cwd = process.cwd() } = {}) {
+  const record = readOne(decision_id, cwd)
+  return writeRecord({ ...record, state: 'closed', verdict, verdict_rubric: rubric, closed_at: at }, cwd)
+}
+
+export function orphanDecision(decision_id, { reason, at }, { cwd = process.cwd() } = {}) {
+  const record = readOne(decision_id, cwd)
+  return writeRecord({ ...record, state: 'orphaned', orphan_reason: reason, closed_at: at }, cwd)
 }
 
 // The report lists a run's decisions from whichever worktree it is built in, so

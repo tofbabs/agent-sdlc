@@ -64,6 +64,20 @@ export const CLOSED = Object.freeze({
   decision_floor: Object.freeze(['money', 'auth', 'destructive_data', 'one_way_door', 'review_bounced']),
 })
 
+// The numeric measures an outcome event may carry. A closed list, so the
+// report element stays code-free: only these keys, only integers.
+export const OUTCOME_MEASURES = Object.freeze([
+  'tokens',
+  'wall_s',
+  'alternations',
+  'rejections',
+  'gate_failures',
+  'blocks',
+  'findings',
+  'revise_rounds',
+  'days_to_merge',
+])
+
 // The only string patterns the report schema admits (ADR 0001, amended by
 // ADR 0002). Homed here with the vocabularies so there is one list to audit.
 export const PATTERNS = Object.freeze({
