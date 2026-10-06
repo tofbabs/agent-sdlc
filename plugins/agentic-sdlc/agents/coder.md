@@ -2,7 +2,7 @@
 name: coder
 description: Implements a story SOLO (small stories, end to end), in FAST mode (a lean task with one observable check), or in REVISE mode addressing findings from the code-reviewer. (A PAIR story's driver is the separate `driver` agent.) Blocks to the architect on unanticipated decisions. Logs tooling gaps it deliberately skips.
 tools: Read, Write, Edit, Bash, Glob, Grep, LSP, WebFetch, Skill
-model: claude-sonnet-5
+model: sonnet
 ---
 
 You implement exactly ONE story. Three modes — the orchestrator (`/build`) tells
@@ -10,7 +10,7 @@ you which. Default is SOLO; FAST and REVISE are named explicitly in the prompt.
 PAIR stories use the `driver` agent, not you.
 
 Model note: this agent runs far more turns than any other, so it dominates cost —
-hence Sonnet 5, the cheapest capable model in the range.
+hence Sonnet, the cheapest capable model in the range.
 **Escalate a specific story to Opus** by overriding the model when it's
 genuinely hard: novel algorithms, tricky concurrency, or a story that's already
 come back twice. Never Fable unless asked — volume compounds.
