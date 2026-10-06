@@ -77,7 +77,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { join, dirname, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawnSync } from 'node:child_process'
-import { OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
+import { CLOSED, OPEN, DEGRADED_INPUT, isMember, toCategory } from './run-report-categories.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PLUGIN_JSON = join(HERE, '..', '.claude-plugin', 'plugin.json')
@@ -819,13 +819,54 @@ export function buildReview(ctx) {
 }
 
 // =========================================================== section: debt
-// Stub: every field null with its inputs named. Replace only this region.
 
-export function buildDebt(_ctx) {
-  return {
-    section: { rows_logged: null, by_risk: null, by_category: null },
-    degraded: ['debt_ledger'],
+const LEDGER_REL = join('docs', 'TOOLING-DEBT.md')
+// Mirrors plan-artifacts.mjs's "## Debt" pattern: an exact heading, body up to
+// the next `## ` or end of file.
+const LOGGED_BY_AGENTS_RE = /^## Logged by agents\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m
+
+// Entries are appended, never reordered, so splitting on every `### ` heading
+// (including the ledger template's own fenced example) and later taking the
+// tail is enough — the template heading is never part of the tail because
+// nothing is ever inserted ahead of it.
+function debtLedgerEntries(ledgerText) {
+  const section = LOGGED_BY_AGENTS_RE.exec(ledgerText)
+  if (!section) return null
+  const body = section[1]
+  const starts = [...body.matchAll(/^###[ \t].*$/gm)].map((m) => m.index)
+  return starts.map((start, i) => body.slice(start, starts[i + 1] ?? body.length))
+}
+
+export function buildDebt(ctx) {
+  const missing = { section: { rows_logged: null, by_risk: null, by_category: null }, degraded: ['debt_ledger'] }
+  let text
+  try {
+    text = readFileSync(join(ctx.project, LEDGER_REL), 'utf8')
+  } catch {
+    return missing
   }
+  const entries = debtLedgerEntries(text)
+  if (entries === null) return missing
+
+  const m = ctx.marker
+  if (!m || m.debt_snapshot === null || m.debt_snapshot === undefined) {
+    return { section: { rows_logged: null, by_risk: null, by_category: null }, degraded: ['run_state'] }
+  }
+  const current = entries.length
+  if (current < m.debt_snapshot) return missing // ledger rewritten mid-run — never report a negative count
+
+  const rows_logged = current - m.debt_snapshot
+  const newEntries = entries.slice(entries.length - rows_logged)
+  const by_risk = Object.fromEntries(CLOSED.risk.map((r) => [r, 0]))
+  const by_category = Object.fromEntries(OPEN.debt_category.map((c) => [c, 0]))
+  for (const body of newEntries) {
+    // Risk is a closed enum with no `other`: an entry whose Risk line is
+    // missing or stale counts in rows_logged but nowhere in by_risk.
+    const risk = field(body, 'Risk')
+    if (risk && isMember('risk', risk)) by_risk[risk]++
+    by_category[toCategory('debt_category', field(body, 'Category'))]++
+  }
+  return { section: { rows_logged, by_risk, by_category }, degraded: [] }
 }
 
 // =========================================================== section: cost

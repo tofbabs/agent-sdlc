@@ -312,7 +312,7 @@ review_report --project "$P" --pr-comments "$TMP/bad-comments.json" >/dev/null
 got=$(q "$(OUT "$P")" 'String(r.review.rounds)+" "+String(r.run.outcome)+" "+r.degraded.includes("pr_comments")')
 [ "$got" = "null null true" ] && ok "unreadable --pr-comments → null + pr_comments" || bad "bad comments file: $got"
 
-# ============================================================== debt (stub)
+# ============================================================ stubs
 
 echo "stub sections"
 P=$(mkproj stubs)
@@ -320,6 +320,70 @@ marker "$P" plan deliberate "x" '"backlog/EPIC-7.md"' '[]'
 report --project "$P" >/dev/null
 got=$(q "$(OUT "$P")" '["gate_history","pr_comments","debt_ledger"].every(d=>r.degraded.includes(d))&&r.build.gate_runs===null&&r.debt.rows_logged===null')
 [ "$got" = "true" ] && ok "stub sections are null with their inputs named" || bad "stub sections not degraded correctly"
+
+# =================================================================== debt
+
+echo "debt section"
+D="$F/debt"
+
+P=$(mkproj debt-new-entries)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+mkdir -p "$P/docs"
+cp "$D/ledger.md" "$P/docs/TOOLING-DEBT.md"
+node -e 'const fs=require("fs"),p=process.argv[1],m=JSON.parse(fs.readFileSync(p));m.debt_snapshot=1;fs.writeFileSync(p,JSON.stringify(m))' \
+  "$P/.agentic-sdlc/run-state.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" '[r.debt.rows_logged,JSON.stringify(r.debt.by_risk),JSON.stringify(r.debt.by_category)].join(" ")')
+want='4 {"LOW":1,"MEDIUM":1,"HIGH":1} {"missing_test":1,"hardcoded_value":1,"stubbed_integration":0,"deferred_migration":0,"robustness":0,"observability":0,"other":2}'
+[ "$got" = "$want" ] && ok "4 new entries since snapshot=1: by_risk counts the enum, stale Risk excluded; by_category via toCategory" \
+  || bad "debt diff: $got"
+
+P=$(mkproj debt-no-new-entries)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+mkdir -p "$P/docs"
+cp "$D/ledger.md" "$P/docs/TOOLING-DEBT.md"
+node -e 'const fs=require("fs"),p=process.argv[1],m=JSON.parse(fs.readFileSync(p));m.debt_snapshot=5;fs.writeFileSync(p,JSON.stringify(m))' \
+  "$P/.agentic-sdlc/run-state.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" '[r.debt.rows_logged,JSON.stringify(r.debt.by_risk),r.degraded.includes("debt_ledger")].join(" ")')
+[ "$got" = '0 {"LOW":0,"MEDIUM":0,"HIGH":0} false' ] && ok "a run that logs no debt reads rows_logged=0, not omitted (AC 3)" \
+  || bad "no-new-debt: $got"
+
+P=$(mkproj debt-missing-ledger)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" '[String(r.debt.rows_logged),String(r.debt.by_risk),String(r.debt.by_category),r.degraded.includes("debt_ledger")].join(" ")')
+[ "$got" = "null null null true" ] && ok "no ledger file → debt fields null + debt_ledger" || bad "missing ledger: $got"
+
+P=$(mkproj debt-no-section)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+mkdir -p "$P/docs"
+cp "$D/ledger-no-section.md" "$P/docs/TOOLING-DEBT.md"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'String(r.debt.rows_logged)+" "+r.degraded.includes("debt_ledger")')
+[ "$got" = "null true" ] && ok "ledger without a \"Logged by agents\" heading → degraded debt_ledger, same as missing" \
+  || bad "no-section ledger: $got"
+
+P=$(mkproj debt-rewritten-ledger)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+mkdir -p "$P/docs"
+cp "$D/ledger.md" "$P/docs/TOOLING-DEBT.md"
+node -e 'const fs=require("fs"),p=process.argv[1],m=JSON.parse(fs.readFileSync(p));m.debt_snapshot=9;fs.writeFileSync(p,JSON.stringify(m))' \
+  "$P/.agentic-sdlc/run-state.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'String(r.debt.rows_logged)+" "+r.degraded.includes("debt_ledger")')
+[ "$got" = "null true" ] && ok "current ### count < snapshot (ledger rewritten) → degraded debt_ledger, never negative" \
+  || bad "rewritten ledger: $got"
+
+P=$(mkproj debt-null-snapshot)
+marker "$P" build deliberate "EPIC-7" 'null' '[]'
+mkdir -p "$P/docs"
+cp "$D/ledger.md" "$P/docs/TOOLING-DEBT.md"
+node -e 'const fs=require("fs"),p=process.argv[1],m=JSON.parse(fs.readFileSync(p));m.debt_snapshot=null;fs.writeFileSync(p,JSON.stringify(m))' \
+  "$P/.agentic-sdlc/run-state.json"
+report --project "$P" >/dev/null
+got=$(q "$(OUT "$P")" 'String(r.debt.rows_logged)+" "+r.degraded.includes("run_state")')
+[ "$got" = "null true" ] && ok "marker debt_snapshot null → can't diff → degraded run_state" || bad "null snapshot: $got"
 
 # =================================================================== cost
 
