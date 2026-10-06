@@ -302,8 +302,8 @@ merge; nothing here merges its own PR.
 ## COST NOTE
 
 - **Coder, driver and navigator on Sonnet 5 by default** — they run the most
-  turns. **Escalate a story's coder/driver to Opus 4.8** only when it is genuinely
-  hard (novel algorithm, tricky concurrency, twice-bounced), on that invocation.
+  turns. A hard story (novel algorithm, tricky concurrency, twice-bounced) earns
+  **one coder call on Opus 4.8**, if no override names the coder.
 - **Every other model change is the human's** — never make one yourself.
 - **The model tier is the small lever; whether the agents are fresh is the big
   one.** Get freshness right first.
