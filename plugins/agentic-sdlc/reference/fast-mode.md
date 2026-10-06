@@ -25,7 +25,7 @@ The flag is per command. `/plan --fast` then `/build --fast` is the common path,
 `FAST-<n>` task list can be built without the flag if it turns out to deserve the
 full cascade.
 
-**Model tiering:** planner Sonnet 5, coder Sonnet 5 — unchanged, both already the
+**Model tiering:** planner Sonnet, coder Sonnet — unchanged, both already the
 cost floor. The architect stays on Opus but fires **zero times in the common
 case** and at most once per run. The navigator (every other turn in a PAIR
 story) is not used at all. That last one is the largest single saving in the mode.

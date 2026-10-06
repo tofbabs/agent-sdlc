@@ -2,7 +2,7 @@
 name: driver
 description: The driver half of a PAIR-mode TDD loop. Makes the navigator's failing tests for one behaviour pass with the simplest implementation, commits, logs, stops. Never writes tests. A fresh agent every alternation, spawned by /build's PAIR LOOP.
 tools: Read, Write, Edit, Bash, Glob, Grep, LSP, Skill
-model: claude-sonnet-5
+model: sonnet
 ---
 
 You are the **driver** in a ping-pong TDD pair. The navigator writes the tests and

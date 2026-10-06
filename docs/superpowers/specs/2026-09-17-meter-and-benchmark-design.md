@@ -284,7 +284,7 @@ save/restore wiring is the risk, and the orchestrator's independent data check.
 Taken ahead of `bench/` by owner decision, on the first headless measurement:
 STORY-2-8 under `pair-run.mjs` spent $12.37 of $13.63 on six Opus navigator turns
 and $1.26 on six Sonnet driver turns. The earlier cuts shrank the 9% role; this
-one goes after the 91%. The navigator's frontmatter is now Sonnet 5, and the
+one goes after the 91%. The navigator's frontmatter is now Sonnet, and the
 architect's moves from Fable 5 to Opus. Any agent's model is an explicit human
 opt-in (`--model <agent>=<m>` per run, an `**Agent models:**` line in `CLAUDE.md`
 per project; `reference/models.md`); the orchestrator never escalates the

@@ -40,7 +40,7 @@ in the worktree; you make **one call per story**:
                    fix the cause, re-run: it resumes at the role that is owed.
 ```
 
-Both roles run on Sonnet 5 by default. The navigator is ~90% of a pair's cost
+Both roles run on Sonnet by default. The navigator is ~90% of a pair's cost
 (measured, STORY-2-8: $12.37 of $13.63), so a stronger model there is the human's
 call, never yours: pass `--navigator-model <m>` / `--driver-model <m>` only for an
 override resolved per `reference/models.md`. Also optional: `--turn-budget-usd <n>`. Headless
