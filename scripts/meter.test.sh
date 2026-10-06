@@ -10,7 +10,9 @@
 #   * diff yields the exact signed deltas the benchmark reads (case 4),
 #   * and — the one that matters most, the analogue of pair-log's cap test — a
 #     transcript with a required field missing DEGRADES cleanly and never reports
-#     zeros (case 5). Silent zeros would make every cost claim false.
+#     zeros (case 5). Silent zeros would make every cost claim false,
+#   * and the hook finds meter.mjs where a real install puts it (case 8) — a
+#     miss there records nothing, just as silently.
 #
 # Bash, because the plugin repo has no test runner (see pair-log.test.sh).
 
@@ -91,6 +93,36 @@ node "$M" report --stream "$F/does-not-exist.jsonl" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "missing --stream file is refused (exit 2)" || bad "missing stream not refused"
 node "$M" diff --baseline "$F/baseline.json" >/dev/null 2>&1
 [ $? -eq 2 ] && ok "diff without --candidate is refused" || bad "diff without candidate accepted"
+
+# 8. The hook finds meter.mjs where `claude plugin install` actually puts it. A
+#    miss here is silent in production (the hook exits 0 and records nothing), so
+#    pin it: highest cached version wins by version order, not lexically; the
+#    marketplace clone is the fallback; METER_MJS overrides both. A stub meter.mjs
+#    writes its own path, so the test reads which one the hook ran.
+HOOK="$ROOT/templates/hooks/meter.sh"
+H="$TMP/home"
+stub() { mkdir -p "$(dirname "$1")"; echo 'import{writeFileSync}from"fs";import{fileURLToPath}from"url";writeFileSync(process.env.MARK,fileURLToPath(import.meta.url))' > "$1"; }
+run_hook() {
+  rm -f "$TMP/ran"
+  printf '{"transcript_path":"%s","session_id":"t","cwd":"%s"}' "$F/stream-v1.jsonl" "$TMP/proj" \
+    | env -u CLAUDE_CONFIG_DIR "$@" HOME="$H" MARK="$TMP/ran" bash "$HOOK" 2>/dev/null
+  cat "$TMP/ran" 2>/dev/null || true
+}
+stub "$H/.claude/plugins/marketplaces/sanimara/plugins/agentic-sdlc/scripts/meter.mjs"
+got=$(run_hook -u METER_MJS)
+[ "$got" = "$H/.claude/plugins/marketplaces/sanimara/plugins/agentic-sdlc/scripts/meter.mjs" ] \
+  && ok "hook falls back to the marketplace clone" || bad "marketplace fallback ran: '${got}'"
+stub "$H/.claude/plugins/cache/sanimara/agentic-sdlc/0.1.9/scripts/meter.mjs"
+stub "$H/.claude/plugins/cache/sanimara/agentic-sdlc/0.1.10/scripts/meter.mjs"
+got=$(run_hook -u METER_MJS)
+[ "$got" = "$H/.claude/plugins/cache/sanimara/agentic-sdlc/0.1.10/scripts/meter.mjs" ] \
+  && ok "hook picks the highest cached version (0.1.10 over 0.1.9)" || bad "cache resolution ran: '${got}'"
+stub "$TMP/override/meter.mjs"
+got=$(run_hook METER_MJS="$TMP/override/meter.mjs")
+[ "$got" = "$TMP/override/meter.mjs" ] && ok "METER_MJS overrides the installed copy" || bad "override ran: '${got}'"
+rm -rf "$H"
+got=$(run_hook -u METER_MJS; echo "rc=$?")
+[ "$got" = "rc=0" ] && ok "hook with no meter.mjs exits 0 and runs nothing" || bad "missing meter.mjs: '${got}'"
 
 [ "$fail" -eq 0 ] || { printf '\nmeter tests failed\n' >&2; exit 1; }
 printf '\nmeter tests passed\n'

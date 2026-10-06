@@ -86,7 +86,19 @@ cp templates/backlog/FAST-template.md <project>/backlog/   # only if you use --f
 cp templates/brief.md                 <project>/docs/templates/
 cp templates/ADR.md                   <project>/docs/templates/
 cp templates/hooks/lsp-preflight.sh   <project>/.claude/hooks/   # optional; see "Code navigation is LSP-first"
+cp templates/hooks/meter.sh           <project>/.claude/hooks/   # optional; records per-run cost, see below
+# then merge templates/hooks/settings.hooks.json into <project>/.claude/settings.json
 ```
+
+> **Where `meter.sh` finds `meter.mjs`.** `${CLAUDE_PLUGIN_ROOT}` does not expand in
+> project settings, so the hook looks where `claude plugin install` puts the plugin:
+> `~/.claude/plugins/cache/<marketplace>/agentic-sdlc/<version>/scripts/meter.mjs`,
+> taking the highest version, then the marketplace clone at
+> `~/.claude/plugins/marketplaces/<marketplace>/plugins/agentic-sdlc/scripts/meter.mjs`.
+> (`~/.claude` is `$CLAUDE_CONFIG_DIR` when that is set.) Set `METER_MJS` to point
+> anywhere else. If none resolves, the hook still exits 0 and records nothing, saying
+> so only on stderr (`claude --debug`). So check that `.agentic-sdlc/meter/` is
+> filling up after your first session.
 
 ### The brief is part of the protocol
 
