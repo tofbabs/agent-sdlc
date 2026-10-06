@@ -168,6 +168,21 @@ else
   note "node not found — skipping mode-select-fields tests"
 fi
 
+# 6d. mode-select.mjs applies hard floors first, then the versioned ARCH-2
+#     rubric, so the same inputs always produce the same decision and thresholds
+#     retune without a code change. A floor a retune could remove, or a decision
+#     that drifts between identical runs, is the failure this guards. Same node
+#     guard as above.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/mode-select.test.sh" >/dev/null 2>&1; then
+    ok "mode-select invariants hold"
+  else
+    bad "mode-select tests failed — run scripts/mode-select.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping mode-select tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

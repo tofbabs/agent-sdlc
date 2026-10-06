@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "modules_crossed": [
+    { "min": 0, "max": 1, "points": 0 },
+    { "min": 2, "max": 2, "points": 2 },
+    { "min": 3, "max": null, "points": 3 }
+  ],
+  "no_existing_pattern": 2,
+  "thresholds": {
+    "solo_at_or_below": 2,
+    "pair_at_or_above": 4
+  }
+}
