@@ -120,6 +120,21 @@ node --input-type=module -e "
 " && ok "an unknown field or an out-of-enum value is refused at parse time" \
   || bad "parse accepted an unknown field or bad enum value"
 
+# 8. findSelectLine() tells "no select line" (STORY-2-2's AC4 fallback) apart
+#    from "a select line present but malformed" — the first returns null, the
+#    second returns the line for parse() to then reject.
+node --input-type=module -e "
+  import { findSelectLine, parse } from '$MSF'
+  const noLine = findSelectLine('### STORY-9-1: title\n\n- status: TODO\n- risk: none\n')
+  if (noLine !== null) process.exit(1)
+  const malformed = findSelectLine('### STORY-9-2: title\n\n- select: bogus_field=1@AC1\n')
+  if (malformed === null) process.exit(1)
+  let threw = false
+  try { parse(malformed) } catch { threw = true }
+  if (!threw) process.exit(1)
+" && ok "findSelectLine() distinguishes an absent select line from a malformed one" \
+  || bad "findSelectLine() did not distinguish absent from malformed"
+
 rm -f err.txt
 
 [ "$fail" -eq 0 ] || { printf '\nmode-select-fields tests failed\n' >&2; exit 1; }

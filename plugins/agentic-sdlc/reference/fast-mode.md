@@ -65,6 +65,7 @@ planner's own prompt carries only a stub, so the shape has to come from here:
 
 ### T<n>-1: <imperative title>   [S|M]
 - files: <paths this task owns>
+- select: <see reference/selection-fields.md>
 - done when: <one observable check>
 - notes: <only if genuinely non-obvious — usually omit>
 - ⚠ one-way: <only if this hits the five below>

@@ -85,7 +85,7 @@ behaviour change.
 
 - status: TODO
 - estimate: S | M | L
-- risk: <where a bug would hide — "save/restore wiring", "data sourcing", "none: follows <pattern>">
+- select: <see reference/selection-fields.md>
 - depends_on: []
 - blocked_by_arch: [ARCH-n]
 
@@ -112,8 +112,9 @@ behaviour change.
   nothing observable.
 - **Independently shippable.**
 - **Nothing larger than L.** Split it.
-- **`risk:` names the slice, not the size.** `/build` pairs on it, so a story
-  that is plumbing on an existing pattern says `none: follows <pattern>`.
+- **`select:` is one line of selection fields, not prose.** `/build` decides
+  from it. Field meanings: `reference/selection-fields.md`. Values:
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select-fields.mjs`.
 - **2–5 acceptance criteria, each testable.** A criterion no test could falsify
   is a wish, not a criterion.
 - **The epic file has a budget: ~150 lines, with `## Stories` starting inside the

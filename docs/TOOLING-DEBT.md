@@ -210,6 +210,19 @@ an ignored ledger is worse than none.
 - Address when: 02's cross-repo export is live and decision volume supports a
   sample
 
+### `/build`'s MODE SELECTION still reads the prose `risk:` line
+- Raised: 2026-10-06 by coder (STORY-2-2)
+- Current: the planner now emits `- select: ...` instead of `risk:`, and
+  `backlog/EPIC-2.md` scopes reading/scoring that line (`mode-select.mjs`) and
+  wiring it into `/build`'s MODE SELECTION to STORY-2-3/2-5, which this story
+  must not touch. Until those land, every newly planned story/task also
+  carries no `risk:` line for `/build` to fall back to, so `/build`'s existing
+  "no `risk:` line → infer from ACs" path is doing double duty
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: STORY-2-3 (`mode-select.mjs`) and STORY-2-5 (`/build` wiring)
+  land — both already scoped in `backlog/EPIC-2.md`
+
 ### Decision store is machine-local
 - Raised: 2026-10-06 by architect (ARCH-1 / ADR-0002)
 - Current: cross-machine decision→outcome joins close as orphaned

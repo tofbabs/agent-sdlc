@@ -8,12 +8,14 @@
 ### T<n>-1: <imperative title>   [S|M]
 
 - files: <paths this task owns>
+- select: <see reference/selection-fields.md>
 - done when: <one observable check>
 - notes: <only if genuinely non-obvious — usually omit>
 
 ### T<n>-2: <imperative title>   [S|M]
 
 - files: <paths>
+- select: <see reference/selection-fields.md>
 - done when: <one observable check>
 - ⚠ one-way: <only if this hits the five-item list — the architect resolves in place>
 

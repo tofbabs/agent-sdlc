@@ -199,6 +199,18 @@ export function parse(line) {
   return fields
 }
 
+// findSelectLine(block) — locates the "- select: ..." line inside a story's
+// or FAST task's raw text, if one exists. Lets a caller (mode-select.mjs,
+// /build) tell "no select line" (returns null — AC4's documented fallback to
+// the prose `risk:` rule) apart from "a select line that fails to parse"
+// (returns the line; parse() then throws) — a prose-risk: fallback must not
+// conflate the two.
+export function findSelectLine(block) {
+  if (typeof block !== 'string') return null
+  const match = block.match(/^-\s*select:.*$/m)
+  return match ? match[0] : null
+}
+
 export default FIELDS
 
 // Compared by realpath: import.meta.url is already resolved, so a symlinked
