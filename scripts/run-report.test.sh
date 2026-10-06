@@ -540,4 +540,23 @@ printf '{"schema":1}\n' > "$TMP/partial.json"
 node "$R" validate "$TMP/partial.json" >/dev/null 2>&1 && bad "validate accepted a report missing sections" \
   || ok "validate CLI rejects a report missing sections (exit non-zero)"
 
+# ===== leak-proof (STORY-1-7): schema-driven, not fixture-driven ==========
+#
+# AC1/2 ask for coverage of the schema's full field list, not of whatever a
+# fixture happens to populate — build/review/debt are stubs today and gain
+# real fields in later stories. leak/synthesize-and-mutate.mjs walks
+# REPORT_SCHEMA itself, synthesizes one minimal valid report, and mutates
+# every leaf it finds (plus countMap/numericRecord keys and values, and a
+# pattern-anchoring check); a field added to the schema without a bounded
+# type is caught here even before any fixture exercises it.
+
+echo "leak-proofing (schema-driven)"
+LEAK_OUT=$(node "$F/leak/synthesize-and-mutate.mjs" "$R" "$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs" 2>&1)
+if [ "$LEAK_OUT" = "ok" ]; then
+  ok "every schema leaf (incl. nested object/array/countMap/numericRecord) rejects a stuffed string; pattern fields reject an anchored substring; unknown fields rejected; enum/countMap vocab names resolve"
+else
+  bad "leak-proofing failed:"
+  printf '%s\n' "$LEAK_OUT" >&2
+fi
+
 [ "$fail" -eq 0 ] && printf '\nrun-report: all invariants hold\n' || { printf '\nrun-report: FAILED\n' >&2; exit 1; }
