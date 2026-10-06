@@ -87,7 +87,10 @@ cp templates/brief.md                 <project>/docs/templates/
 cp templates/ADR.md                   <project>/docs/templates/
 cp templates/hooks/lsp-preflight.sh   <project>/.claude/hooks/   # optional; see "Code navigation is LSP-first"
 cp templates/hooks/meter.sh           <project>/.claude/hooks/   # optional; records per-run cost, see below
+cp templates/hooks/run-report.sh      <project>/.claude/hooks/   # optional; one report per pipeline run, see below
 # then merge templates/hooks/settings.hooks.json into <project>/.claude/settings.json
+# and add .agentic-sdlc/ to <project>/.gitignore — meter.sh, run-report.sh and the
+# marker they share all write under it, and none of it belongs in the repo
 ```
 
 > **Where `meter.sh` finds `meter.mjs`.** `${CLAUDE_PLUGIN_ROOT}` does not expand in
@@ -99,6 +102,20 @@ cp templates/hooks/meter.sh           <project>/.claude/hooks/   # optional; rec
 > anywhere else. If none resolves, the hook still exits 0 and records nothing, saying
 > so only on stderr (`claude --debug`). So check that `.agentic-sdlc/meter/` is
 > filling up after your first session.
+
+> **`run-report.sh` writes one JSON report per pipeline run**, derived from the
+> marker, the backlog file, the newest meter record and the PR's comments — never
+> a code-free log of events, a rebuild from scratch every time. Register it for
+> BOTH `UserPromptSubmit` and `SessionEnd` (see `templates/hooks/settings.hooks.json`):
+> `UserPromptSubmit` recognizes `/agentic-sdlc:plan`, `:build` and `:review` and
+> writes or continues `.agentic-sdlc/run-state.json`; `SessionEnd` spawns the report
+> build detached, so it never eats into that event's shared time budget, and writes
+> `.agentic-sdlc/runs/<run_id>.json`. It resolves `run-report.mjs` the same way
+> `meter.sh` resolves `meter.mjs` — `$RUN_REPORT_MJS` first, then the install cache,
+> then the marketplace clone — and degrades the same way: exit 0, nothing written.
+> `UserPromptSubmit`'s stdout is injected straight into the model's context, so
+> that path stays silent on stderr too, just in case; a resolution failure on
+> `SessionEnd` is safe to note on stderr (visible under `claude --debug`).
 
 ### The brief is part of the protocol
 

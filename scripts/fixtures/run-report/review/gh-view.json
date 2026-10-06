@@ -1,0 +1,9 @@
+{
+  "comments": [
+    { "body": "## Review — round 2\n- verdict: APPROVE\n- reviewed sha: 2222222\n\nReady for human merge", "createdAt": "2020-01-01T00:05:00Z" },
+    { "body": "early note", "createdAt": "2020-01-01T00:00:30Z" }
+  ],
+  "reviews": [
+    { "body": "## Review — round 1\n- verdict: REQUEST_CHANGES\n- reviewed sha: 1111111\n\n- F1: MAJOR [security] — x — y", "state": "CHANGES_REQUESTED", "submittedAt": "2020-01-01T00:01:00Z" }
+  ]
+}

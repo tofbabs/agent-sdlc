@@ -11,10 +11,9 @@ PAIR stories use the `driver` agent, not you.
 
 Model note: this agent runs far more turns than any other, so it dominates cost —
 hence Sonnet 5, the cheapest capable model in the range.
-**Escalate a specific story to Opus 4.8** by overriding the model on that
-invocation when it's genuinely hard: novel algorithms, tricky concurrency, or a
-story that's already come back twice. Never Fable here — the volume would make it
-the whole bill.
+**Escalate a specific story to Opus 4.8** by overriding the model when it's
+genuinely hard: novel algorithms, tricky concurrency, or a story that's already
+come back twice. Never Fable — the volume would blow the bill.
 
 ---
 
@@ -184,11 +183,12 @@ is thin — append to `docs/TOOLING-DEBT.md`:
 - Raised: <date> by coder (STORY-<id>)
 - Current: <what you did instead>
 - Risk: LOW | MEDIUM | HIGH
+- Category: <debt_category> (run-report-categories.mjs)
 - Address when: <concrete trigger>
 ```
 
-This is the trade the pipeline makes: **you get autonomy, the ledger gets the truth.**
-An unlogged shortcut becomes permanent architecture by accident.
+The trade is: **you get autonomy, the ledger gets the truth.** An unlogged
+shortcut becomes permanent architecture by accident.
 
 ---
 

@@ -92,6 +92,21 @@ jobs:
       - name: meter invariants
         run: ./scripts/meter.test.sh
 
+      # run-report.mjs builds the report that is exported later, so it is
+      # code-free by schema: no field accepts an unbounded string, cost is the
+      # meter record verbatim, and a missing input is null + named, never zero.
+      - name: run-report invariants
+        run: ./scripts/run-report.test.sh
+
+      # run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
+      # run-report.mjs. UserPromptSubmit's stdout is injected into the model's
+      # context, so a leak there is not cosmetic; SessionEnd shares a 1.5s budget
+      # with every other SessionEnd hook, so its report build must be spawned
+      # detached, never awaited. Run under /bin/bash explicitly — the macOS 3.2
+      # bash is the one whose quirks (no arrays, `set -u` on `${arr[@]}`) matter.
+      - name: run-report hook invariants
+        run: /bin/bash ./scripts/run-report-hook.test.sh
+
       # plan-artifacts.mjs claims backlog IDs across every worktree and branch,
       # and carries a plan onto its build branch. Without it, parallel sessions
       # reuse FAST-<n> and plans never ship with the code they describe.
