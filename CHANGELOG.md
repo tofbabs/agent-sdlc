@@ -2,6 +2,29 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.8](https://github.com/tofbabs/agent-sdlc/compare/v0.2.7...v0.2.8) (2026-10-07)
+
+
+### Features
+
+* **agentic-sdlc:** headless pair-log writes that never hit a permission denial [EPIC-3] ([9e015be](https://github.com/tofbabs/agent-sdlc/commit/9e015beac94b595799dd5924e3e14a99184026e3))
+* **agentic-sdlc:** navigator.md and driver.md switch to the new write shape [STORY-3-4] ([ef63f49](https://github.com/tofbabs/agent-sdlc/commit/ef63f494c879723b7d71f1d42778dedf423962b3))
+* **agentic-sdlc:** pair-log.mjs accepts the new write shape for state/append/session [STORY-3-2] ([dcc6e6f](https://github.com/tofbabs/agent-sdlc/commit/dcc6e6fb6de263de3ad5671d775a551b5d5c5f16))
+* **agentic-sdlc:** pair-run.mjs allows the new shape by default [STORY-3-3] ([c3461b1](https://github.com/tofbabs/agent-sdlc/commit/c3461b13b2a5ec72c1a79d8c1705fa2c4874c727))
+* **agentic-sdlc:** Permission denials recorded in pair-run's meter line [STORY-3-1] ([45da0fe](https://github.com/tofbabs/agent-sdlc/commit/45da0fe93dabdb4b3a5f3af9531b75cc57c11bfe))
+* **agentic-sdlc:** Sonnet agents use the sonnet alias, not a pinned version ([86723f2](https://github.com/tofbabs/agent-sdlc/commit/86723f29736f8d026114eeef0931af3bf7593390))
+* **agentic-sdlc:** Sonnet agents use the sonnet alias, not a pinned version ([855b962](https://github.com/tofbabs/agent-sdlc/commit/855b96277445e4e988aa348dd942a696731dc7b7))
+
+
+### Bug Fixes
+
+* **agentic-sdlc:** address review round 1 [EPIC-3] ([87eec31](https://github.com/tofbabs/agent-sdlc/commit/87eec310597a033e3aad20bfdd91b79b74e01315))
+
+
+### Documentation
+
+* add EPIC-3 plan ([78a23f4](https://github.com/tofbabs/agent-sdlc/commit/78a23f4407f7ea27516c68d132b6adecd5d4eb0f))
+
 ## [0.2.7](https://github.com/tofbabs/agent-sdlc/compare/v0.2.6...v0.2.7) (2026-10-06)
 
 

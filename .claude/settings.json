@@ -6,7 +6,7 @@
       "source": {
         "source": "github",
         "repo": "tofbabs/agent-sdlc",
-        "ref": "v0.2.7", "$release-please": "x-release-please-version"
+        "ref": "v0.2.8", "$release-please": "x-release-please-version"
       }
     }
   },
