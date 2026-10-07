@@ -88,11 +88,17 @@ twice and letting the more expensive copy be the one that grows.
 1. Agent(subagent_type: "agentic-sdlc:navigator", [model: <override>,]
          prompt: "PAIR on <STORY-ID> in <worktree>,
          branch feat/STORY-<id> off <epic branch | origin/<base>>. Your only
-         read of the pair log is `pair-log.mjs read <STORY-ID> --role
+         read of the pair log is `node <pair-log> read <STORY-ID> --role
          navigator` (bounded: brief, STATE, last 2 entries, last commit);
          open source files as you need them. Review the last increment, write the failing tests
-         for the next behaviour, refresh STATE. All ACs green → close the story
-         in this same turn per your CLOSE step. Then stop.")
+         for the next behaviour, refresh STATE. Write STATE to
+         <drafts>/state.md and the turn entry to <drafts>/entry.md with the
+         Write tool, both in one message, then run exactly one Bash call:
+         `node <pair-log> state <STORY-ID> --from <drafts>/state.md && node
+         <pair-log> append <STORY-ID> --role navigator [--rejected] --from
+         <drafts>/entry.md` — no pipes, no heredocs, no $VARS in that command.
+         All ACs green → close the story in this same turn per your CLOSE
+         step. Then stop.")
 
 2. Read the session field — never the log itself, or you accumulate one copy per
    alternation:
@@ -108,10 +114,13 @@ twice and letting the more expensive copy be the one that grows.
 
 3. Agent(subagent_type: "agentic-sdlc:driver", [model: <override>,] prompt: "PAIR driver turn on <STORY-ID>
          in <worktree>. Your only read of the pair log is
-         `pair-log.mjs read <STORY-ID> --role driver` (bounded: STATE, last 2
+         `node <pair-log> read <STORY-ID> --role driver` (bounded: STATE, last 2
          entries, last commit); open source files as you need them. Make the
-         failing tests pass, implementing only what they demand; commit, log,
-         stop.")
+         failing tests pass, implementing only what they demand; commit. Write
+         the turn entry to <drafts>/entry.md with the Write tool, then run
+         exactly one Bash call: `node <pair-log> append <STORY-ID> --role
+         driver --from <drafts>/entry.md` — no pipes, no heredocs, no $VARS
+         in that command. Then stop.")
 
 4. → back to 1.
 

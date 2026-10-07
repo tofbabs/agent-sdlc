@@ -7,7 +7,7 @@
     "plugins/agentic-sdlc/agents/architect.md": 4830,
     "plugins/agentic-sdlc/agents/code-reviewer.md": 8552,
     "plugins/agentic-sdlc/agents/coder.md": 9316,
-    "plugins/agentic-sdlc/agents/driver.md": 3403,
+    "plugins/agentic-sdlc/agents/driver.md": 3400,
     "plugins/agentic-sdlc/agents/navigator.md": 7006,
     "plugins/agentic-sdlc/agents/planner.md": 5554
   },
@@ -15,7 +15,7 @@
     "agents+commands": {
       "dirs": ["plugins/agentic-sdlc/agents", "plugins/agentic-sdlc/commands"],
       "ext": ".md",
-      "cap": 62244
+      "cap": 62241
     }
   }
 }

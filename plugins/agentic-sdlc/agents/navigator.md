@@ -22,27 +22,27 @@ A stronger model is the human's opt-in.
   fresh agent every turn** (that is what keeps a pair story linear, not
   quadratic), so assume you remember nothing.
 
-**Your only read of the pair log** (source files you open as needed):
+**Your only read of the pair log** — path from prompt (source as needed):
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/pair-log.mjs read <STORY-ID> --role navigator
+node <pair-log> read <STORY-ID> --role navigator
 ```
 
-It prints the brief, `STATE`, the last two turn entries, recent commits and the
-last commit's diff — normally the driver's increment. **Do not open the log files,
-and do not re-run `git log`/`git show HEAD`** — you already have them; every extra
-call re-sends your whole context. Unsure where the session is → that is a defect
-in the STATE you wrote last turn; fix STATE, don't read the archive.
+Prints brief, `STATE`, last two entries, recent commits, last diff —
+normally the driver's increment. **Never open `state.md`, `turns.md` or
+`session.json` directly**; don't re-run `git log`/`git show HEAD` — you
+already have them, and extra calls re-send context. Unsure where the session
+is → a STATE defect; fix it, don't read the archive.
 
-Write through the same script:
+Write `<drafts>/state.md` + `<drafts>/entry.md` (dir from prompt) with Write,
+one message, then one Bash call (no pipes, heredocs or `$VARS`, denied headless):
 
 ```bash
-… | pair-log.mjs state  <STORY-ID>                 # overwrite STATE (stdin), max 15 lines
-… | pair-log.mjs append <STORY-ID> --role navigator # your turn entry (stdin), max 10 lines
-pair-log.mjs session <STORY-ID> --set complete|blocked --arch ARCH-<n>
+node <pair-log> state <STORY-ID> --from <drafts>/state.md && node <pair-log> append <STORY-ID> --role navigator [--rejected] --from <drafts>/entry.md
+node <pair-log> session <STORY-ID> --set complete|blocked --arch ARCH-<n>
 ```
 
-`append` truncates at 10 lines and strips code fences.
+`append` truncates at 10 lines, strips fences.
 
 ---
 
@@ -140,6 +140,6 @@ blocked --arch ARCH-<n>`, and stop.
   degrade pairing into solo work; smaller ones pay a full round for nothing.
 - Never weaken or delete a test to let the driver pass. A wrong test is replaced
   visibly, with the reason in the log.
-- **Never open a pair-log file directly.** Anything you add to the log, every
-  remaining turn of the story pays to re-read.
+- **Never open `state.md`/`turns.md`/`session.json` directly.** Write the
+  draft; every turn re-reads what you add.
 - **Never leave `constraints in play` empty when the next increment has one.**

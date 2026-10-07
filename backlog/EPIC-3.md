@@ -8,7 +8,7 @@
   permission denial on a pair-log write, ~20% → 0%, measured from
   `permission_denials` in the per-turn meter line over the next PAIR epic
   built here.
-- Status: TODO
+- Status: DONE
 - Artifacts: docs/briefs/headless-pair-log-writes.md
 - Lane: deliberate — recommended fast (rubric 1): no floor fired and 0 PAIR stories, lane is fast
 - Override: lane recommended=fast chosen=deliberate
@@ -130,7 +130,7 @@ good.
 
 ### STORY-3-1: Permission denials recorded in pair-run's meter line
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L95 one_way_doors=0@brief:L56 existing_pattern=yes@brief:L26 modules_crossed=1@brief:L56 review_bounced=no@brief:L56 risk_kind=code@brief:L56
@@ -178,7 +178,7 @@ transcripts, before any fix lands
 
 ### STORY-3-2: `pair-log.mjs` accepts the new write shape for state/append/session
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: M
 - select: risk_class=none@brief:L50 one_way_doors=0@brief:L50 existing_pattern=no@brief:L103 modules_crossed=1@brief:L81 review_bounced=no@brief:L50 risk_kind=code@brief:L50
@@ -238,7 +238,7 @@ replaces the shape it reliably denies
 
 ### STORY-3-3: `pair-run.mjs` allows the new shape by default
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L52 one_way_doors=0@brief:L52 existing_pattern=no@brief:L103 modules_crossed=1@brief:L82 review_bounced=no@brief:L52 risk_kind=code@brief:L52
@@ -299,7 +299,7 @@ project's own `.claude/settings.json`
 
 ### STORY-3-4: `navigator.md` and `driver.md` switch to the new write shape
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L54 one_way_doors=0@brief:L54 existing_pattern=yes@brief:L54 modules_crossed=2@brief:L54 review_bounced=no@brief:L54 risk_kind=code@brief:L54
