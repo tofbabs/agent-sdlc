@@ -2,6 +2,7 @@
 # Stand-in for `claude -p` in pair-run.test.sh. Plays both roles through the real
 # pair-log.mjs, driven by FAKE_* env vars, and prints the CLI's JSON result shape.
 set -u
+argv=("$@")
 role=""; prompt=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -11,6 +12,14 @@ while [ $# -gt 0 ]; do
     *) shift ;;
   esac
 done
+# Records the exact argv a turn was spawned with, one call per file, so the test
+# can assert on grant shape without re-parsing claude's own stdout.
+if [ -n "${FAKE_ARGV_LOG:-}" ]; then
+  {
+    printf '=== %s\n' "$role"
+    for a in "${argv[@]}"; do printf '%s\n' "$a"; done
+  } >> "$FAKE_ARGV_LOG"
+fi
 PL="$CLAUDE_PLUGIN_ROOT/scripts/pair-log.mjs"
 story=$(printf '%s' "$prompt" | grep -o 'STORY-[A-Z0-9-]*' | head -1)
 alt=$(node "$PL" status "$story" | sed -E 's/.*alternation=([0-9]+).*/\1/')
@@ -35,4 +44,8 @@ fi
 rej=""
 [ "$role" = navigator ] && [ -n "${FAKE_REJECT:-}" ] && rej="--rejected"
 echo "- turn by $role" | node "$PL" append "$story" --role "$role" $rej >/dev/null
+if [ "$role" = driver ] && [ -n "${FAKE_DENIAL:-}" ]; then
+  echo '{"is_error":false,"result":"ok","total_cost_usd":0.25,"num_turns":3,"permission_denials":[{"tool_name":"Bash","tool_use_id":"tu_1","tool_input":{"command":"rm -rf /secret-payload"}}]}'
+  exit 0
+fi
 echo '{"is_error":false,"result":"ok","total_cost_usd":0.25,"num_turns":3}'

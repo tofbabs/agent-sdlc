@@ -166,5 +166,80 @@ out=$(node "$PL" frozen-tests STORY-D); code=$?
   && ok "an edited frozen test is refused" || bad "frozen edit not caught ($code)"
 cd ..
 
+# 13. ARCH-1's `--from <path>` is the write shape that survives `-p` permission
+#     matching (one literal command, no pipe, no expansion). It must go through
+#     the same clamp() stdin always did, and only ever delete a file it was
+#     handed inside that story's own drafts/.
+mkdir -p from && cd from && git init -q . && git config user.email t@t && git config user.name t
+node "$PL" init STORY-F --brief ../brief-src.md >/dev/null 2>&1
+DRAFTS=backlog/pair/STORY-F/drafts
+[ -d "$DRAFTS" ] && ok "init creates drafts/" || bad "init did not create drafts/"
+
+echo "- from state" > "$DRAFTS/state.md"
+node "$PL" state STORY-F --from "$DRAFTS/state.md" 2>/dev/null
+grep -q 'from state' backlog/pair/STORY-F/state.md \
+  && ok "state --from writes the body" || bad "state --from did not write"
+[ -f "$DRAFTS/state.md" ] && bad "consumed state draft was not deleted" || ok "state --from deletes the consumed draft"
+
+echo "- from entry" > "$DRAFTS/entry.md"
+node "$PL" append STORY-F --role navigator --from "$DRAFTS/entry.md" 2>/dev/null
+grep -q 'from entry' backlog/pair/STORY-F/turns.md \
+  && ok "append --from writes the body" || bad "append --from did not write"
+[ -f "$DRAFTS/entry.md" ] && bad "consumed entry draft was not deleted" || ok "append --from deletes the consumed draft"
+
+before=$(cat backlog/pair/STORY-F/turns.md)
+echo "- outside" > outside.md
+node "$PL" append STORY-F --role driver --from outside.md >/dev/null 2>err.txt
+code=$?
+[ $code -eq 2 ] && grep -q 'drafts/' err.txt \
+  && [ "$(cat backlog/pair/STORY-F/turns.md)" = "$before" ] && [ -f outside.md ] \
+  && ok "a --from path outside drafts/ is rejected, exit 2, nothing written, file intact" \
+  || bad "a path outside drafts/ was not rejected cleanly (exit $code)"
+
+before=$(cat backlog/pair/STORY-F/turns.md)
+echo "- sibling" > "backlog/pair/STORY-F/outside2.md"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/../outside2.md" >/dev/null 2>err.txt
+code=$?
+[ $code -eq 2 ] && grep -q 'drafts/' err.txt && [ "$(cat backlog/pair/STORY-F/turns.md)" = "$before" ] \
+  && ok "a .. traversal out of drafts/ is rejected" \
+  || bad "a .. traversal was not rejected cleanly (exit $code)"
+
+node "$PL" append STORY-F --role navigator --from "$DRAFTS/missing.md" >/dev/null 2>err.txt
+[ $? -eq 2 ] && grep -q 'not found' err.txt && ok "missing --from file exits 2" || bad "missing --from file mishandled"
+
+: > "$DRAFTS/empty.md"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/empty.md" >/dev/null 2>&1
+[ $? -eq 2 ] && [ -f "$DRAFTS/empty.md" ] \
+  && ok "an empty --from file is rejected like empty stdin, and left in place" \
+  || bad "empty --from file was accepted or consumed"
+
+{ echo "- made green: t"; for i in $(seq 1 20); do echo "- line $i"; done; } > "$DRAFTS/entry.md"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/entry.md" 2>err.txt
+grep -q 'truncated 21→10' err.txt && ok "--from entry truncates same as stdin" || bad "--from truncation missing"
+
+{ echo "- fenced: t"; echo '```js'; echo "const leaked = 1"; echo '```'; } > "$DRAFTS/entry.md"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/entry.md" >/dev/null 2>&1
+grep -q 'const leaked' backlog/pair/STORY-F/turns.md \
+  && bad "--from fenced block survived" || ok "--from strips fenced code blocks same as stdin"
+
+before=$(cat backlog/pair/STORY-F/turns.md)
+echo "top secret" > ../secret.md
+ln -s ../../../secret.md "$DRAFTS/evil.md"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/evil.md" >/dev/null 2>err.txt
+code=$?
+[ $code -eq 2 ] && grep -q 'drafts/' err.txt && [ -f ../secret.md ] \
+  && [ "$(cat backlog/pair/STORY-F/turns.md)" = "$before" ] \
+  && ok "a symlink in drafts/ escaping outside is rejected, exit 2, never read or deleted" \
+  || bad "a symlinked draft escaping drafts/ was read, deleted, or not rejected (exit $code)"
+
+echo "- stdin still works" | node "$PL" append STORY-F --role navigator 2>/dev/null
+grep -q 'stdin still works' backlog/pair/STORY-F/turns.md \
+  && ok "the old stdin-body shape still works unchanged" || bad "stdin-body append regressed"
+
+node "$PL" session STORY-F --set complete >/dev/null 2>&1
+node "$PL" status STORY-F 2>/dev/null | grep -q 'session=complete' \
+  && ok "session still works with flags only (gains nothing from --from)" || bad "session flags-only regressed"
+cd ..
+
 [ "$fail" -eq 0 ] || { printf '\npair-log tests failed\n' >&2; exit 1; }
 printf '\npair-log tests passed\n'

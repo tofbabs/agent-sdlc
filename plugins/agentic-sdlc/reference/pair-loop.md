@@ -43,10 +43,13 @@ in the worktree; you make **one call per story**:
 Both roles run on Sonnet by default. The navigator is ~90% of a pair's cost
 (measured, STORY-2-8: $12.37 of $13.63), so a stronger model there is the human's
 call, never yours: pass `--navigator-model <m>` / `--driver-model <m>` only for an
-override resolved per `reference/models.md`. Also optional: `--turn-budget-usd <n>`. Headless
-turns get no permission prompts: the project's `.claude/settings.json` allow-list
-governs them, and `PAIR_RUN_CLAUDE_ARGS` passes extra CLI flags (e.g.
-`--permission-mode acceptEdits`). Each turn's cost lands in
+override resolved per `reference/models.md`. Also optional: `--turn-budget-usd <n>`. Workspace
+trust gates a project's `permissions.allow`, so under `-p` a never-trusted folder
+ignores it; `pair-run` grants the pair-log write surface itself (ARCH-1: `read`,
+`state`, `append`, `session` on the resolved `pair-log.mjs`, plus `Edit` scoped to
+the story's `drafts/`) on every turn, and everything else — a trusted project's own
+allow-list, `PAIR_RUN_CLAUDE_ARGS` for extra CLI flags (e.g. `--permission-mode
+acceptEdits`) — is governed as before. Each turn's cost lands in
 `.agentic-sdlc/meter/pair-run-<STORY-ID>.jsonl`.
 
 Run the manual loop below **only** when `claude` is not on PATH or headless runs
@@ -85,11 +88,17 @@ twice and letting the more expensive copy be the one that grows.
 1. Agent(subagent_type: "agentic-sdlc:navigator", [model: <override>,]
          prompt: "PAIR on <STORY-ID> in <worktree>,
          branch feat/STORY-<id> off <epic branch | origin/<base>>. Your only
-         read of the pair log is `pair-log.mjs read <STORY-ID> --role
+         read of the pair log is `node <pair-log> read <STORY-ID> --role
          navigator` (bounded: brief, STATE, last 2 entries, last commit);
          open source files as you need them. Review the last increment, write the failing tests
-         for the next behaviour, refresh STATE. All ACs green → close the story
-         in this same turn per your CLOSE step. Then stop.")
+         for the next behaviour, refresh STATE. Write STATE to
+         <drafts>/state.md and the turn entry to <drafts>/entry.md with the
+         Write tool, both in one message, then run exactly one Bash call:
+         `node <pair-log> state <STORY-ID> --from <drafts>/state.md && node
+         <pair-log> append <STORY-ID> --role navigator [--rejected] --from
+         <drafts>/entry.md` — no pipes, no heredocs, no $VARS in that command.
+         All ACs green → close the story in this same turn per your CLOSE
+         step. Then stop.")
 
 2. Read the session field — never the log itself, or you accumulate one copy per
    alternation:
@@ -105,10 +114,13 @@ twice and letting the more expensive copy be the one that grows.
 
 3. Agent(subagent_type: "agentic-sdlc:driver", [model: <override>,] prompt: "PAIR driver turn on <STORY-ID>
          in <worktree>. Your only read of the pair log is
-         `pair-log.mjs read <STORY-ID> --role driver` (bounded: STATE, last 2
+         `node <pair-log> read <STORY-ID> --role driver` (bounded: STATE, last 2
          entries, last commit); open source files as you need them. Make the
-         failing tests pass, implementing only what they demand; commit, log,
-         stop.")
+         failing tests pass, implementing only what they demand; commit. Write
+         the turn entry to <drafts>/entry.md with the Write tool, then run
+         exactly one Bash call: `node <pair-log> append <STORY-ID> --role
+         driver --from <drafts>/entry.md` — no pipes, no heredocs, no $VARS
+         in that command. Then stop.")
 
 4. → back to 1.
 
@@ -154,7 +166,7 @@ the in-tree path for pair logs committed before this change.
 
 The log has to stay **O(1) to read**, because a fresh agent reads it every turn
 and an unboundedly growing log just moves the quadratic out of the agent's context
-and into the file. It is a **directory of four files**, and only one of them grows:
+and into the file. It is a **directory of five entries**, and only one of them grows:
 
 | File | Written by | Growth | Read by |
 |---|---|---|---|
@@ -162,12 +174,29 @@ and into the file. It is a **directory of four files**, and only one of them gro
 | `state.md` | navigator, overwritten every turn | ≤15 lines | both |
 | `turns.md` | `append` only | grows | last 2 entries only |
 | `session.json` | the script only | fixed | orchestrator |
+| `drafts/` | the agent's own Write tool | transient | — |
 
-**Nothing reads or writes these files directly — `pair-log.mjs` is the whole
-surface.** That is not ceremony. Both limits below were prose in the previous
-version of this document and neither had ever been exercised by a run; the
-script makes them things the tooling cannot do, rather than things an agent is
-asked not to do.
+**Nothing reads or writes `state.md`, `turns.md` or `session.json` directly —
+`pair-log.mjs` is the whole surface.** That is not ceremony. Both limits below
+were prose in the previous version of this document and neither had ever been
+exercised by a run; the script makes them things the tooling cannot do, rather
+than things an agent is asked not to do.
+
+**Write shape (ARCH-1):** under `claude -p`, a piped heredoc into
+`${CLAUDE_PLUGIN_ROOT}/...` matches no permission rule and is denied — about
+20% of turns measured. `state` and `append` instead take `--from <path>`: the
+agent Writes the body to `<drafts>/state.md` or `<drafts>/entry.md` (the
+absolute drafts dir comes from the prompt, never `${CLAUDE_PLUGIN_ROOT}`), then
+runs one literal `node <abs> state|append <ID> --from <drafts>/<file>` Bash
+call. The body goes through the same `clamp()` as stdin always did — same caps,
+same fence-stripping, same truncation warnings. `--from` refuses, before any
+read, a path that does not resolve inside that story's `drafts/` (exit 2,
+nothing written, nothing touched) — `pair-run` also grants `read`, so an
+ungated `--from` would let the write grant double as a way to read anything
+else back out through this command's stdout. A path that does resolve inside
+is deleted after a successful write.
+Stdin still works unchanged for a mid-upgrade caller or the manual fallback.
+`session` takes no body, so it is unaffected. `init` creates `drafts/`.
 
 **The driver never sees `brief.md`, and there is no flag that shows it one.**
 The driver runs 42 internal round trips per turn to the navigator's 18, so a byte

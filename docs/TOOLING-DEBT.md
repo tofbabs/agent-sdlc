@@ -13,7 +13,7 @@
 
 | Gap | Risk | Why now | Effort |
 |-----|------|---------|--------|
-| | | | |
+| `templates/hooks/meter.sh:80` expands an empty `"${sub_arg[@]}"` under `set -u`; macOS `/bin/bash` 3.2 aborts with "unbound variable", so the hook silently records nothing on macOS and `scripts/meter.test.sh` fails 3 cases (pre-existing on `main`, found during EPIC-3). | MEDIUM | Production metering is dark on macOS; `preflight` is red locally | S — `${sub_arg[@]+"${sub_arg[@]}"}`, as its own `fix:` PR |
 
 > If this table exceeds 5 entries, the gap scan says so at the top of the file:
 > **recommend pausing feature work.**
@@ -275,3 +275,38 @@ an ignored ledger is worse than none.
 - Risk: LOW
 - Category: robustness
 - Address when: the repo merges more than ~100 commits per window
+
+Ledgered in docs/TOOLING-DEBT.md by the plan commit.
+
+### Pair-log grant assumes an unquoted, whitespace-free plugin path
+- Raised: 2026-10-07 by architect (ARCH-1)
+- Current: the `--allowedTools` rules name `PAIR_LOG` literally. If the
+  plugin cache path contains whitespace, the agent has to quote it, and the
+  quoted command no longer matches the rule.
+- Risk: LOW
+- Category: robustness
+- Address when: a consuming project's meter shows Bash denials on pair turns
+  after this epic lands, or anyone reports a plugin install path containing
+  whitespace.
+
+### No live regression check that the matcher still allows the pair-log shape
+- Raised: 2026-10-07 by architect (ARCH-1)
+- Current: the shape was verified by hand against real `claude -p` on
+  v2.1.292 (dontAsk and auto). `pair-run.test.sh` uses a stub `claude`,
+  so it proves the grant is passed, not that it is honoured.
+- Risk: MEDIUM
+- Category: missing_test
+- Address when: Claude Code release notes mention a change to Bash permission
+  matching or to auto mode dropping allow rules, or the meter's
+  `permission_denials` goes non-zero on pair turns after this epic lands.
+
+### Draft files rely on `backlog/pair/` being gitignored in consuming projects
+- Raised: 2026-10-07 by architect (ARCH-1)
+- Current: `pair-loop.md` says `backlog/pair/` is gitignored, but nothing
+  in the plugin enforces it. Consume-on-success deletion makes a leftover
+  draft unlikely, but a turn that dies between the Write and the `--from`
+  call leaves one behind.
+- Risk: LOW
+- Category: robustness
+- Address when: a `drafts/` file shows up in a squash commit on any
+  consuming project.
