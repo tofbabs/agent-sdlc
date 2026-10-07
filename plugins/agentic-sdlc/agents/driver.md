@@ -52,8 +52,8 @@ you don't understand — before guessing at a fix.
 A new tool, library or vendor; a pattern with no example in the codebase; a schema
 or API shape others will depend on → **stop**. Write `### ARCH-<n>: <question>`
 (`status: OPEN`, `raised_by: coder`, `blocks: STORY-<id>`, context) into the epic
-file, run `pair-log.mjs session <STORY-ID> --set blocked --arch ARCH-<n>`, say so
-in `flag`, and stop. Naming, layout, local precedent → yours; decide.
+file, run `node <pair-log> session <STORY-ID> --set blocked --arch ARCH-<n>`, flag
+it, and stop. Naming, layout, local precedent → yours; decide.
 
 ## Hard rules
 

@@ -142,27 +142,43 @@ const readStdin = () => {
   }
 }
 
+// The grant lets a headless agent both read and delete through `--from`, so one
+// containment check has to gate both: realpath resolves `..` and symlinks
+// before the comparison, so neither can walk a read or a delete out of
+// drafts/. Returns the resolved real path when it is provably inside, else
+// null — never the thing the caller asked for, so a caller that trusts this
+// return value can't be fooled by the path it started with.
+const insideDrafts = (path) => {
+  try {
+    const real = realpathSync(resolve(path))
+    const draftsReal = realpathSync(F.drafts) + sep
+    return `${real}${sep}`.startsWith(draftsReal) ? real : null
+  } catch {
+    return null
+  }
+}
+
 // ARCH-1: under `-p`, only one shape rests on documented permission matching —
 // one literal command, no pipes, no expansion. `--from` is that shape; stdin
 // stays so a mid-upgrade caller and the manual fallback loop keep working.
+// `pair-run` grants `read` as well as `append`/`state`, so a path outside
+// drafts/ must be refused before it is ever opened — otherwise the grant that
+// exists to let an agent write its own draft becomes a way to read anything
+// readable on the filesystem back out through this command's stdout.
 const readBody = () => {
   if (typeof flags.from !== 'string') return { text: readStdin(), fromPath: null }
-  if (!existsSync(flags.from)) die(2, `--from file not found: ${flags.from}`)
-  return { text: readFileSync(flags.from, 'utf8'), fromPath: flags.from }
+  const real = insideDrafts(flags.from)
+  if (real === null) {
+    if (!existsSync(resolve(flags.from))) die(2, `--from file not found: ${flags.from}`)
+    die(2, `--from must resolve inside this story's drafts/: ${flags.from}`)
+  }
+  return { text: readFileSync(real, 'utf8'), fromPath: real }
 }
 
-// The grant lets an agent delete a file, so it must never reach outside the
-// draft it was given. realpath resolves `..` and symlinks before the
-// containment check, so neither can walk the delete out of drafts/.
 const consumeDraft = (fromPath) => {
   if (!fromPath) return
-  try {
-    const real = realpathSync(resolve(fromPath))
-    const draftsReal = realpathSync(F.drafts) + sep
-    if (real.startsWith(draftsReal)) unlinkSync(fromPath)
-  } catch {
-    // Resolution failure means "not provably inside drafts" — leave it alone.
-  }
+  const real = insideDrafts(fromPath)
+  if (real) unlinkSync(real)
 }
 
 /**

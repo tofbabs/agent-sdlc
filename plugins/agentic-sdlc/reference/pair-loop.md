@@ -189,9 +189,12 @@ agent Writes the body to `<drafts>/state.md` or `<drafts>/entry.md` (the
 absolute drafts dir comes from the prompt, never `${CLAUDE_PLUGIN_ROOT}`), then
 runs one literal `node <abs> state|append <ID> --from <drafts>/<file>` Bash
 call. The body goes through the same `clamp()` as stdin always did — same caps,
-same fence-stripping, same truncation warnings. On a successful write `--from`
-deletes the file *only if* it resolves inside that story's `drafts/`; anything
-else is read and left alone, so the grant is never a way to delete a file.
+same fence-stripping, same truncation warnings. `--from` refuses, before any
+read, a path that does not resolve inside that story's `drafts/` (exit 2,
+nothing written, nothing touched) — `pair-run` also grants `read`, so an
+ungated `--from` would let the write grant double as a way to read anything
+else back out through this command's stdout. A path that does resolve inside
+is deleted after a successful write.
 Stdin still works unchanged for a mid-upgrade caller or the manual fallback.
 `session` takes no body, so it is unaffected. `init` creates `drafts/`.
 

@@ -187,11 +187,22 @@ grep -q 'from entry' backlog/pair/STORY-F/turns.md \
   && ok "append --from writes the body" || bad "append --from did not write"
 [ -f "$DRAFTS/entry.md" ] && bad "consumed entry draft was not deleted" || ok "append --from deletes the consumed draft"
 
+before=$(cat backlog/pair/STORY-F/turns.md)
 echo "- outside" > outside.md
-node "$PL" append STORY-F --role driver --from outside.md 2>/dev/null
-grep -q 'outside' backlog/pair/STORY-F/turns.md \
-  && [ -f outside.md ] && ok "a --from path outside drafts/ is read but left intact" \
-  || bad "a path outside drafts/ was consumed or not read"
+node "$PL" append STORY-F --role driver --from outside.md >/dev/null 2>err.txt
+code=$?
+[ $code -eq 2 ] && grep -q 'drafts/' err.txt \
+  && [ "$(cat backlog/pair/STORY-F/turns.md)" = "$before" ] && [ -f outside.md ] \
+  && ok "a --from path outside drafts/ is rejected, exit 2, nothing written, file intact" \
+  || bad "a path outside drafts/ was not rejected cleanly (exit $code)"
+
+before=$(cat backlog/pair/STORY-F/turns.md)
+echo "- sibling" > "backlog/pair/STORY-F/outside2.md"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/../outside2.md" >/dev/null 2>err.txt
+code=$?
+[ $code -eq 2 ] && grep -q 'drafts/' err.txt && [ "$(cat backlog/pair/STORY-F/turns.md)" = "$before" ] \
+  && ok "a .. traversal out of drafts/ is rejected" \
+  || bad "a .. traversal was not rejected cleanly (exit $code)"
 
 node "$PL" append STORY-F --role navigator --from "$DRAFTS/missing.md" >/dev/null 2>err.txt
 [ $? -eq 2 ] && grep -q 'not found' err.txt && ok "missing --from file exits 2" || bad "missing --from file mishandled"
@@ -211,11 +222,15 @@ node "$PL" append STORY-F --role driver --from "$DRAFTS/entry.md" >/dev/null 2>&
 grep -q 'const leaked' backlog/pair/STORY-F/turns.md \
   && bad "--from fenced block survived" || ok "--from strips fenced code blocks same as stdin"
 
+before=$(cat backlog/pair/STORY-F/turns.md)
 echo "top secret" > ../secret.md
 ln -s ../../../secret.md "$DRAFTS/evil.md"
-node "$PL" append STORY-F --role driver --from "$DRAFTS/evil.md" >/dev/null 2>&1
-[ -f ../secret.md ] && ok "a symlink in drafts/ escaping outside is never deleted" \
-  || bad "a symlinked draft escaped drafts/ and was deleted"
+node "$PL" append STORY-F --role driver --from "$DRAFTS/evil.md" >/dev/null 2>err.txt
+code=$?
+[ $code -eq 2 ] && grep -q 'drafts/' err.txt && [ -f ../secret.md ] \
+  && [ "$(cat backlog/pair/STORY-F/turns.md)" = "$before" ] \
+  && ok "a symlink in drafts/ escaping outside is rejected, exit 2, never read or deleted" \
+  || bad "a symlinked draft escaping drafts/ was read, deleted, or not rejected (exit $code)"
 
 echo "- stdin still works" | node "$PL" append STORY-F --role navigator 2>/dev/null
 grep -q 'stdin still works' backlog/pair/STORY-F/turns.md \

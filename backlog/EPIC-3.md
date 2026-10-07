@@ -92,6 +92,9 @@ denied every time. The same grant and shape apply to both roles.
   becomes a way to delete files. If the file is missing, exit 2 with a clear
   message. Empty input, fence stripping and the line caps go through the
   unchanged `clamp()`.
+- Amended 2026-10-07 (PR #41 review round 1, F1): `--from` refuses any path
+  outside `drafts/` before reading it, so the grant can't be used to read
+  files back through `read`.
 - **Prompt:** `pair-run`'s `PROMPTS` already carry the absolute `PAIR_LOG` for
   `read`. Extend them with the absolute drafts dir and the exact write
   commands. The agent `.md` files show the shape with a placeholder ("the

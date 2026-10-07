@@ -142,5 +142,18 @@ grep -qF "node $PL state STORY-R --from $drafts/state.md && node $PL append STOR
 grep -qF "node $PL append STORY-R --role driver --from $drafts/entry.md" "$TMP/argv.log" \
   && ok "driver prompt carries the exact append command" || bad "driver prompt missing append command"
 
+# F2: the CLOSE/BLOCK steps in navigator.md and driver.md tell the agent to run
+# `pair-log.mjs session`, which matches no grant — the prompt itself must carry
+# the literal absolute `session` command so a headless close or block can't fail.
+grep -qF "node $PL session STORY-R --set complete" "$TMP/argv.log" \
+  && ok "navigator prompt carries the literal session --set complete command" \
+  || bad "navigator prompt missing session --set complete"
+for role in navigator driver; do
+  block=$(awk -v r="=== $role" 'BEGIN{p=0} /^=== /{p=($0==r)} p' "$TMP/argv.log")
+  grep -qF "node $PL session STORY-R --set blocked --arch ARCH-<n>" <<<"$block" \
+    && ok "$role prompt carries the literal session --set blocked command" \
+    || bad "$role prompt missing session --set blocked"
+done
+
 [ "$fail" -eq 0 ] || { printf '\npair-run tests failed\n' >&2; exit 1; }
 printf '\npair-run tests passed\n'
