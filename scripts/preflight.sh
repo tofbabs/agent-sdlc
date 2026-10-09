@@ -293,6 +293,18 @@ else
   note "node not found — skipping export resilience tests"
 fi
 
+# 6g. Outcome events, decisions and settlements leave in the same payload,
+#     keyed by decision_id only.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/export-outcomes.test.sh" >/dev/null 2>&1; then
+    ok "outcome events export in the same payload, keyed by decision_id only"
+  else
+    bad "export outcomes tests failed — run scripts/export-outcomes.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping export outcomes tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

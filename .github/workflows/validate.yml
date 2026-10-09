@@ -143,6 +143,10 @@ jobs:
       - name: export client resilience
         run: ./scripts/export-resilience.test.sh
 
+      # Outcome events share the report payload and must carry decision_id only.
+      - name: export outcome events
+        run: ./scripts/export-outcomes.test.sh
+
       # The token authenticates every upload, so how it is created and stored
       # is the contract this suite pins.
       - name: export identity

@@ -340,6 +340,7 @@ endpoint itself
 ### STORY-4-4: Wire upload into the session lifecycle
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L128-L129 one_way_doors=1@brief:L128-L129 existing_pattern=yes@brief:L128-L129 modules_crossed=2@brief:L128-L129 review_bounced=no@brief:L128-L129 risk_kind=code@brief:L128-L129
 - depends_on: [STORY-4-3]
@@ -414,7 +415,8 @@ widening what a consuming project must set up
 
 ### STORY-4-6: Outcome events export
 
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: M
 - select: risk_class=none@brief:L46-L49 one_way_doors=0@brief:L46-L49 existing_pattern=yes@brief:L46-L49 modules_crossed=1@brief:L46-L49 review_bounced=no@brief:L46-L49 risk_kind=code@brief:L46-L49
 - depends_on: [STORY-4-3]
@@ -452,6 +454,7 @@ extra client logic
 ### STORY-4-7: Re-consent on schema version change
 
 - status: TODO
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L132 one_way_doors=0@brief:L132 existing_pattern=no@brief:L132 modules_crossed=1@brief:L132 review_bounced=no@brief:L132 risk_kind=code@brief:L132
 - depends_on: [STORY-4-1]
@@ -533,6 +536,7 @@ or leak more than the schema allows
 ### STORY-4-9: Storage retention and deletion-on-opt-out
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=destructive_data@brief:L130-L131 one_way_doors=1@brief:L130-L131 existing_pattern=no@brief:L130-L131 modules_crossed=2@brief:L130-L131 review_bounced=no@brief:L130-L131 risk_kind=data@brief:L130-L131
 - depends_on: [STORY-4-8]
