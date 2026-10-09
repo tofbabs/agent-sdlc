@@ -113,6 +113,11 @@ jobs:
       - name: plan-artifacts invariants
         run: ./scripts/plan-artifacts.test.sh
 
+      # The repo ID rides on every uploaded report, so a leak of the repo name,
+      # remote, user or host through it is the failure this suite exists to catch.
+      - name: repo-id anonymity
+        run: ./scripts/repo-id.test.sh
+
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a
       # cost regression. The budget is ratchet-only — a file over its cap fails,
