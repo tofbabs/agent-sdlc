@@ -213,7 +213,8 @@ is a one-way door once repos are sending real data to it.
 
 ### STORY-4-1: First-run consent prompt, checked-in config, and documented payload
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 4 at or above 4 is PAIR
 - estimate: M
 - select: risk_class=none@brief:L21-L25 one_way_doors=0@brief:L21-L25 existing_pattern=no@brief:L38-L40 modules_crossed=2@brief:L38-L40 review_bounced=no@brief:L38-L40 risk_kind=code@brief:L38-L40
 - depends_on: []
@@ -256,7 +257,8 @@ control
 
 ### STORY-4-2: Anonymous repo ID from a salted hash
 
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L41-L42 one_way_doors=0@brief:L41-L42 existing_pattern=yes@brief:L41-L42 modules_crossed=1@brief:L41-L42 review_bounced=no@brief:L41-L42 risk_kind=code@brief:L41-L42
 - depends_on: []
@@ -292,7 +294,9 @@ to the repo's name, remote, user or machine
 
 ### STORY-4-3: Client upload module — zero-dependency, non-blocking, hardened
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 4 at or above 4 is PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: L
 - select: risk_class=none@brief:L50-L53 one_way_doors=0@brief:L50-L53 existing_pattern=no@brief:L50-L53 modules_crossed=2@brief:L50-L53 review_bounced=no@brief:L50-L53 risk_kind=code@brief:L50-L53
 - depends_on: [STORY-4-2]
@@ -373,6 +377,7 @@ it
 ### STORY-4-5: Client identity — registration and token storage
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L122-L127 one_way_doors=1@brief:L122-L127 existing_pattern=no@brief:L122-L127 modules_crossed=2@brief:L122-L127 review_bounced=no@brief:L122-L127 risk_kind=code@brief:L122-L127
 - depends_on: [STORY-4-2]
@@ -480,6 +485,7 @@ covering a later, different schema if the architect decides it should
 ### STORY-4-8: v1 ingest endpoint — hardened edge validation
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: L
 - select: risk_class=none@brief:L88-L105 one_way_doors=1@brief:L88-L105 existing_pattern=no@brief:L88-L105 modules_crossed=3@brief:L88-L105 review_bounced=no@brief:L88-L105 risk_kind=code@brief:L88-L105
 - depends_on: []

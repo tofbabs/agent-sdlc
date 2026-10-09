@@ -236,6 +236,29 @@ else
   note "node not found — skipping repo-id tests"
 fi
 
+# 6e. The export client: queue, backoff and kill switch, against a local stub.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/export.test.sh" >/dev/null 2>&1; then
+    ok "export client queues, backs off and honours the kill switch"
+  else
+    bad "export tests failed — run scripts/export.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping export tests"
+fi
+
+# 6f. The export client under failure: oversize, 401, 413, backoff, kill switch
+#     and a black-hole endpoint, so telemetry can never hold a session open.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/export-resilience.test.sh" >/dev/null 2>&1; then
+    ok "export client survives black holes, backoff and the kill switch"
+  else
+    bad "export resilience tests failed — run scripts/export-resilience.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping export resilience tests"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

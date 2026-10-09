@@ -123,6 +123,16 @@ jobs:
       - name: repo-id anonymity
         run: ./scripts/repo-id.test.sh
 
+      # Reports leave the machine through this client, so its queue, backoff and
+      # kill switch are tested against a local stub server only.
+      - name: export client
+        run: ./scripts/export.test.sh
+
+      # A black-holed or failing endpoint must never hold a session open, and
+      # the kill switch must stop sends until it clears.
+      - name: export client resilience
+        run: ./scripts/export-resilience.test.sh
+
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a
       # cost regression. The budget is ratchet-only — a file over its cap fails,
