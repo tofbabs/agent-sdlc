@@ -376,8 +376,9 @@ it
 
 ### STORY-4-5: Client identity — registration and token storage
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L122-L127 one_way_doors=1@brief:L122-L127 existing_pattern=no@brief:L122-L127 modules_crossed=2@brief:L122-L127 review_bounced=no@brief:L122-L127 risk_kind=code@brief:L122-L127
 - depends_on: [STORY-4-2]

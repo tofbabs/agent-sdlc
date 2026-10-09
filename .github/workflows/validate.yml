@@ -143,6 +143,14 @@ jobs:
       - name: export client resilience
         run: ./scripts/export-resilience.test.sh
 
+      # The token authenticates every upload, so how it is created and stored
+      # is the contract this suite pins.
+      - name: export identity
+        run: ./scripts/export-identity.test.sh
+
+      - name: export identity cooldown and confinement
+        run: ./scripts/export-identity-more.test.sh
+
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a
       # cost regression. The budget is ratchet-only — a file over its cap fails,

@@ -11,7 +11,7 @@ const LABEL = 'agentic-sdlc/repo-id/v1\n'
 
 // Same common-git-dir rule as the decision store so every worktree of one
 // clone resolves to the same salt.
-function exportDir(cwd) {
+export function exportDir(cwd) {
   const common = execFileSync('git', ['rev-parse', '--git-common-dir'], {
     cwd,
     encoding: 'utf8',
@@ -21,7 +21,7 @@ function exportDir(cwd) {
 
 // link() fails with EEXIST instead of overwriting, so concurrent creators
 // converge on exactly one winner and every loser reads the winner's bytes.
-function createOnce(file, content) {
+export function createOnce(file, content) {
   const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`
   writeFileSync(tmp, content, { mode: 0o600 })
   try {

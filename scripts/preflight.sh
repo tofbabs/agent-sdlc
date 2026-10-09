@@ -256,6 +256,16 @@ if command -v node >/dev/null 2>&1; then
   else
     bad "repo-id tests failed — run scripts/repo-id.test.sh to see which invariant broke"
   fi
+  if "$ROOT/scripts/export-identity.test.sh" >/dev/null 2>&1; then
+    ok "export identity registers once and stores a private token"
+  else
+    bad "export-identity tests failed — run scripts/export-identity.test.sh to see which invariant broke"
+  fi
+  if "$ROOT/scripts/export-identity-more.test.sh" >/dev/null 2>&1; then
+    ok "export identity cools down, converges across worktrees and stays out of the tree"
+  else
+    bad "export-identity-more tests failed — run scripts/export-identity-more.test.sh to see which invariant broke"
+  fi
 else
   note "node not found — skipping repo-id tests"
 fi
