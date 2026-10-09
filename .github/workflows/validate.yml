@@ -125,6 +125,10 @@ jobs:
       - name: run-report hook invariants
         run: /bin/bash ./scripts/run-report-hook.test.sh
 
+      # The hook's upload chain: opt-in gated, detached, ordered after the report.
+      - name: run-report export hook invariants
+        run: /bin/bash ./scripts/run-report-export-hook.test.sh
+
       # plan-artifacts.mjs claims backlog IDs across every worktree and branch,
       # and carries a plan onto its build branch. Without it, parallel sessions
       # reuse FAST-<n> and plans never ship with the code they describe.

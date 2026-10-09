@@ -193,6 +193,18 @@ else
   note "node not found — skipping run-report hook tests"
 fi
 
+# 6a-export. The same hook chains report upload after the report, only on an
+#     explicit share=true, and detached. Upload scripts are tracing stubs there.
+if command -v node >/dev/null 2>&1; then
+  if /bin/bash "$ROOT/scripts/run-report-export-hook.test.sh" >/dev/null 2>&1; then
+    ok "run-report export hook invariants hold"
+  else
+    bad "run-report export hook tests failed — run scripts/run-report-export-hook.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping run-report export hook tests"
+fi
+
 # 6b. plan-artifacts.mjs keeps parallel sessions from colliding on backlog IDs
 #     and makes a plan ship with its build branch. Same node guard as above.
 if command -v node >/dev/null 2>&1; then

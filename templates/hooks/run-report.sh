@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run-report.sh — UserPromptSubmit and SessionEnd hook feeding run-report.mjs.
+# run-report.sh — UserPromptSubmit, SessionEnd and SessionStart hook feeding run-report.mjs.
 #
 # ONE script, dispatching on the payload's `hook_event_name`, because both
 # events share the same marker (<project>/.agentic-sdlc/run-state.json) and the
@@ -20,11 +20,23 @@
 #   SessionEnd — finalizes whatever run is open. Its 1.5-second budget is
 #   SHARED by every SessionEnd hook in the project, and the report can spend up
 #   to 5s on `gh pr view`, so this spawns `run-report.mjs report` DETACHED and
-#   returns at once. Nothing is left to wait for: SessionEnd fires after the
+#   returns at once. When consent.mjs reports share=true, the same detached
+#   chain then runs `export.mjs enqueue <report>` and `export.mjs flush
+#   --jitter-ms 10000` (siblings of run-report.mjs). On share=false with a
+#   stored token (in the git common dir, shared by worktrees) it runs
+#   `export-identity.mjs revoke` instead, so an opt-out withdraws the identity.
+#   An unanswered question does nothing beyond the report, even with a token:
+#   silence is not consent to either direction. Nothing is left to wait for: SessionEnd fires after the
 #   session's last turn, so every artifact the pipeline writes locally (backlog
 #   statuses, pair sessions, the ledger) and every PR comment it posted through
 #   a synchronous `gh` call is already in place. No marker file at all →
 #   nothing to finalize, exit 0 without spawning.
+#
+#   SessionStart — retries uploads an earlier session left queued. A bash
+#   pre-check exits before node unless the export queue is non-empty or a token
+#   exists; otherwise a detached chain flushes on share=true (60s jitter, no
+#   enqueue) or revokes the identity on share=false with a token. Silent, and
+#   unanswered consent touches nothing.
 #
 # Like meter.sh, this is ADVISORY AND BEST-EFFORT: it never fails the session
 # (always exits 0) and degrades quietly if node is missing or the payload
@@ -133,14 +145,72 @@ case "$event" in
       exit 0
     fi
 
-    # Detached: the 1.5s SessionEnd budget is shared by every hook in the
-    # project, and the report's gh read alone can take longer. If the next
-    # prompt moves the marker on before this finishes, run-report.mjs notices
-    # and leaves the newer state alone.
+    # Read before spawning: the detached report may move the marker away, and
+    # enqueue needs this run's report path.
+    run_id="$(node -e '
+      try { process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).run_id || "")) } catch {}
+    ' "$cwd/.agentic-sdlc/run-state.json" 2>/dev/null)"
+
+    # One detached chain, because enqueue must follow the report it uploads and
+    # the 1.5s SessionEnd budget is shared by every hook in the project (the
+    # report's gh read alone can take longer). Upload only on an explicit
+    # share=true. If the next prompt moves the marker on before this finishes,
+    # run-report.mjs notices and leaves the newer state alone.
+    chain='
+      cwd="$1"; run_report="$2"; run_id="$3"; dir="$(dirname "$run_report")"
+      cd "$cwd" || exit 0
+      node "$run_report" report --project "$cwd"
+      consent="$(node "$dir/consent.mjs" get --cwd "$cwd" 2>/dev/null)"
+      if [ "$consent" = "share=false" ]; then
+        gc="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+        [ -n "$gc" ] && [ -f "$gc/agentic-sdlc/export/token.json" ] && node "$dir/export-identity.mjs" revoke
+        exit 0
+      fi
+      [ "$consent" = "share=true" ] && [ -n "$run_id" ] || exit 0
+      node "$dir/export.mjs" enqueue "$cwd/.agentic-sdlc/runs/$run_id.json" || exit 0
+      node "$dir/export.mjs" flush --jitter-ms 10000
+    '
     if command -v setsid >/dev/null 2>&1; then
-      setsid nohup node "$run_report" report --project "$cwd" </dev/null >/dev/null 2>&1 &
+      setsid nohup /bin/bash -c "$chain" chain "$cwd" "$run_report" "$run_id" </dev/null >/dev/null 2>&1 &
     else
-      nohup node "$run_report" report --project "$cwd" </dev/null >/dev/null 2>&1 &
+      nohup /bin/bash -c "$chain" chain "$cwd" "$run_report" "$run_id" </dev/null >/dev/null 2>&1 &
+    fi
+    disown 2>/dev/null || true
+    ;;
+
+  SessionStart)
+    cwd="$(read_field cwd)"
+    [ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+
+    # Bash-only pre-check, before node starts: nearly every session has
+    # nothing queued and no identity, and must pay nothing for that. SessionStart
+    # stdout is injected into the model's context, so every path stays silent.
+    gc="$(git -C "$cwd" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
+    [ -n "$gc" ] || exit 0
+    export_dir="$gc/agentic-sdlc/export"
+    if [ -z "$(ls -A "$export_dir/queue" 2>/dev/null)" ] && [ ! -f "$export_dir/token.json" ]; then
+      exit 0
+    fi
+
+    run_report="$(resolve_run_report)"
+    [ -n "$run_report" ] && [ -f "$run_report" ] || exit 0
+
+    # Retries what an earlier session could not upload. The long jitter keeps
+    # a fleet of simultaneous session starts from hitting the endpoint together.
+    chain='
+      cwd="$1"; dir="$(dirname "$2")"; export_dir="$3"
+      cd "$cwd" || exit 0
+      consent="$(node "$dir/consent.mjs" get --cwd "$cwd" 2>/dev/null)"
+      if [ "$consent" = "share=true" ]; then
+        node "$dir/export.mjs" flush --jitter-ms 60000
+      elif [ "$consent" = "share=false" ] && [ -f "$export_dir/token.json" ]; then
+        node "$dir/export-identity.mjs" revoke
+      fi
+    '
+    if command -v setsid >/dev/null 2>&1; then
+      setsid nohup /bin/bash -c "$chain" chain "$cwd" "$run_report" "$export_dir" </dev/null >/dev/null 2>&1 &
+    else
+      nohup /bin/bash -c "$chain" chain "$cwd" "$run_report" "$export_dir" </dev/null >/dev/null 2>&1 &
     fi
     disown 2>/dev/null || true
     ;;

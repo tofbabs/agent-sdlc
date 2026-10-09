@@ -9,7 +9,7 @@
   from `run.ended_at` to the store's `received_at` (ARCH-1, ADR-0003);
   black-hole-endpoint test shows unchanged
   session exit/duration.
-- Status: TODO
+- Status: DONE
 - Artifacts: docs/adr/0003-telemetry-ingest-backend-identity-and-retention.md, docs/briefs/self-improvement/02-telemetry-export.md, docs/briefs/self-improvement/README.md
 
 ## Architect handoffs
@@ -339,7 +339,7 @@ endpoint itself
 
 ### STORY-4-4: Wire upload into the session lifecycle
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L128-L129 one_way_doors=1@brief:L128-L129 existing_pattern=yes@brief:L128-L129 modules_crossed=2@brief:L128-L129 review_bounced=no@brief:L128-L129 risk_kind=code@brief:L128-L129
