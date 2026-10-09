@@ -484,8 +484,9 @@ covering a later, different schema if the architect decides it should
 
 ### STORY-4-8: v1 ingest endpoint — hardened edge validation
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: L
 - select: risk_class=none@brief:L88-L105 one_way_doors=1@brief:L88-L105 existing_pattern=no@brief:L88-L105 modules_crossed=3@brief:L88-L105 review_bounced=no@brief:L88-L105 risk_kind=code@brief:L88-L105
 - depends_on: []

@@ -141,6 +141,30 @@ else
   note "node not found — skipping run-report tests"
 fi
 
+# 6a-schema. The report schema is shared with the ingest Worker: it must stay
+#     free of node: imports and run-report.mjs must reuse it, not copy it.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/run-report-schema.test.sh" >/dev/null 2>&1; then
+    ok "run-report schema module invariants hold"
+  else
+    bad "run-report schema tests failed — run scripts/run-report-schema.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping run-report schema tests"
+fi
+
+# 6a-ingest. The edge handler (ingest/src/handler.mjs) under plain Node against
+#     an in-memory db: validation, limits, idempotency and /register.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/ingest.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/ingest-limits.test.sh" >/dev/null 2>&1; then
+    ok "ingest handler tests pass"
+  else
+    bad "ingest handler tests failed — run scripts/ingest.test.sh and scripts/ingest-limits.test.sh"
+  fi
+else
+  note "node not found — skipping ingest tests"
+fi
+
 # 6a-hook. run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
 #     run-report.mjs: its stdout must stay empty on every path (UserPromptSubmit's
 #     stdout is injected into the model's context), SessionEnd must return well

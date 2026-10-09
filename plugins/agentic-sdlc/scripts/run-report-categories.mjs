@@ -14,9 +14,6 @@
 //
 // Zero dependencies, Node 22 (the repo floor).
 
-import { realpathSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
-
 // Closed sets: the pipeline cannot produce a value outside these, so there is
 // no `other` escape — an unrecognised token here is a bug, not drift.
 export const CLOSED = Object.freeze({
@@ -159,14 +156,17 @@ export function toCategory(vocabName, token) {
 export default ALL
 
 // Compared by realpath: import.meta.url is already resolved, so a symlinked
-// invocation (a plugin cache link) would otherwise never match argv[1].
-const isMain = (() => {
+// invocation (a plugin cache link) would otherwise never match argv[1]. The
+// node: modules load dynamically so the module stays importable at the edge.
+const isMain = async () => {
+  if (typeof process === 'undefined' || !process.argv?.[1]) return false
   try {
-    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+    const [{ realpathSync }, { pathToFileURL }] = await Promise.all(['node:fs', 'node:url'].map((m) => import(m)))
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
   } catch {
     return false
   }
-})()
-if (isMain) {
+}
+if (await isMain()) {
   process.stdout.write(`${JSON.stringify(ALL, null, 2)}\n`)
 }

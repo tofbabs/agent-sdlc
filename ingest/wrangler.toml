@@ -1,0 +1,19 @@
+name = "agentic-sdlc-ingest"
+main = "src/worker.mjs"
+compatibility_date = "2026-10-01"
+
+# Custom hostname only: the human picks it and sets it here and in the WAF rule.
+workers_dev = false
+routes = [
+  { pattern = "REPLACE_WITH_INGEST_HOSTNAME/*", zone_name = "REPLACE_WITH_ZONE" },
+]
+
+[vars]
+# "on" makes /v1/register and /v1/reports answer 503 {"stop":true}.
+KILL_SWITCH = "off"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agentic-sdlc-ingest"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"

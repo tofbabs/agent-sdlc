@@ -103,6 +103,16 @@ jobs:
       - name: run-report invariants
         run: ./scripts/run-report.test.sh
 
+      # The report schema is shared with the ingest Worker, so it must stay
+      # free of node: imports and be reused rather than copied.
+      - name: run-report schema invariants
+        run: ./scripts/run-report-schema.test.sh
+
+      - name: ingest handler tests
+        run: |
+          ./scripts/ingest.test.sh
+          ./scripts/ingest-limits.test.sh
+
       # run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
       # run-report.mjs. UserPromptSubmit's stdout is injected into the model's
       # context, so a leak there is not cosmetic; SessionEnd shares a 1.5s budget
