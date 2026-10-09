@@ -92,11 +92,29 @@ jobs:
       - name: meter invariants
         run: ./scripts/meter.test.sh
 
+      # The consent answer gates every export; the wiring check keeps the
+      # protocol reachable from plan and build.
+      - name: consent store and wiring
+        run: |
+          ./scripts/consent.test.sh
+          ./scripts/consent-terms.test.sh
+
       # run-report.mjs builds the report that is exported later, so it is
       # code-free by schema: no field accepts an unbounded string, cost is the
       # meter record verbatim, and a missing input is null + named, never zero.
       - name: run-report invariants
         run: ./scripts/run-report.test.sh
+
+      # The report schema is shared with the ingest Worker, so it must stay
+      # free of node: imports and be reused rather than copied.
+      - name: run-report schema invariants
+        run: ./scripts/run-report-schema.test.sh
+
+      - name: ingest handler tests
+        run: |
+          ./scripts/ingest.test.sh
+          ./scripts/ingest-limits.test.sh
+          ./scripts/ingest-retention.test.sh
 
       # run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
       # run-report.mjs. UserPromptSubmit's stdout is injected into the model's
@@ -107,11 +125,47 @@ jobs:
       - name: run-report hook invariants
         run: /bin/bash ./scripts/run-report-hook.test.sh
 
+      # The hook's upload chain: opt-in gated, detached, ordered after the report.
+      - name: run-report export hook invariants
+        run: /bin/bash ./scripts/run-report-export-hook.test.sh
+
       # plan-artifacts.mjs claims backlog IDs across every worktree and branch,
       # and carries a plan onto its build branch. Without it, parallel sessions
       # reuse FAST-<n> and plans never ship with the code they describe.
       - name: plan-artifacts invariants
         run: ./scripts/plan-artifacts.test.sh
+
+      # The repo ID rides on every uploaded report, so a leak of the repo name,
+      # remote, user or host through it is the failure this suite exists to catch.
+      - name: repo-id anonymity
+        run: ./scripts/repo-id.test.sh
+
+      # Reports leave the machine through this client, so its queue, backoff and
+      # kill switch are tested against a local stub server only.
+      - name: export client
+        run: ./scripts/export.test.sh
+
+      # A black-holed or failing endpoint must never hold a session open, and
+      # the kill switch must stop sends until it clears.
+      - name: export client resilience
+        run: ./scripts/export-resilience.test.sh
+
+      # Outcome events share the report payload and must carry decision_id only.
+      - name: export outcome events
+        run: ./scripts/export-outcomes.test.sh
+
+      # The token authenticates every upload, so how it is created and stored
+      # is the contract this suite pins.
+      - name: export identity
+        run: ./scripts/export-identity.test.sh
+
+      - name: export identity cooldown and confinement
+        run: ./scripts/export-identity-more.test.sh
+
+      - name: export revoke
+        run: |
+          ./scripts/export-revoke.test.sh
+          ./scripts/export-revoke-cli.test.sh
 
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a

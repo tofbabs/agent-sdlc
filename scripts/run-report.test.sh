@@ -521,7 +521,7 @@ got=$(q "$(OUT "$P")" 'String(r.run.lane)+" "+r.run.command+" "+r.degraded.inclu
 [ "$got" = "null plan true" ] && ok "incomplete marker → that field null + run_state, rest kept" || bad "incomplete marker: $got"
 
 mkdir -p "$TMP/bare/scripts"
-cp "$ROOT/plugins/agentic-sdlc/scripts/run-report.mjs" "$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs" "$ROOT/plugins/agentic-sdlc/scripts/decisions.mjs" "$TMP/bare/scripts/"
+cp "$ROOT/plugins/agentic-sdlc/scripts/run-report.mjs" "$ROOT/plugins/agentic-sdlc/scripts/run-report-categories.mjs" "$ROOT/plugins/agentic-sdlc/scripts/run-report-schema.mjs" "$ROOT/plugins/agentic-sdlc/scripts/decisions.mjs" "$TMP/bare/scripts/"
 P=$(mkproj no-plugin-json)
 marker "$P" plan deliberate "x" '"backlog/EPIC-7.md"' '[]'
 node "$TMP/bare/scripts/run-report.mjs" report --project "$P" --now "$NOW" >/dev/null 2>&1

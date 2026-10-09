@@ -114,6 +114,30 @@ else
   note "node not found — skipping meter tests"
 fi
 
+# 6b. consent.mjs holds the team-wide telemetry answer; a regression here either
+#     nags users or exports without their say-so.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/consent.test.sh" >/dev/null 2>&1; then
+    ok "consent store and wiring hold"
+  else
+    bad "consent tests failed — run scripts/consent.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping consent tests"
+fi
+
+# 6b-terms. A yes covers the terms it was given under; widening PATTERNS without
+#     bumping TERMS would silently extend consent.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/consent-terms.test.sh" >/dev/null 2>&1; then
+    ok "consent terms versioning holds"
+  else
+    bad "consent terms tests failed — run scripts/consent-terms.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping consent terms tests"
+fi
+
 # 6a. run-report.mjs derives the report that gets exported. Its cost section
 #     must be the meter record verbatim, a missing input must be null and named
 #     rather than zeroed, and no field may accept an unbounded string — the
@@ -127,6 +151,30 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not found — skipping run-report tests"
+fi
+
+# 6a-schema. The report schema is shared with the ingest Worker: it must stay
+#     free of node: imports and run-report.mjs must reuse it, not copy it.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/run-report-schema.test.sh" >/dev/null 2>&1; then
+    ok "run-report schema module invariants hold"
+  else
+    bad "run-report schema tests failed — run scripts/run-report-schema.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping run-report schema tests"
+fi
+
+# 6a-ingest. The edge handler (ingest/src/handler.mjs) under plain Node against
+#     an in-memory db: validation, limits, idempotency and /register.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/ingest.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/ingest-limits.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/ingest-retention.test.sh" >/dev/null 2>&1; then
+    ok "ingest handler tests pass"
+  else
+    bad "ingest handler tests failed — run scripts/ingest.test.sh, scripts/ingest-limits.test.sh and scripts/ingest-retention.test.sh"
+  fi
+else
+  note "node not found — skipping ingest tests"
 fi
 
 # 6a-hook. run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
@@ -143,6 +191,18 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not found — skipping run-report hook tests"
+fi
+
+# 6a-export. The same hook chains report upload after the report, only on an
+#     explicit share=true, and detached. Upload scripts are tracing stubs there.
+if command -v node >/dev/null 2>&1; then
+  if /bin/bash "$ROOT/scripts/run-report-export-hook.test.sh" >/dev/null 2>&1; then
+    ok "run-report export hook invariants hold"
+  else
+    bad "run-report export hook tests failed — run scripts/run-report-export-hook.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping run-report export hook tests"
 fi
 
 # 6b. plan-artifacts.mjs keeps parallel sessions from colliding on backlog IDs
@@ -210,6 +270,68 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not found — skipping outcomes tests"
+fi
+
+# 6d. The anonymous repo ID: a per-clone random salt, stable across worktrees,
+#     with nothing identifying the repo, user or machine anywhere in it.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/repo-id.test.sh" >/dev/null 2>&1; then
+    ok "repo ID is stable, per-clone and anonymous"
+  else
+    bad "repo-id tests failed — run scripts/repo-id.test.sh to see which invariant broke"
+  fi
+  if "$ROOT/scripts/export-identity.test.sh" >/dev/null 2>&1; then
+    ok "export identity registers once and stores a private token"
+  else
+    bad "export-identity tests failed — run scripts/export-identity.test.sh to see which invariant broke"
+  fi
+  if "$ROOT/scripts/export-identity-more.test.sh" >/dev/null 2>&1; then
+    ok "export identity cools down, converges across worktrees and stays out of the tree"
+  else
+    bad "export-identity-more tests failed — run scripts/export-identity-more.test.sh to see which invariant broke"
+  fi
+  if "$ROOT/scripts/export-revoke.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/export-revoke-cli.test.sh" >/dev/null 2>&1; then
+    ok "export revoke drops local state only after the server confirms"
+  else
+    bad "export revoke tests failed — run scripts/export-revoke.test.sh and scripts/export-revoke-cli.test.sh"
+  fi
+else
+  note "node not found — skipping repo-id tests"
+fi
+
+# 6e. The export client: queue, backoff and kill switch, against a local stub.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/export.test.sh" >/dev/null 2>&1; then
+    ok "export client queues, backs off and honours the kill switch"
+  else
+    bad "export tests failed — run scripts/export.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping export tests"
+fi
+
+# 6f. The export client under failure: oversize, 401, 413, backoff, kill switch
+#     and a black-hole endpoint, so telemetry can never hold a session open.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/export-resilience.test.sh" >/dev/null 2>&1; then
+    ok "export client survives black holes, backoff and the kill switch"
+  else
+    bad "export resilience tests failed — run scripts/export-resilience.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping export resilience tests"
+fi
+
+# 6g. Outcome events, decisions and settlements leave in the same payload,
+#     keyed by decision_id only.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/export-outcomes.test.sh" >/dev/null 2>&1; then
+    ok "outcome events export in the same payload, keyed by decision_id only"
+  else
+    bad "export outcomes tests failed — run scripts/export-outcomes.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping export outcomes tests"
 fi
 
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40

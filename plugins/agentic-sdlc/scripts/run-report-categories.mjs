@@ -14,9 +14,6 @@
 //
 // Zero dependencies, Node 22 (the repo floor).
 
-import { realpathSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
-
 // Closed sets: the pipeline cannot produce a value outside these, so there is
 // no `other` escape — an unrecognised token here is a bug, not drift.
 export const CLOSED = Object.freeze({
@@ -86,6 +83,14 @@ export const PATTERNS = Object.freeze({
   iso_utc_seconds: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
   decision_id: /^[0-9a-f]{16}$/,
 })
+
+// What a stored "share: true" consents to. Widening the shared data (a new
+// pattern here, a new kind of identifier) must bump TERMS so consent.mjs
+// re-asks; a schema-version bump alone does not, by ADR-0003/ARCH-5. Terms 1
+// is enum tokens, numbers, booleans, these patterns, and the hashed repo ID
+// sent at /register.
+export const TERMS = 1
+export const TERMS_PATTERNS = Object.freeze(['uuid_v4', 'semver', 'iso_utc_seconds', 'decision_id'])
 
 // Open sets: a deterministic script cannot classify prose (ADR 0001 Context),
 // so the agent writing the artifact tags one token at source; the builder
@@ -159,14 +164,17 @@ export function toCategory(vocabName, token) {
 export default ALL
 
 // Compared by realpath: import.meta.url is already resolved, so a symlinked
-// invocation (a plugin cache link) would otherwise never match argv[1].
-const isMain = (() => {
+// invocation (a plugin cache link) would otherwise never match argv[1]. The
+// node: modules load dynamically so the module stays importable at the edge.
+const isMain = async () => {
+  if (typeof process === 'undefined' || !process.argv?.[1]) return false
   try {
-    return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
+    const [{ realpathSync }, { pathToFileURL }] = await Promise.all(['node:fs', 'node:url'].map((m) => import(m)))
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
   } catch {
     return false
   }
-})()
-if (isMain) {
+}
+if (await isMain()) {
   process.stdout.write(`${JSON.stringify(ALL, null, 2)}\n`)
 }

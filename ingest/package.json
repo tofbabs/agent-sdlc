@@ -1,0 +1,12 @@
+{
+  "name": "agentic-sdlc-ingest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply agentic-sdlc-ingest --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

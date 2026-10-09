@@ -193,6 +193,60 @@ cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
 
 ---
 
+## Telemetry consent
+
+`/agentic-sdlc:plan` and `/agentic-sdlc:build` ask once, per project, whether
+finished runs may share their run report. The answer is stored in the checked-in
+`.claude/agentic-sdlc.json`, so a teammate is not asked again.
+
+What is shared is the schema-1 run report and nothing else. Its top-level
+sections are `run`, `plan`, `build`, `review`, `debt`, `cost` and `degraded`,
+plus optional `decisions`, `outcome_events` and `settlements`. The `run` section
+carries `run_id`, `plugin_version`, `command`, `lane`, `outcome`, `ended_at`,
+`wall_clock_s` and `sessions`. The rest are counts, enum values and cost totals.
+The report is code-free by construction: every field is a number or a value from
+a closed list, so no source, path, brief text or backlog text can reach it.
+
+The local report under `.agentic-sdlc/runs/` is always kept, regardless of the
+answer. Declining, or never answering, only means nothing is sent.
+
+To change your mind, edit one line in `.claude/agentic-sdlc.json`:
+
+    {"telemetry": {"share": false}}
+
+Use `true` to opt in.
+
+An opt-in is stored with the terms it was given under:
+
+    {"telemetry": {"share": true, "terms": 1}}
+
+Terms 1 covers enum tokens, numbers, booleans, four fixed-format strings (a
+UUID, a semver, a UTC timestamp, a 16-hex decision id), and the hashed repo ID
+sent at registration. If a later release widens what is shared, its terms
+number goes up and a `true` with a lower or missing `terms` is asked again; the
+file is left as it was until you answer. A decline is never asked again. A new
+report schema version on its own does not re-ask.
+
+### Opting out deletes what was already shared
+
+Setting `share` to `false` in `.claude/agentic-sdlc.json` is what triggers
+deletion. The next run in a clone that sees the flip asks the ingest service to
+delete everything stored for that clone's anonymous repo ID, then removes its
+local token and upload queue.
+
+- It is deleted immediately from each clone that runs again. A clone that has
+  not run since the flip has not yet asked, so its data stays until it does.
+- All data is gone within 90 days regardless, whether or not any clone runs
+  again: storage drops reports and idle tokens older than that automatically.
+- The database keeps point-in-time history (D1 Time Travel) for 7 days on the
+  Free plan, so deleted data is unrecoverable within 7 days of deletion.
+- A clone that never registered has no token and sends zero bytes when it
+  revokes.
+- If the service is unreachable, the local token and queue are kept and the
+  deletion is retried on a later run.
+
+---
+
 ## What stays in the project, deliberately
 
 This plugin carries the **protocol**. It does not carry anything a project learned
