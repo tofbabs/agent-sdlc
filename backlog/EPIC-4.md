@@ -535,8 +535,9 @@ or leak more than the schema allows
 
 ### STORY-4-9: Storage retention and deletion-on-opt-out
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=destructive_data@brief:L130-L131 one_way_doors=1@brief:L130-L131 existing_pattern=no@brief:L130-L131 modules_crossed=2@brief:L130-L131 review_bounced=no@brief:L130-L131 risk_kind=data@brief:L130-L131
 - depends_on: [STORY-4-8]

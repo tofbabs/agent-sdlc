@@ -227,6 +227,24 @@ number goes up and a `true` with a lower or missing `terms` is asked again; the
 file is left as it was until you answer. A decline is never asked again. A new
 report schema version on its own does not re-ask.
 
+### Opting out deletes what was already shared
+
+Setting `share` to `false` in `.claude/agentic-sdlc.json` is what triggers
+deletion. The next run in a clone that sees the flip asks the ingest service to
+delete everything stored for that clone's anonymous repo ID, then removes its
+local token and upload queue.
+
+- It is deleted immediately from each clone that runs again. A clone that has
+  not run since the flip has not yet asked, so its data stays until it does.
+- All data is gone within 90 days regardless, whether or not any clone runs
+  again: storage drops reports and idle tokens older than that automatically.
+- The database keeps point-in-time history (D1 Time Travel) for 7 days on the
+  Free plan, so deleted data is unrecoverable within 7 days of deletion.
+- A clone that never registered has no token and sends zero bytes when it
+  revokes.
+- If the service is unreachable, the local token and queue are kept and the
+  deletion is retried on a later run.
+
 ---
 
 ## What stays in the project, deliberately

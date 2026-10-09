@@ -17,3 +17,7 @@ binding = "DB"
 database_name = "agentic-sdlc-ingest"
 database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
+
+[triggers]
+# Daily, off-peak; drives the retention sweep.
+crons = ["17 3 * * *"]

@@ -168,10 +168,10 @@ fi
 # 6a-ingest. The edge handler (ingest/src/handler.mjs) under plain Node against
 #     an in-memory db: validation, limits, idempotency and /register.
 if command -v node >/dev/null 2>&1; then
-  if "$ROOT/scripts/ingest.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/ingest-limits.test.sh" >/dev/null 2>&1; then
+  if "$ROOT/scripts/ingest.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/ingest-limits.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/ingest-retention.test.sh" >/dev/null 2>&1; then
     ok "ingest handler tests pass"
   else
-    bad "ingest handler tests failed — run scripts/ingest.test.sh and scripts/ingest-limits.test.sh"
+    bad "ingest handler tests failed — run scripts/ingest.test.sh, scripts/ingest-limits.test.sh and scripts/ingest-retention.test.sh"
   fi
 else
   note "node not found — skipping ingest tests"
@@ -277,6 +277,11 @@ if command -v node >/dev/null 2>&1; then
     ok "export identity cools down, converges across worktrees and stays out of the tree"
   else
     bad "export-identity-more tests failed — run scripts/export-identity-more.test.sh to see which invariant broke"
+  fi
+  if "$ROOT/scripts/export-revoke.test.sh" >/dev/null 2>&1 && "$ROOT/scripts/export-revoke-cli.test.sh" >/dev/null 2>&1; then
+    ok "export revoke drops local state only after the server confirms"
+  else
+    bad "export revoke tests failed — run scripts/export-revoke.test.sh and scripts/export-revoke-cli.test.sh"
   fi
 else
   note "node not found — skipping repo-id tests"

@@ -1,6 +1,7 @@
 // Client identity for report export: a registered bearer token kept beside the repo ID.
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createOnce, exportDir, repoId } from './repo-id.mjs'
 
 // Anything else from the server (or disk) is untrusted and must never reach an Authorization header.
@@ -69,6 +70,27 @@ export function createAuth({ cwd = process.cwd(), baseUrl, fetch = globalThis.fe
       // force: a missing file means another caller already invalidated.
       rmSync(join(exportDir(cwd), 'token.json'), { force: true })
     },
+    async revoke() {
+      try {
+        const dir = exportDir(cwd)
+        // Never register here: opting out must not create the identity it is deleting.
+        const file = join(dir, 'token.json')
+        const stored = readStored(file)
+        if (!stored) return 'done'
+        const res = await fetch(`${baseUrl}/v1/repo`, {
+          method: 'DELETE',
+          headers: { authorization: `Bearer ${stored}` },
+          signal: AbortSignal.timeout(timeoutMs),
+        })
+        // 401 = the server no longer knows the token, i.e. the deletion already happened.
+        if (res.status !== 204 && res.status !== 401) return 'retry'
+        rmSync(file, { force: true })
+        rmSync(join(dir, 'queue'), { recursive: true, force: true })
+        return 'done'
+      } catch {
+        return 'retry'
+      }
+    },
     async token() {
       try {
         return await obtain()
@@ -96,4 +118,17 @@ export function createAuth({ cwd = process.cwd(), baseUrl, fetch = globalThis.fe
     const stored = createOnce(file, JSON.stringify({ token, created_at: new Date().toISOString() }))
     return JSON.parse(stored).token
   }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    if (process.argv[2] === 'revoke') {
+      const { DEFAULT_EXPORT_URL, CALL_TIMEOUT_MS } = await import('./export.mjs')
+      const baseUrl = process.env.AGENTIC_SDLC_EXPORT_URL ?? DEFAULT_EXPORT_URL
+      await createAuth({ cwd: process.cwd(), baseUrl, timeoutMs: CALL_TIMEOUT_MS }).revoke()
+    }
+  } catch {
+    // the CLI must never fail the session that invoked it
+  }
+  process.exit(0)
 }

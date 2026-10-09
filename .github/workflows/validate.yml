@@ -114,6 +114,7 @@ jobs:
         run: |
           ./scripts/ingest.test.sh
           ./scripts/ingest-limits.test.sh
+          ./scripts/ingest-retention.test.sh
 
       # run-report.sh is the UserPromptSubmit/SessionEnd hook wrapping
       # run-report.mjs. UserPromptSubmit's stdout is injected into the model's
@@ -156,6 +157,11 @@ jobs:
 
       - name: export identity cooldown and confinement
         run: ./scripts/export-identity-more.test.sh
+
+      - name: export revoke
+        run: |
+          ./scripts/export-revoke.test.sh
+          ./scripts/export-revoke-cli.test.sh
 
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a

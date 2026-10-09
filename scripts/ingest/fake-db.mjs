@@ -32,6 +32,24 @@ export function fakeDb({ tokens = {} } = {}) {
       counters.set(ck(key, day), n)
       return n
     },
+    async touchToken(hash, { seenAt, accepted }) {
+      calls.push('touchToken')
+      const row = tokenRows.get(hash)
+      if (!row) return
+      row.last_seen_at = seenAt
+      row.accepted_total = (row.accepted_total ?? 0) + accepted
+    },
+    async deleteRepo(repo_id) {
+      calls.push('deleteRepo')
+      for (const [k, r] of reports) if (r.repo_id === repo_id) reports.delete(k)
+      for (const [k, r] of tokenRows) if (r.repo_id === repo_id) tokenRows.delete(k)
+    },
+    async purgeExpired({ reportsBefore, tokensBefore, countersBefore }) {
+      calls.push('purgeExpired')
+      for (const [k, r] of reports) if (r.received_at < reportsBefore) reports.delete(k)
+      for (const [k, r] of tokenRows) if ((r.last_seen_at ?? r.created_at) < tokensBefore) tokenRows.delete(k)
+      for (const k of counters.keys()) if (k.split('|')[1] < countersBefore) counters.delete(k)
+    },
     // Resolves false on a (run_id, sessions) collision: first write wins.
     async insertReport(row) {
       calls.push('insertReport')

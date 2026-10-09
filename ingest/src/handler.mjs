@@ -39,13 +39,42 @@ async function readCapped(request) {
   return new TextEncoder().encode(text).length > MAX_BYTES ? null : text
 }
 
-const ROUTES = { '/v1/reports': reports, '/v1/register': register }
+const RETENTION_MS = 90 * 86400000
+const COUNTER_RETENTION_MS = 2 * 86400000
+
+// Cutoffs are computed here so the port stays a dumb set of bound deletes.
+export async function sweep({ db, now }) {
+  const t = now().getTime()
+  await db.purgeExpired({
+    reportsBefore: new Date(t - RETENTION_MS).toISOString(),
+    tokensBefore: new Date(t - RETENTION_MS).toISOString(),
+    countersBefore: new Date(t - COUNTER_RETENTION_MS).toISOString().slice(0, 10),
+  })
+}
+
+const ROUTES = {
+  '/v1/reports': { POST: reports },
+  '/v1/register': { POST: register },
+  '/v1/repo': { DELETE: deleteRepo },
+}
 
 export async function handle(request, ctx) {
-  const route = ROUTES[new URL(request.url).pathname]
-  if (!route) return json(404, { error: 'not found' })
-  if (request.method !== 'POST') return json(405, { error: 'method not allowed' }, { allow: 'POST' })
+  const methods = ROUTES[new URL(request.url).pathname]
+  if (!methods) return json(404, { error: 'not found' })
+  const route = methods[request.method]
+  if (!route) return json(405, { error: 'method not allowed' }, { allow: Object.keys(methods).join(', ') })
   return route(request, { env: {}, ...ctx })
+}
+
+// Deliberately ignores the kill switch: an operator stop must never block a user erasing their data.
+// The target repo comes only from the token record, never from the request.
+async function deleteRepo(request, { db }) {
+  const auth = request.headers.get('authorization') ?? ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  const record = token ? await db.getToken(await sha256Hex(token)) : null
+  if (!record) return json(401, { error: 'unauthorized' })
+  await db.deleteRepo(record.repo_id)
+  return new Response(null, { status: 204 })
 }
 
 async function register(request, { db, now, env }) {
@@ -102,6 +131,15 @@ async function reports(request, { db, now, env }) {
   if (!record) return json(401, { error: 'unauthorized' })
 
   const nowDate = now()
+  let accepted = 0
+  // Any authenticated call proves the token is live, including ones later rejected or capped.
+  try {
+    return await ingest()
+  } finally {
+    await db.touchToken(tokenHash, { seenAt: nowDate.toISOString(), accepted })
+  }
+
+  async function ingest() {
   const day = nowDate.toISOString().slice(0, 10)
   const capKey = `token:${tokenHash}`
   if ((await db.getCounter(capKey, day)) >= DAILY_CAP) {
@@ -137,8 +175,12 @@ async function reports(request, { db, now, env }) {
       token_hash: tokenHash,
       received_at: now().toISOString(),
     })
-    if (inserted) await db.incCounter(capKey, day, 1)
+    if (inserted) {
+      accepted++
+      await db.incCounter(capKey, day, 1)
+    }
     results.push({ status: inserted ? 'stored' : 'duplicate', run_id, sessions })
   }
   return json(200, { results })
+  }
 }
