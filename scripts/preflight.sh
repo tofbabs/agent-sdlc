@@ -114,6 +114,18 @@ else
   note "node not found — skipping meter tests"
 fi
 
+# 6b. consent.mjs holds the team-wide telemetry answer; a regression here either
+#     nags users or exports without their say-so.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/consent.test.sh" >/dev/null 2>&1; then
+    ok "consent store and wiring hold"
+  else
+    bad "consent tests failed — run scripts/consent.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping consent tests"
+fi
+
 # 6a. run-report.mjs derives the report that gets exported. Its cost section
 #     must be the meter record verbatim, a missing input must be null and named
 #     rather than zeroed, and no field may accept an unbounded string — the

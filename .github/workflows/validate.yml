@@ -92,6 +92,11 @@ jobs:
       - name: meter invariants
         run: ./scripts/meter.test.sh
 
+      # The consent answer gates every export; the wiring check keeps the
+      # protocol reachable from plan and build.
+      - name: consent store and wiring
+        run: ./scripts/consent.test.sh
+
       # run-report.mjs builds the report that is exported later, so it is
       # code-free by schema: no field accepts an unbounded string, cost is the
       # meter record verbatim, and a missing input is null + named, never zero.

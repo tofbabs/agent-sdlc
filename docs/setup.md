@@ -193,6 +193,31 @@ cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
 
 ---
 
+## Telemetry consent
+
+`/agentic-sdlc:plan` and `/agentic-sdlc:build` ask once, per project, whether
+finished runs may share their run report. The answer is stored in the checked-in
+`.claude/agentic-sdlc.json`, so a teammate is not asked again.
+
+What is shared is the schema-1 run report and nothing else. Its top-level
+sections are `run`, `plan`, `build`, `review`, `debt`, `cost` and `degraded`,
+plus optional `decisions`, `outcome_events` and `settlements`. The `run` section
+carries `run_id`, `plugin_version`, `command`, `lane`, `outcome`, `ended_at`,
+`wall_clock_s` and `sessions`. The rest are counts, enum values and cost totals.
+The report is code-free by construction: every field is a number or a value from
+a closed list, so no source, path, brief text or backlog text can reach it.
+
+The local report under `.agentic-sdlc/runs/` is always kept, regardless of the
+answer. Declining, or never answering, only means nothing is sent.
+
+To change your mind, edit one line in `.claude/agentic-sdlc.json`:
+
+    {"telemetry": {"share": false}}
+
+Use `true` to opt in.
+
+---
+
 ## What stays in the project, deliberately
 
 This plugin carries the **protocol**. It does not carry anything a project learned
