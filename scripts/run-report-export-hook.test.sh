@@ -47,13 +47,15 @@ done
 RR="$SCRIPTS/run-report.mjs"
 TRACE="$TMP/trace"
 
-# project <name> <share: true|false|unanswered> — a git project with consent set.
+# project <name> <share: true|false|unanswered|stale> — consent is recorded by the real
+# consent.mjs so the fixture tracks the current terms; "stale" is a stored true with no terms.
 project() {
   local p="$TMP/$1"
   mkdir -p "$p"
   git -C "$p" init -q
   case "$2" in
-    true|false) mkdir -p "$p/.claude"; printf '{"telemetry":{"share":%s}}' "$2" > "$p/.claude/agentic-sdlc.json" ;;
+    true|false) node "$REAL/consent.mjs" set "$2" --cwd "$p" >/dev/null ;;
+    stale) mkdir -p "$p/.claude"; printf '{"telemetry":{"share":true}}' > "$p/.claude/agentic-sdlc.json" ;;
   esac
   printf '%s' "$p"
 }
@@ -143,6 +145,12 @@ echo "SessionEnd, opted out without a token"
 P=$(project declined false)
 end_session "$P"
 [ ! -s "$TRACE" ] && ok "no upload script is invoked" || bad "trace: '$(cat "$TRACE")'"
+[ ! -s "$CONNFILE" ] && ok "zero connections" || bad "connections: $(wc -l < "$CONNFILE")"
+
+echo "SessionEnd, stored true with no terms (stale consent)"
+P=$(project stale stale)
+end_session "$P"
+[ ! -s "$TRACE" ] && ok "export never entered" || bad "trace: '$(cat "$TRACE")'"
 [ ! -s "$CONNFILE" ] && ok "zero connections" || bad "connections: $(wc -l < "$CONNFILE")"
 
 echo "SessionEnd, unanswered"
