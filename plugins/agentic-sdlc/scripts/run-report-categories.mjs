@@ -84,6 +84,14 @@ export const PATTERNS = Object.freeze({
   decision_id: /^[0-9a-f]{16}$/,
 })
 
+// What a stored "share: true" consents to. Widening the shared data (a new
+// pattern here, a new kind of identifier) must bump TERMS so consent.mjs
+// re-asks; a schema-version bump alone does not, by ADR-0003/ARCH-5. Terms 1
+// is enum tokens, numbers, booleans, these patterns, and the hashed repo ID
+// sent at /register.
+export const TERMS = 1
+export const TERMS_PATTERNS = Object.freeze(['uuid_v4', 'semver', 'iso_utc_seconds', 'decision_id'])
+
 // Open sets: a deterministic script cannot classify prose (ADR 0001 Context),
 // so the agent writing the artifact tags one token at source; the builder
 // parses the token and never the surrounding text. `other` is the last

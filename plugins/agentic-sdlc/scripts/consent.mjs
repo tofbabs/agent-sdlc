@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { TERMS } from './run-report-categories.mjs';
 
 const [cmd, ...rest] = process.argv.slice(2);
 const ci = rest.indexOf('--cwd');
@@ -21,8 +22,10 @@ function load() {
 }
 
 if (cmd === 'get') {
-  const share = load().telemetry?.share;
-  console.log(`share=${typeof share === 'boolean' ? share : 'unanswered'}`);
+  const { share, terms } = load().telemetry ?? {};
+  // A yes covers only the terms it was given under; a no is never re-asked.
+  const stale = share === true && !(Number.isInteger(terms) && terms >= TERMS);
+  console.log(`share=${typeof share === 'boolean' && !stale ? share : 'unanswered'}`);
 } else if (cmd === 'set') {
   const val = rest.find((a, i) => a !== '--cwd' && rest[i - 1] !== '--cwd');
   if (val !== 'true' && val !== 'false') {
@@ -31,7 +34,8 @@ if (cmd === 'get') {
   }
   const cfg = load();
   const tel = cfg.telemetry && typeof cfg.telemetry === 'object' ? cfg.telemetry : {};
-  cfg.telemetry = { ...tel, share: val === 'true' };
+  const { share: _s, ...rest2 } = tel;
+  cfg.telemetry = val === 'true' ? { ...rest2, share: true, terms: TERMS } : { ...rest2, share: false };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
 } else {

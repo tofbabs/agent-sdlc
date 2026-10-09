@@ -126,6 +126,18 @@ else
   note "node not found — skipping consent tests"
 fi
 
+# 6b-terms. A yes covers the terms it was given under; widening PATTERNS without
+#     bumping TERMS would silently extend consent.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/consent-terms.test.sh" >/dev/null 2>&1; then
+    ok "consent terms versioning holds"
+  else
+    bad "consent terms tests failed — run scripts/consent-terms.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping consent terms tests"
+fi
+
 # 6a. run-report.mjs derives the report that gets exported. Its cost section
 #     must be the meter record verbatim, a missing input must be null and named
 #     rather than zeroed, and no field may accept an unbounded string — the

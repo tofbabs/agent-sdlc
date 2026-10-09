@@ -43,7 +43,7 @@ node "$S/consent.mjs" set true --cwd "$P"; rc=$?
 check "set true exits 0" "$rc" "0"
 check "set true is read back" "$(get "$P")" "share=true"
 check "the answer lands in the checked-in config" \
-  "$(node -e "process.stdout.write(JSON.stringify(JSON.parse(require('fs').readFileSync('$(cfg "$P")','utf8')).telemetry))")" '{"share":true}'
+  "$(node -e "process.stdout.write(JSON.stringify(JSON.parse(require('fs').readFileSync('$(cfg "$P")','utf8')).telemetry))")" '{"share":true,"terms":1}'
 [ ! -e "$P/.claude/settings.local.json" ] && ok "settings.local.json is never created" || bad "settings.local.json was written"
 
 P=$(proj preserve); mkdir -p "$P/.claude"

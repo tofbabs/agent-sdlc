@@ -216,6 +216,17 @@ To change your mind, edit one line in `.claude/agentic-sdlc.json`:
 
 Use `true` to opt in.
 
+An opt-in is stored with the terms it was given under:
+
+    {"telemetry": {"share": true, "terms": 1}}
+
+Terms 1 covers enum tokens, numbers, booleans, four fixed-format strings (a
+UUID, a semver, a UTC timestamp, a 16-hex decision id), and the hashed repo ID
+sent at registration. If a later release widens what is shared, its terms
+number goes up and a `true` with a lower or missing `terms` is asked again; the
+file is left as it was until you answer. A decline is never asked again. A new
+report schema version on its own does not re-ask.
+
 ---
 
 ## What stays in the project, deliberately

@@ -453,7 +453,7 @@ extra client logic
 
 ### STORY-4-7: Re-consent on schema version change
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L132 one_way_doors=0@brief:L132 existing_pattern=no@brief:L132 modules_crossed=1@brief:L132 review_bounced=no@brief:L132 risk_kind=code@brief:L132
