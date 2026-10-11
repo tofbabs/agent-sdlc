@@ -15,7 +15,9 @@ Cloudflare Worker + D1 behind the v1 wire contract in
    the WAF rule below cannot be bypassed.
 3. `npx wrangler secret put IP_SALT` (any long random string; it is mixed with
    the UTC day before hashing IPs for `/v1/register` limiting, so no IP is stored).
-4. Add the repository secret `CLOUDFLARE_API_TOKEN` (Workers + D1 edit).
+4. Add the repository secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts edit,
+   D1 edit, Workers Routes edit, Zone read on the route's zone) and
+   `CLOUDFLARE_ACCOUNT_ID`.
 
 ## WAF rate-limiting rule (configuration, not code)
 
