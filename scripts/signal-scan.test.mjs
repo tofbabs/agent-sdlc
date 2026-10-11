@@ -331,4 +331,163 @@ const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
   check('empty by_category yields no debt group', debts([withDebt({}, uuid(403))]).length === 0)
 }
 
+// --- verdict kind --------------------------------------------------------------
+{
+  const { verdictSignals } = await import('./signal-scan.mjs')
+  const did = (n) => String(n).padStart(16, '0')
+  const dec = (n, over = {}) => ({
+    decision_id: did(n), layer: 'lane', rubric: 2, choice: 'PAIR', overridden: false, fallback: false, ...over,
+  })
+  const e = (n, decisions, settlements) => {
+    const x = entry({}, 'a'.repeat(32), uuid(500 + n))
+    if (decisions) x.report.decisions = decisions
+    if (settlements) x.report.settlements = settlements
+    return x
+  }
+  const entries = [
+    e(1, [dec(1, { verdict: 'earned', verdict_rubric: 2 }), dec(2, { verdict: 'wasted', verdict_rubric: 2 }),
+      dec(3, { layer: 'floor', choice: 'SOLO', rubric: 1 })]),
+    // The settling run is a different report than the one that made the decision.
+    e(2, [dec(4)], [{ decision_id: did(3), verdict: 'held', verdict_rubric: 1 }, { decision_id: did(4), verdict: 'earned', verdict_rubric: 2 }]),
+  ]
+  const { groups } = verdictSignals(entries)
+  const lane = groups.find((g) => g.key[0] === 'lane')
+  const floor = groups.find((g) => g.key[0] === 'floor')
+  check('a group per layer, choice and rubric with ADR-0004 key order',
+    groups.length === 2 && JSON.stringify(lane?.key) === JSON.stringify(['lane', 'PAIR', 2]), JSON.stringify(groups))
+  check('id is the ADR-0004 fingerprint of kind verdict', lane?.id === fp('verdict', 'lane', 'PAIR', 2), lane?.id)
+  check('inline verdicts and joined settlements are tallied by token',
+    lane?.settled === 3 && lane.counts.earned === 2 && lane.counts.wasted === 1, JSON.stringify(lane))
+  check('a settlement from a later report lands on its decision group',
+    floor?.settled === 1 && floor.counts.held === 1, JSON.stringify(floor))
+}
+
+{
+  const { verdictSignals } = await import('./signal-scan.mjs')
+  const did = (n) => String(n).padStart(16, '0')
+  const dec = (n, over = {}) => ({
+    decision_id: did(n), layer: 'lane', rubric: 2, choice: 'PAIR', overridden: false, fallback: false, ...over,
+  })
+  const e = (n, decisions, settlements) => {
+    const x = entry({}, 'a'.repeat(32), uuid(600 + n))
+    if (decisions) x.report.decisions = decisions
+    if (settlements) x.report.settlements = settlements
+    return x
+  }
+  const r = verdictSignals([
+    e(1, [dec(1, { verdict: 'earned', verdict_rubric: 2 }), dec(2), dec(3)]),
+    // did(9) has no decision in the window; guessing its group would pollute a rubric's rate.
+    e(2, [], [{ decision_id: did(9), verdict: 'wasted', verdict_rubric: 2 }]),
+  ])
+  check('open decisions are counted apart and never enter a group',
+    r.open === 2 && r.groups.length === 1 && r.groups[0].settled === 1, JSON.stringify(r))
+  check('a settlement without its decision is counted unjoined, not guessed',
+    r.unjoined === 1 && !r.groups[0].counts.wasted, JSON.stringify(r))
+}
+
+{
+  const { verdictSignals } = await import('./signal-scan.mjs')
+  const did = (n) => String(n).padStart(16, '0')
+  const dec = (n, verdict, over = {}) => ({
+    decision_id: did(n), layer: 'lane', rubric: 2, choice: 'PAIR', overridden: false, fallback: false, verdict, verdict_rubric: 2, ...over,
+  })
+  const x = entry({}, 'a'.repeat(32), uuid(700))
+  x.report.decisions = [dec(1, 'earned'), dec(2, 'needed'), dec(3, 'held'), dec(4, 'wasted'),
+    dec(5, 'missed', { layer: 'floor', choice: 'SOLO', rubric: 1 }), dec(6, 'over_ceremony', { layer: 'floor', choice: 'SOLO', rubric: 1 })]
+  const { groups } = verdictSignals([x])
+  const lane = groups.find((g) => g.key[0] === 'lane')
+  const floor = groups.find((g) => g.key[0] === 'floor')
+  check('right_rate is the share of right verdicts among settled', lane?.right_rate === 0.75, JSON.stringify(lane))
+  check('a group with only wrong verdicts has a right_rate of zero', floor?.right_rate === 0, JSON.stringify(floor))
+}
+
+{
+  const { verdictSignals } = await import('./signal-scan.mjs')
+  const thresholds = JSON.parse(readFileSync(new URL('./signal-thresholds.json', import.meta.url), 'utf8'))
+  check('drift margin and minimum sample live in the thresholds data',
+    thresholds.verdict_drift_margin === 0.15 && thresholds.verdict_min_settled === 10, JSON.stringify(thresholds))
+  let n = 0
+  // Builds `size` settled decisions at one rubric with `right` of them earned.
+  const batch = (choice, rubric, size, right) => Array.from({ length: size }, (_, i) => ({
+    decision_id: String(++n).padStart(16, '0'), layer: 'lane', rubric, choice, overridden: false, fallback: false,
+    verdict: i < right ? 'earned' : 'wasted', verdict_rubric: rubric,
+  }))
+  const x = entry({}, 'a'.repeat(32), uuid(800))
+  x.report.decisions = [
+    ...batch('PAIR', 1, 10, 8), ...batch('PAIR', 2, 10, 6),
+    ...batch('SOLO', 1, 10, 8), ...batch('SOLO', 2, 10, 7),
+    ...batch('FAST', 1, 10, 8), ...batch('FAST', 2, 9, 1),
+    ...batch('DUO', 1, 9, 9), ...batch('DUO', 2, 10, 1),
+    ...batch('TRIO', 1, 10, 8), ...batch('TRIO', 3, 10, 1),
+  ]
+  const { drift } = verdictSignals([x])
+  check('only the choice whose right-rate fell by the margin with enough samples drifts',
+    drift?.length === 1 && JSON.stringify(drift[0].key) === JSON.stringify(['lane', 'PAIR', 2]), JSON.stringify(drift))
+  check('drift carries kind verdict_drift and its own fingerprint',
+    drift?.[0]?.kind === 'verdict_drift' && drift[0].id === fp('verdict_drift', 'lane', 'PAIR', 2), JSON.stringify(drift?.[0]))
+}
+
+// --- verdict signals reach the scan summary, from accepted reports only ------
+{
+  const did = (n) => String(n).padStart(16, '0')
+  const dec = (n, over = {}) => ({
+    decision_id: did(n), layer: 'lane', rubric: 2, choice: 'PAIR', overridden: false, fallback: false, ...over,
+  })
+  const withDecisions = (n, decisions, settlements) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(900 + n)
+    r.decisions = decisions
+    if (settlements) r.settlements = settlements
+    return r
+  }
+  const withSections = {
+    'a-decided.json': envelope(withDecisions(1, [dec(1, { verdict: 'earned', verdict_rubric: 2 }), dec(2)])),
+    'b-settles.json': envelope(withDecisions(2, [], [{ decision_id: did(2), verdict: 'wasted', verdict_rubric: 2 }])),
+    'c-open.json': envelope(withDecisions(3, [dec(3)])),
+    'd-orphan.json': envelope(withDecisions(4, [], [{ decision_id: did(99), verdict: 'held', verdict_rubric: 2 }])),
+  }
+  withDir(withSections, (dir) => {
+    const s = JSON.parse(run(dir))
+    check('summary carries verdict groups, open and unjoined counts',
+      s.verdict?.groups?.length === 1 && s.verdict.groups[0].settled === 2 && s.verdict.open === 1 && s.verdict.unjoined === 1,
+      JSON.stringify(s.verdict))
+    check('summary carries an empty drift list when nothing drifted', JSON.stringify(s.verdict?.drift) === '[]', JSON.stringify(s.verdict))
+  })
+
+  // The superseded copy's open decision must not be counted; the stale one is outside the window.
+  const older = envelope(withDecisions(5, [dec(5)]), { received_at: '2026-10-06T10:00:00Z' })
+  const newer = envelope(withDecisions(5, []), { received_at: '2026-10-07T10:00:00Z' })
+  const stale = envelope(withDecisions(6, [dec(6)]), { received_at: '2026-08-01T10:00:00Z' })
+  withDir({ 'a-old.json': older, 'b-new.json': newer, 'c-stale.json': stale }, (dir) => {
+    const s = JSON.parse(run(dir))
+    check('superseded and out-of-window reports contribute no decisions', s.verdict?.open === 0, JSON.stringify(s.verdict))
+  })
+
+  withDir({ 'a-plain.json': envelope() }, (dir) => {
+    const s = JSON.parse(run(dir))
+    check('reports without decisions or settlements pass and add nothing',
+      s.accepted === 1 && s.verdict?.groups?.length === 0 && s.verdict.open === 0 && s.verdict.unjoined === 0 &&
+      s.verdict.drift.length === 0, JSON.stringify(s))
+  })
+}
+
+// --- the drift margin is inclusive despite float subtraction ------------------
+{
+  const did = (n) => String(n).padStart(16, '0')
+  const batch = (rubric, base, rightN) => Array.from({ length: 20 }, (_, i) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(base + i)
+    r.decisions = [{ decision_id: did(base + i), layer: 'lane', rubric, choice: 'PAIR', overridden: false, fallback: false,
+      verdict: i < rightN ? 'earned' : 'wasted', verdict_rubric: rubric }]
+    return r
+  })
+  const files = {}
+  ;[...batch(1, 2000, 14), ...batch(2, 3000, 11)].forEach((r, i) => { files[`f${String(i).padStart(3, '0')}.json`] = envelope(r) })
+  withDir(files, (dir) => {
+    const s = JSON.parse(run(dir))
+    check('a drop of exactly the margin (0.70 to 0.55) fires verdict_drift',
+      s.verdict?.drift?.length === 1 && s.verdict.drift[0].kind === 'verdict_drift', JSON.stringify(s.verdict?.drift))
+  })
+}
+
 process.exit(failed)

@@ -88,8 +88,9 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Writing the discard log to its final home (5-6).
 
 ### STORY-5-4: Decision-outcome signals by rubric version and layer
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L52-L56 one_way_doors=1@brief:L52-L56 existing_pattern=no@brief:L52-L56 modules_crossed=1@brief:L52-L56 review_bounced=no@brief:L52-L56 risk_kind=code@brief:L52-L56
 - depends_on: [STORY-5-2]

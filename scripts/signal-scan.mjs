@@ -172,6 +172,55 @@ export function groupReports(entries) {
   })).concat(outlierGroups(entries)).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
+// A settlement arrives in a later report than its decision, so the join spans all entries.
+const RIGHT = new Set(['earned', 'held', 'needed', 'better'])
+
+export function verdictSignals(entries) {
+  const settled = new Map()
+  for (const { report } of entries) {
+    for (const s of report.settlements ?? []) settled.set(s.decision_id, s.verdict)
+  }
+  const groups = new Map()
+  const decided = new Set()
+  let open = 0
+  for (const { report } of entries) {
+    for (const d of report.decisions ?? []) {
+      decided.add(d.decision_id)
+      const verdict = d.verdict ?? settled.get(d.decision_id)
+      if (verdict === undefined) { open++; continue }
+      const key = [d.layer, d.choice, d.rubric]
+      const id = fingerprint('verdict', key)
+      if (!groups.has(id)) groups.set(id, { kind: 'verdict', key, id, settled: 0, counts: {} })
+      const g = groups.get(id)
+      g.settled++
+      g.counts[verdict] = (g.counts[verdict] ?? 0) + 1
+    }
+  }
+  let unjoined = 0
+  for (const id of settled.keys()) if (!decided.has(id)) unjoined++
+  for (const g of groups.values()) {
+    const right = Object.entries(g.counts).reduce((n, [v, c]) => n + (RIGHT.has(v) ? c : 0), 0)
+    g.right_rate = right / g.settled
+  }
+  const bySlot = new Map([...groups.values()].map((g) => [JSON.stringify(g.key), g]))
+  const drift = []
+  for (const g of groups.values()) {
+    const [layer, choice, rubric] = g.key
+    const prev = bySlot.get(JSON.stringify([layer, choice, rubric - 1]))
+    if (!prev || g.settled < THRESHOLDS.verdict_min_settled || prev.settled < THRESHOLDS.verdict_min_settled) continue
+    // Binary floats put a drop of exactly the margin (0.70 to 0.55) a hair under it; the epsilon keeps the boundary inclusive.
+    if (prev.right_rate - g.right_rate >= THRESHOLDS.verdict_drift_margin - 1e-9) {
+      drift.push({ kind: 'verdict_drift', key: g.key, id: fingerprint('verdict_drift', g.key) })
+    }
+  }
+  return {
+    groups: [...groups.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    drift: drift.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    open,
+    unjoined,
+  }
+}
+
 export function scan(dir, { now = new Date() } = {}) {
   const cutoff = now.getTime() - WINDOW_MS
   let skipped = 0
@@ -190,6 +239,7 @@ export function scan(dir, { now = new Date() } = {}) {
     byRun.get(id).push({ name, ...res })
   }
   let accepted = 0
+  const kept = []
   for (const copies of byRun.values()) {
     if (new Set(copies.map((c) => c.source)).size > 1) {
       rejected.run_id_conflict += copies.length
@@ -197,8 +247,10 @@ export function scan(dir, { now = new Date() } = {}) {
     }
     accepted++
     rejected.superseded += copies.length - 1
+    // The latest copy wins, with name as the tiebreak, so the choice never depends on directory order.
+    kept.push(copies.reduce((a, b) => (b.received_at + b.name > a.received_at + a.name ? b : a)))
   }
-  return { files: names.length, accepted, rejected, skipped_window: skipped }
+  return { files: names.length, accepted, rejected, skipped_window: skipped, verdict: verdictSignals(kept) }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
