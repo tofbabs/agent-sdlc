@@ -2,6 +2,13 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.10](https://github.com/tofbabs/agent-sdlc/compare/v0.2.9...v0.2.10) (2026-10-11)
+
+
+### Bug Fixes
+
+* **signal-scan:** address review round 1 [EPIC-5] ([93b273c](https://github.com/tofbabs/agent-sdlc/commit/93b273c303619d0da606c055b9c44a9c972e5c75))
+
 ## [0.2.9](https://github.com/tofbabs/agent-sdlc/compare/v0.2.8...v0.2.9) (2026-10-11)
 
 
