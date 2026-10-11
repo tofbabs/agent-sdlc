@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { syncIssues, account, summaryLine, discardsJson, renderDiscardLog, syncDiscardLog, runSync, newSinceLastRun } from './signal-sync.mjs'
 import { evaluate } from './signal-scan.mjs'
 import { renderIssue } from './signal-render.mjs'
@@ -182,7 +184,7 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
 }
 // --- the CLI flow end to end: scan, group, sync, log -------------------------
 {
-  const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs')
+  const { writeFileSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
   const base = JSON.parse(readFileSync(new URL('./fixtures/signal/report.json', import.meta.url), 'utf8'))
@@ -239,12 +241,12 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
     second.synced.created.length === 0 && second.synced.updated.length === 0 && second.logged.action === 'unchanged' && log.length === 0,
     JSON.stringify({ second, log }))
   check('discards.json is byte-identical across runs', readFileSync(join(out, 'discards.json'), 'utf8') === disk1)
-  check('after a run, nothing is new since the issues were written', lines.includes('new since last run: 0'), lines.join('\n'))
+  check('after a run, nothing is new since the issues were written', lines.includes('new reports since last run: 0'), lines.join('\n'))
 
   write(1, 7, '2026-10-08T08:00:00Z')
   lines.length = 0
   await go()
-  check('a report newer than the issues reflect is counted as new', lines.includes('new since last run: 1'), lines.join('\n'))
+  check('a report newer than the issues reflect is counted as new', lines.includes('new reports since last run: 1'), lines.join('\n'))
 
   // Closing an issue must not stop its counts being kept or cause a duplicate.
   issues.forEach((i) => { if (i.labels.includes('signal')) Object.assign(i, { state: 'CLOSED', stateReason: 'COMPLETED' }) })
@@ -274,6 +276,36 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
   check('only reports strictly newer than the newest reflected one count',
     newSinceLastRun([e('2026-10-01T00:00:00Z'), e('2026-10-02T00:00:00Z'), e('2026-10-03T00:00:00Z')],
       [withNewest('2026-10-01T00:00:00Z'), withNewest('2026-10-02T00:00:00Z')]) === 1)
+}
+
+{
+  const rows = Array.from({ length: 300 }, (_, i) => ({ id: `sig-${String(i).padStart(12, '0')}`, kind: 'debt', key: ['a', 'b', 'c', 'd', '*'], runs: 300 - i, repos: 3, reason: 'min_runs' }))
+  const acct = { no_signal: 0, rejected: 0 }
+  const maxChars = 5000
+  const out = renderDiscardLog(rows, acct, { maxChars })
+  const m = /(\d+) rows omitted/.exec(out)
+  const kept = 300 - Number(m?.[1])
+  check('truncation fits the budget and drops the lowest-runs rows', out.length <= maxChars && kept > 0 && out.includes(rows[kept - 1].id) && !out.includes(rows[kept].id), String(out.length))
+  check('the cut is maximal: the exact length keeps the same rows and one byte less keeps fewer',
+    renderDiscardLog(rows, acct, { maxChars: out.length }) === out && renderDiscardLog(rows, acct, { maxChars: out.length - 1 }).length < out.length)
+  check('a log under budget omits nothing', !/omitted/.test(renderDiscardLog(rows.slice(0, 3), acct)))
+  check('the scan watermark is rendered when given', renderDiscardLog([], acct, { watermark: '2026-10-01T00:00:00Z' }).includes('<!-- signal-scanned: 2026-10-01T00:00:00Z -->'))
+}
+
+{
+  const e = (t) => ({ received_at: t })
+  const log = (t) => ({ body: `# Signal discards\n<!-- signal-scanned: ${t} -->\n` })
+  check('the discard-log watermark counts when no signal issue exists',
+    newSinceLastRun([e('2026-10-01T00:00:00Z'), e('2026-10-02T00:00:00Z')], [], [log('2026-10-01T00:00:00Z')]) === 1)
+  check('a watermark covering every report leaves none new', newSinceLastRun([e('2026-10-01T00:00:00Z')], [], [log('2026-10-01T00:00:00Z')]) === 0)
+
+  const gh = stubGh([])
+  const acct = { no_signal: 0, rejected: 0 }
+  await syncDiscardLog([], acct, { gh, existing: [], watermark: '2026-10-02T00:00:00Z' })
+  const created = gh.calls.find(([c]) => c === 'create')[1]
+  const again = stubGh([])
+  await syncDiscardLog([], acct, { gh: again, existing: [{ number: 5, body: created.body }], watermark: '2026-10-01T00:00:00Z' })
+  check('the watermark never moves backwards and an unchanged one causes no edit', writes(again).length === 0, JSON.stringify(writes(again)))
 }
 
 // --- outcome: cut-over version from the closed issue -------------------------
@@ -348,7 +380,7 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
 
 // --- outcome: the claim reaches the closed issue through the sync run --------
 {
-  const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs')
+  const { writeFileSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
   const base = JSON.parse(readFileSync(new URL('./fixtures/signal/report.json', import.meta.url), 'utf8'))
@@ -406,6 +438,24 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
   await go()
   check('a group that left the qualified set keeps its frozen before and refreshes after',
     filed.body.includes('before: 8 of 8 runs') && filed.body.includes('after: 2 of 8 runs'), filed.body)
+
+  // Every report of the group disappears: it is in neither qualified nor discards.
+  for (const f of readdirSync(dir)) if (f.startsWith('new-')) rmSync(join(dir, f))
+  put('other-1', 1, '0.2.6', '2026-10-08T12:00:00Z', false)
+  for (let s = 1; s <= 4; s++) for (let i = 0; i < 2; i++) put(`n2-${s}-${i}`, s, '0.2.6', '2026-10-08T12:30:00Z', false)
+  await go()
+  check('a vanished group publishes a zero after-numerator instead of the stale rate',
+    filed.body.includes('before: 8 of 8 runs') && /after: 0 of \d+ runs/.test(filed.body), filed.body)
+}
+
+{
+  const created = []
+  const gh = { ensureLabels: (l) => created.push(...l), list: () => [], listDiscards: () => [], create: () => ({ number: 1 }), edit: () => {} }
+  const dir = mkdtempSync(join(tmpdir(), 'signal-labels-'))
+  await runSync({ dir, now: new Date('2026-10-09T12:00:00Z'), gh, log: () => {} })
+  check('the closed label set is provisioned before filing',
+    created.includes('signal') && created.includes('signal-discards') && created.includes('signal:finding') && created.includes('signal:verdict_drift'), created.join())
+  rmSync(dir, { recursive: true, force: true })
 }
 
 // --- outcome: release tags are read from a cloned checkout ---------------------
@@ -454,6 +504,9 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
   check('steps run groups, then apply-merges, then the filing run, in that order',
     at('groups') >= 0 && at('groups') < at('apply-merges') && at('apply-merges') < at('signal-sync.mjs'), JSON.stringify([at('groups'), at('apply-merges'), at('signal-sync.mjs')]))
   check('it names merges.json as the closed-shape proposal', prompt.includes('merges.json'))
+  check('it states the exact merge-file shape the validator accepts',
+    prompt.includes('{"merges":1,"proposals":[{"members":["sig-aaaaaaaaaaaa","sig-bbbbbbbbbbbb"]}]}'))
+  check('it reports new reports, not new groups', /new reports since last run/.test(prompt) && !/groups are new/.test(prompt))
   check('it ends by printing the summary with the accounting line',
     /accounting/i.test(prompt) && prompt.includes('accepted N = filed a + discarded b + no_signal c'))
 }

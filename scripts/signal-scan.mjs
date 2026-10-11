@@ -15,6 +15,12 @@ const WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 const ENVELOPE_KEYS = ['envelope', 'source', 'source_first_seen', 'received_at', 'report']
 // Anchored and fixed-width so a hostile timestamp cannot carry a payload.
 const ISO_SECONDS = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/
+// The shape alone admits month 99 and Feb 30; a real instant re-serialises to the same bytes.
+export const isIsoSeconds = (v) => {
+  if (typeof v !== 'string' || !ISO_SECONDS.test(v)) return false
+  const t = Date.parse(v)
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 19) + 'Z' === v
+}
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
@@ -29,8 +35,8 @@ const unwrap = (doc, mtime) => {
     Object.keys(doc).every((k) => ENVELOPE_KEYS.includes(k)) &&
     ENVELOPE_KEYS.every((k) => k in doc) &&
     typeof doc.source === 'string' && /^[0-9a-f]{32}$/.test(doc.source) &&
-    typeof doc.source_first_seen === 'string' && ISO_SECONDS.test(doc.source_first_seen) &&
-    typeof doc.received_at === 'string' && ISO_SECONDS.test(doc.received_at) &&
+    isIsoSeconds(doc.source_first_seen) &&
+    isIsoSeconds(doc.received_at) &&
     isObj(doc.report)
   return ok ? { report: doc.report, source: doc.source, source_first_seen: doc.source_first_seen, received_at: doc.received_at } : null
 }
@@ -76,6 +82,9 @@ const EXTRACTORS = {
   // Degradation is a property of the pipeline, not of the build mode.
   degraded: (r) => (r.degraded ?? []).map((t) => [r.run.command, r.run.lane, t]),
 }
+
+// Closed set of issue kinds: the labels the sync must provision before filing.
+export const KINDS = [...Object.keys(EXTRACTORS), 'outlier', 'verdict', 'verdict_drift']
 
 const fingerprint = (kind, key) =>
   'sig-' + createHash('sha256').update(JSON.stringify([kind, ...key])).digest('hex').slice(0, 12)

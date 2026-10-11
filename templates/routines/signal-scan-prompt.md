@@ -15,7 +15,11 @@ Run these in order from the repository root.
    `node scripts/signal-scan.mjs groups --source dir:.agentic-sdlc/runs --out groups.json`
 2. Read `groups.json` and write `merges.json`: the groups you judge to describe
    the same underlying problem. Use only the closed shape the scripts accept;
-   anything else is rejected and reported, so do not improvise fields.
+   anything else is rejected and reported, so do not improvise fields. The shape is
+   `{"merges":1,"proposals":[{"members":["sig-aaaaaaaaaaaa","sig-bbbbbbbbbbbb"]}]}`:
+   only those two top-level keys, only `members` per proposal, at least two
+   fingerprints per proposal taken from `groups.json`, all of one `kind`, and no
+   fingerprint in more than one proposal.
 3. Apply the proposal:
    `node scripts/signal-scan.mjs apply-merges --source dir:.agentic-sdlc/runs --merges merges.json`
 4. File the issues:
@@ -33,4 +37,4 @@ Run these in order from the repository root.
 
 End by printing the summary the filing run produces, including the accounting
 line, which must read: `accepted N = filed a + discarded b + no_signal c; rejected M by reason`.
-Also say how many groups are new since the last run.
+Also report the `new reports since last run` count the filing run prints; it counts reports, not groups.

@@ -92,4 +92,9 @@ check('fixture yields groups of both classes',
     first === `<!-- signal: ${g.id} -->` && second === '<!-- signal-newest: 2026-10-07T10:00:00Z -->', second)
   check('a group rendered without evidence carries no newest line', !renderIssue(g, { entries: [] }).body.includes('signal-newest'))
 }
+{
+  const g = { kind: 'verdict', key: ['SOLO', 'MAJOR', 2, 'Bad token!'], id: 'sig-0123456789ab', runs: 5, repos: 3, members: [] }
+  const { title, body } = renderIssue(g, { entries: [] })
+  check('uppercase closed tokens and integer keys survive rendering', title.includes('SOLO / MAJOR / 2 / other') && body.includes('`SOLO` `MAJOR` `2` `other`'), title)
+}
 process.exit(failed)

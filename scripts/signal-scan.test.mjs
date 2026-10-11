@@ -78,6 +78,14 @@ const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0)
     'g-bare-unknown-field.json': unknownInReport,
     'h-envelope-missing-report.json': { ...envelope(), report: undefined },
   }
+  withDir({
+    'a-month.json': envelope(report, { received_at: '2026-99-99T99:99:99Z' }),
+    'b-feb30.json': envelope(report, { source_first_seen: '2026-02-30T00:00:00Z' }),
+    'c-hour.json': envelope(report, { received_at: '2026-10-07T24:00:00Z' }),
+  }, (dir) => {
+    const s = JSON.parse(run(dir))
+    check('well-shaped but impossible timestamps are envelope_invalid', s.accepted === 0 && s.rejected.envelope_invalid === 3, JSON.stringify(s))
+  })
   withDir(files, (dir) => {
     const s = JSON.parse(run(dir))
     check('only the clean envelope is accepted', s.accepted === 1, JSON.stringify(s))

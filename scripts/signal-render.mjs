@@ -5,11 +5,11 @@
 // output, which is why members are counted upstream and never read here.
 import { METRICS, median } from './signal-scan.mjs'
 
-const TOKEN = /^[a-z0-9_*.-]{1,40}$/
+const TOKEN = /^[A-Za-z0-9_*.-]{1,40}$/
 const FINGERPRINT = /^sig-[0-9a-f]{12}$/
 
 // A token outside the closed shape is replaced rather than escaped: escaping still publishes it.
-const tok = (v) => (typeof v === 'string' && TOKEN.test(v) ? v : 'other')
+const tok = (v) => (Number.isSafeInteger(v) ? String(v) : typeof v === 'string' && TOKEN.test(v) ? v : 'other')
 const fp = (v) => {
   if (!FINGERPRINT.test(v)) throw new Error('signal-render: not a fingerprint')
   return v

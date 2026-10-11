@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderIssue } from './signal-render.mjs'
-import { scan, evaluate, validateMerges, mergeGroups, applyKnownMerges, parseSignalMarker, THRESHOLDS } from './signal-scan.mjs'
+import { scan, evaluate, validateMerges, mergeGroups, applyKnownMerges, parseSignalMarker, isIsoSeconds, KINDS, THRESHOLDS } from './signal-scan.mjs'
 
 const idsOf = (body) => (parseSignalMarker(body) ?? []).filter((t) => t.startsWith('sig-'))
 
@@ -19,6 +19,8 @@ export function ghAdapter() {
   const gh = (args, input) => execFileSync('gh', args, { encoding: 'utf8', input })
   const listLabel = (label) => JSON.parse(gh(['issue', 'list', '--label', label, '--state', 'all', '--limit', '1000', '--json', FIELDS]))
   return {
+    // --force makes create an upsert, so a repo that never had the labels works on the first run.
+    ensureLabels: (labels) => { for (const l of labels) gh(['label', 'create', l, '--force']) },
     list: () => listLabel('signal'),
     listDiscards: () => listLabel(LOG_LABEL),
     create: ({ title, body, labels }) => {
@@ -97,9 +99,10 @@ export const discardsJson = (discards) =>
     ({ id, kind, key, runs, repos, reason })), null, 2) + '\n'
 
 // Sorted by id and free of timestamps so an unchanged run renders identical bytes and causes no edit.
-export function renderDiscardLog(discards, acct, { maxChars = 60000 } = {}) {
+export function renderDiscardLog(discards, acct, { maxChars = 60000, watermark } = {}) {
   const head = [
-    '# Signal discards', '',
+    '# Signal discards',
+    ...(watermark ? [`<!-- signal-scanned: ${watermark} -->`] : []), '',
     `no_signal: ${acct.no_signal}`, `rejected: ${acct.rejected}`, '',
     '| fingerprint | key | runs | sources | failed rule |', '| --- | --- | --- | --- | --- |',
   ]
@@ -109,8 +112,15 @@ export function renderDiscardLog(discards, acct, { maxChars = 60000 } = {}) {
 
   // Lowest-runs-first cut, so the weakest evidence is what falls off the end.
   const ranked = [...discards].sort((a, b) => b.runs - a.runs || byId(a, b))
-  let kept = ranked.length
-  while (kept > 0 && render(ranked.slice(0, kept), ranked.length - kept).length > maxChars) kept--
+  // Each extra row adds more bytes than the shrinking omitted-count can remove, so length is monotonic in `kept`.
+  let lo = 0
+  let hi = ranked.length
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (render(ranked.slice(0, mid), ranked.length - mid).length > maxChars) hi = mid - 1
+    else lo = mid
+  }
+  const kept = lo
   return render(ranked.slice(0, kept), ranked.length - kept)
 }
 
@@ -126,9 +136,12 @@ const pickLogIssue = (issues) => {
 
 // One long-lived issue, overwritten: a comment per run would grow without bound and a signal
 // label would feed the log back into the issues it describes.
-export async function syncDiscardLog(discards, acct, { gh = ghAdapter(), existing } = {}) {
+export async function syncDiscardLog(discards, acct, { gh = ghAdapter(), existing, watermark } = {}) {
   const found = pickLogIssue(existing ?? await gh.listDiscards())
-  const body = renderDiscardLog(discards, acct)
+  // Never moves backwards: a shrinking window must not make old reports look new again.
+  const prior = WATERMARK.exec(found?.body ?? '')?.[1]
+  const latest = [prior, watermark].filter(isIsoSeconds).sort().at(-1)
+  const body = renderDiscardLog(discards, acct, { watermark: latest })
   if (!found) {
     const made = await gh.create({ title: 'Signal discards', body, labels: [LOG_LABEL] })
     return { action: 'created', number: made?.number }
@@ -139,10 +152,15 @@ export async function syncDiscardLog(discards, acct, { gh = ghAdapter(), existin
 }
 
 const NEWEST = /<!--\s*signal-newest:\s*(\S+)\s*-->/
+// Lives on the discard log, not on signal issues, because a run that only discards leaves no issue to carry it.
+const WATERMARK = /<!--\s*signal-scanned:\s*(\S+)\s*-->/
 
-// Reports received after the newest one any signal issue reflects; with no issue yet, every report is new.
-export function newSinceLastRun(entries, issues) {
-  const seen = issues.map((i) => NEWEST.exec(i.body ?? '')?.[1]).map(Date.parse).filter(Number.isFinite)
+export const latestReceived = (entries) => entries.map((e) => e.received_at).filter(isIsoSeconds).sort().at(-1)
+
+// Reports received after the newest one any prior run saw; with no marker anywhere, every report is new.
+export function newSinceLastRun(entries, issues, logIssues = []) {
+  const marks = [...issues.map((i) => NEWEST.exec(i.body ?? '')?.[1]), ...logIssues.map((i) => WATERMARK.exec(i.body ?? '')?.[1])]
+  const seen = marks.map(Date.parse).filter(Number.isFinite)
   if (!seen.length) return entries.length
   const newest = Math.max(...seen)
   return entries.filter((e) => Date.parse(e.received_at) > newest).length
@@ -170,6 +188,14 @@ export function readTags(repoDir = '.') {
   } catch {
     return []
   }
+}
+
+// A group with no reports left is in neither list, yet its closed issue still shows the previous
+// nonzero after-rate. Only an issue that already froze a before-rate can state a zero after-rate.
+const vanished = (issue) => {
+  if (!BEFORE_MARKER.test(issue.body ?? '')) return null
+  const kind = /- Kind: `([A-Za-z0-9_]+)`/.exec(issue.body)?.[1]
+  return kind ? { kind, members: [] } : null
 }
 
 export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghAdapter(), log = console.log, tags = [] }) {
@@ -203,6 +229,7 @@ export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghA
     const frozen = (found.body ?? '').match(BEFORE_MARKER)
     return withShipClaim(frozen ? `${body}${CLAIM_START}${frozen[0]}\n` : body, ratesFor(found, group))
   }
+  await gh.ensureLabels?.(['signal', LOG_LABEL, ...KINDS.map((k) => `signal:${k}`)])
   const synced = await syncIssues(result.qualified, { entries, gh, issues, claim })
 
   // A group that fell out of the qualified set still has a closed issue whose claim needs refreshing.
@@ -211,6 +238,7 @@ export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghA
     if (qualifiedIssues.has(issue)) continue
     const ids = idsOf(issue.body)
     const group = result.discards.find((g) => ids.includes(g.id) || (g.merged ?? []).some((m) => ids.includes(m)))
+      ?? vanished(issue)
     if (!group) continue
     const body = withShipClaim(issue.body ?? '', ratesFor(issue, group))
     if (!same(issue.body, body)) await gh.edit(issue.number, { body })
@@ -220,12 +248,13 @@ export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghA
     mkdirSync(out, { recursive: true })
     writeFileSync(join(out, 'discards.json'), discardsJson(result.discards))
   }
-  const logged = await syncDiscardLog(result.discards, acct, { gh, existing: logIssues })
+  const fresh = newSinceLastRun(entries, issues, logIssues)
+  const logged = await syncDiscardLog(result.discards, acct, { gh, existing: logIssues, watermark: latestReceived(entries) })
 
   log(`issues: ${synced.created.length} created, ${synced.updated.length} updated, ${synced.unchanged.length} unchanged`)
   log(`discard log: ${logged.action}`)
   if (rejectedMerges) log(`merge_rejected:${rejectedMerges}`)
-  log(`new since last run: ${newSinceLastRun(entries, issues)}`)
+  log(`new reports since last run: ${fresh}`)
   log(summaryLine(acct))
   return { synced, logged, acct }
 }

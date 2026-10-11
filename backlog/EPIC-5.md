@@ -2,7 +2,7 @@
 
 - Outcome: a daily routine turns new run reports into GitHub Issues (evidence + draft brief) or discard-log entries; every report is accounted for; humans still write the briefs.
 - Success metric: accounting 100% (every report in exactly one issue or discard entry); re-run over the same input files 0 new issues (fixture test).
-- Status: TODO
+- Status: DONE
 - Artifacts: docs/adr/0004-signal-envelope-key-and-fingerprint.md, docs/briefs/self-improvement/03-signal-routine.md
 - Lane: deliberate — recommended deliberate (rubric 1): floor one_way_door, one_way_door, one_way_door, one_way_door, one_way_door, one_way_door, one_way_door, one_way_door fired, lane is deliberate
 - Binding: ADR-0001 (report schema 1, closed vocab), ADR-0002 (decision records; `decisions`/`outcome_events` sections), ADR-0004 (store envelope 1, signal key, issue fingerprint). Lives outside `plugins/`; no `feat:` release.
