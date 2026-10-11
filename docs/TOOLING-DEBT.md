@@ -13,7 +13,7 @@
 
 | Gap | Risk | Why now | Effort |
 |-----|------|---------|--------|
-| `templates/hooks/meter.sh:80` expands an empty `"${sub_arg[@]}"` under `set -u`; macOS `/bin/bash` 3.2 aborts with "unbound variable", so the hook silently records nothing on macOS and `scripts/meter.test.sh` fails 3 cases (pre-existing on `main`, found during EPIC-3). | MEDIUM | Production metering is dark on macOS; `preflight` is red locally | S — `${sub_arg[@]+"${sub_arg[@]}"}`, as its own `fix:` PR |
+| | | | |
 
 > If this table exceeds 5 entries, the gap scan says so at the top of the file:
 > **recommend pausing feature work.**
@@ -108,22 +108,6 @@ an ignored ledger is worse than none.
 - Risk: LOW
 - Category: robustness
 - Address when: a duration-based signal in 03 misleads because of idle tails
-
-### meter.sh aborts on macOS bash 3.2 when no subagents dir exists
-- Raised: 2026-10-06 by coder (STORY-1-1)
-- Current: pre-existing — reproduces identically on `main` before this story's
-  changes, so it is not this story's regression. `templates/hooks/meter.sh`
-  (~line 80) expands `"${sub_arg[@]}"` under `set -u`; macOS ships bash 3.2,
-  where an empty array under `set -u` is an unbound-variable error, so the
-  hook dies before running `meter.mjs` — the three `scripts/meter.test.sh`
-  hook-resolution cases (marketplace fallback, cache-version ordering,
-  `METER_MJS` override) fail here but pass in CI's Linux bash 5. On a real
-  macOS machine this means the production meter hook silently records
-  nothing (it is advisory/best-effort and exits 0 either way)
-- Risk: MEDIUM
-- Category: robustness
-- Address when: the next change that touches `meter.sh` — fix is
-  `${sub_arg[@]+"${sub_arg[@]}"}` in place of `"${sub_arg[@]}"`
 
 ### Run-report cost covers only the current session's meter record
 - Raised: 2026-10-06 by coder (STORY-1-2)

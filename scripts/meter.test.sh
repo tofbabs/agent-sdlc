@@ -21,7 +21,10 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 M="$ROOT/plugins/agentic-sdlc/scripts/meter.mjs"
 F="$ROOT/scripts/fixtures/meter"
-TMP="$(mktemp -d)"
+# Physical path: macOS mktemp returns /var/..., a symlink to /private/var/..., and
+# node reports a module's own path resolved, so the hook-resolution asserts would
+# compare two spellings of the same file.
+TMP="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$TMP"' EXIT
 
 fail=0
