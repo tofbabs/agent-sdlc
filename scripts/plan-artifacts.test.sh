@@ -93,5 +93,49 @@ printf '# FAST-8\n- Artifacts: docs/TOOLING-DEBT.md\n' > backlog/FAST-8.md
 ( node "$PA" carry FAST-8 --from "$TMP/main" >/dev/null 2>&1 )
 [ $? -eq 2 ] && ok "ledger listed as an Artifact is refused" || bad "ledger Artifact accepted"
 
+# 7. check: an epic's stories are scored S=3 M=5 L=15 against a cap of 15.
+epic() { # epic <ID> <estimate>... — writes backlog/<ID>.md in $TMP/chk
+  local id=$1; shift; local i=0
+  { printf '# %s: t\n\n## Stories\n\n' "$id"
+    for e in "$@"; do
+      i=$((i+1)); printf '### STORY-9-%d: s\n' "$i"
+      [ "$e" = none ] || printf -- '- estimate: %s\n' "$e"   # "none" omits the line
+      printf -- '- depends_on: []\n\n'
+    done
+    printf '## Debt\n'; } > "$TMP/chk/backlog/$id.md"
+}
+mkdir -p "$TMP/chk/backlog"
+chk() { ( cd "$TMP/chk" && node "$PA" check "$1" 2>&1 ); }
+
+epic EPIC-1 M M S;     chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes under cap (13)" || bad "13 points rejected"
+epic EPIC-2 L;         chk EPIC-2 >/dev/null; [ $? -eq 0 ] && ok "check passes at cap with one L" || bad "1 L rejected"
+epic EPIC-3 S S S S S; chk EPIC-3 >/dev/null; [ $? -eq 0 ] && ok "check passes at cap with five S" || bad "5 S rejected"
+epic EPIC-4 M M S S;   out=$(chk EPIC-4); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '16' && echo "$out" | grep -q '15' \
+  && ok "check rejects 16 naming total and cap" || bad "16 points: rc=$rc out=$out"
+epic EPIC-5 M none
+out=$(chk EPIC-5); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'STORY-9-2' && ok "check names a story with no estimate" || bad "missing estimate: rc=$rc out=$out"
+epic EPIC-6 M XL;      out=$(chk EPIC-6); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'STORY-9-2' && ok "check names a story with estimate XL" || bad "XL estimate: rc=$rc out=$out"
+echo "# FAST-9" > "$TMP/chk/backlog/FAST-9.md"
+chk FAST-9 >/dev/null; [ $? -eq 0 ] && ok "check ignores FAST-<n>" || bad "FAST rejected"
+cat > "$TMP/chk/backlog/EPIC-7.md" <<'EOF'
+# EPIC-7: stub
+- Status: STUB
+
+## Stories
+
+### STORY-7-1: a
+- estimate: L
+- depends_on: []
+
+### STORY-7-2: b
+- estimate: S
+- depends_on: [STORY-7-1]
+EOF
+out=$(chk EPIC-7); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '18' && ok "STUB-shaped epic is scored like any other" || bad "stub: rc=$rc out=$out"
+
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'

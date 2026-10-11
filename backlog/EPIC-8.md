@@ -38,7 +38,8 @@
 
 ### STORY-8-1: `check` rejects over-cap and unsized epics (hard-coded defaults)
 
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: M
 - select: risk_class=none@brief:L111 one_way_doors=0@brief:L111 existing_pattern=yes@brief:L186 modules_crossed=2@brief:L111 review_bounced=no@brief:L111 risk_kind=code@brief:L111
 - depends_on: []
@@ -61,6 +62,7 @@
 ### STORY-8-2: `check` enforces the epic line budget and Depends-on links
 
 - status: TODO
+- mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L117 one_way_doors=0@brief:L117 existing_pattern=yes@AC1 modules_crossed=1@brief:L117 review_bounced=no@brief:L117 risk_kind=code@brief:L117
 - depends_on: [STORY-8-1]
@@ -82,6 +84,7 @@
 ### STORY-8-3: preflight runs `check` on epics changed on the branch
 
 - status: TODO
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L123 one_way_doors=0@brief:L123 existing_pattern=yes@brief:L123 modules_crossed=2@brief:L123 review_bounced=no@brief:L123 risk_kind=code@brief:L123
 - depends_on: [STORY-8-1]

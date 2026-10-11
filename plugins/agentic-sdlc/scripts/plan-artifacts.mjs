@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 //
-// plan-artifacts.mjs — claim a backlog ID, and carry a plan onto its build branch.
+// plan-artifacts.mjs — claim a backlog ID, carry a plan onto its build branch,
+// and check an epic's size.
 //
 // WHY THIS EXISTS AS A SCRIPT AND NOT A CONVENTION
 //
@@ -33,6 +34,9 @@ const CLAIM_RETRIES = 20
 const ARTIFACTS_RE = /^- Artifacts:\s*(.*)$/m
 const DEBT_RE = /^## Debt\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m
 const LEDGER = 'docs/TOOLING-DEBT.md'
+// Kept together so a later epic can swap them for project config in one place.
+const POINTS = { S: 3, M: 5, L: 15 }
+const EPIC_CAP = 15
 
 const [, , command, arg, ...rest] = process.argv
 const flags = {}
@@ -182,8 +186,42 @@ function carry(id, from) {
   )
 }
 
+// ---------------------------------------------------------------- check
+
+// Sizing is an epic-only gate; FAST plans are flat task lists with no estimates.
+function check(id) {
+  if (!/^(EPIC|FAST)-\d+$/.test(id ?? '')) die(`check takes an ID like EPIC-7, got "${id}"`)
+  if (id.startsWith('FAST-')) return
+
+  const file = join(process.cwd(), 'backlog', `${id}.md`)
+  if (!existsSync(file)) die(`${file} not found`)
+  const text = readFileSync(file, 'utf8')
+
+  // Stub epics carry the same heading and estimate lines, so no special case.
+  const section = /^## Stories\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text)?.[1] ?? ''
+  const stories = section.split(/^(?=### STORY-)/m).filter((b) => b.startsWith('### STORY-'))
+
+  const errors = []
+  let total = 0
+  for (const block of stories) {
+    const name = /^### (STORY-[^:\s]+)/.exec(block)[1]
+    const est = /^- estimate:[ \t]*(\S*)/m.exec(block)?.[1]
+    if (!est) errors.push(`${name}: missing "- estimate:" (want S|M|L)`)
+    else if (!Object.hasOwn(POINTS, est)) errors.push(`${name}: estimate "${est}" is not one of ${Object.keys(POINTS).join('|')}`)
+    else total += POINTS[est]
+  }
+  if (total > EPIC_CAP) errors.push(`${id}: ${total} points exceeds the cap of ${EPIC_CAP}`)
+
+  if (errors.length) {
+    process.stderr.write(errors.map((e) => `plan-artifacts: ${e}\n`).join(''))
+    process.exit(1)
+  }
+  process.stdout.write(`${id}: ${total}/${EPIC_CAP} points\n`)
+}
+
 // ---------------------------------------------------------------- dispatch
 
 if (command === 'claim') claim(arg)
 else if (command === 'carry') carry(arg, flags.from)
-else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | carry <ID> --from <planning checkout>')
+else if (command === 'check') check(arg)
+else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | carry <ID> --from <planning checkout> | check <ID>')
