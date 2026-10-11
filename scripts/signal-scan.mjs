@@ -204,18 +204,20 @@ function firstSeenOf(entries) {
   return firstSeen
 }
 
-export function evaluate(entries, { now = new Date() } = {}) {
+// `merge` runs on the report groups before thresholds, so caps are applied to merged sets.
+export function evaluate(entries, { now = new Date(), merge = (groups) => groups } = {}) {
   const qualified = []
   const discards = []
   const firstSeen = firstSeenOf(entries)
-  for (const g of groupReports(entries, { now, firstSeen })) {
-    // Ignored before thresholds so a known-noisy group never reads as a threshold miss.
-    if ((THRESHOLDS.ignore ?? []).includes(`${g.kind}:${g.key.at(-1)}`)) {
-      discards.push({ id: g.id, kind: g.kind, key: g.key, reason: 'ignored' })
-      continue
-    }
+  const { groups: vg, drift } = verdictSignals(entries)
+  const verdicts = [...vg, ...drift].map((g) => ({ kind: g.kind, key: g.key, id: g.id, members: byRunId(g.members) }))
+  for (const g of [...merge(groupReports(entries, { now, firstSeen }), { now, firstSeen }), ...verdicts]) {
     const { reason, ...evaluated } = evaluateGroup(g, { now, firstSeen })
-    if (reason) discards.push({ id: g.id, kind: g.kind, key: g.key, reason })
+    const discard = (why) => discards.push({ id: g.id, kind: g.kind, key: g.key, reason: why,
+      members: byRunId(g.members), runs: evaluated.runs, repos: evaluated.repos })
+    // Ignored before thresholds so a known-noisy group never reads as a threshold miss.
+    if ((THRESHOLDS.ignore ?? []).includes(`${g.kind}:${g.key.at(-1)}`)) discard('ignored')
+    else if (reason) discard(reason)
     else qualified.push(evaluated)
   }
   return { qualified, discards }
@@ -232,15 +234,16 @@ export function verdictSignals(entries) {
   const groups = new Map()
   const decided = new Set()
   let open = 0
-  for (const { report } of entries) {
+  for (const { report, source } of entries) {
     for (const d of report.decisions ?? []) {
       decided.add(d.decision_id)
       const verdict = d.verdict ?? settled.get(d.decision_id)
       if (verdict === undefined) { open++; continue }
       const key = [d.layer, d.choice, d.rubric]
       const id = fingerprint('verdict', key)
-      if (!groups.has(id)) groups.set(id, { kind: 'verdict', key, id, settled: 0, counts: {} })
+      if (!groups.has(id)) groups.set(id, { kind: 'verdict', key, id, settled: 0, counts: {}, members: [] })
       const g = groups.get(id)
+      if (!g.members.some((m) => m.run_id === report.run.run_id)) g.members.push({ run_id: report.run.run_id, source })
       g.settled++
       g.counts[verdict] = (g.counts[verdict] ?? 0) + 1
     }
@@ -259,7 +262,7 @@ export function verdictSignals(entries) {
     if (!prev || g.settled < THRESHOLDS.verdict_min_settled || prev.settled < THRESHOLDS.verdict_min_settled) continue
     // Binary floats put a drop of exactly the margin (0.70 to 0.55) a hair under it; the epsilon keeps the boundary inclusive.
     if (prev.right_rate - g.right_rate >= THRESHOLDS.verdict_drift_margin - 1e-9) {
-      drift.push({ kind: 'verdict_drift', key: g.key, id: fingerprint('verdict_drift', g.key) })
+      drift.push({ kind: 'verdict_drift', key: g.key, id: fingerprint('verdict_drift', g.key), members: g.members })
     }
   }
   return {

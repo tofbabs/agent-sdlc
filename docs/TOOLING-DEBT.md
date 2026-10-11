@@ -358,3 +358,24 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: LOW
 - Category: observability
 - Address when: a maintainer needs risk to triage a debt signal. Then add an additive joint `debt.by_category_risk` count map to the report schema, and the routine emits `(category, risk)` keys alongside the existing `*` keys.
+
+### A merged group spanning two existing issues aborts the sync
+- Raised: 2026-10-11 by coder (STORY-5-6)
+- Current: If a merge puts fingerprints from two already-filed issues into one group, the run fails before any write naming both issues. Picking one would leave a second issue claiming fingerprints the first now carries, which ARCH-4 forbids.
+- Risk: LOW
+- Category: robustness
+- Address when: a maintainer hits the abort. Then decide which issue survives and whether the other is closed as a duplicate.
+
+### Issue-body comparison tolerates CRLF and trailing whitespace only
+- Raised: 2026-10-11 by coder (STORY-5-6)
+- Current: Stored and rendered bodies are compared after normalising CRLF and trimming trailing whitespace, an assumption about what GitHub returns that no test can check offline.
+- Risk: MEDIUM
+- Category: missing_test
+- Address when: the first live run edits an issue whose body did not change. Then widen the normalisation or compare a body hash.
+
+### Labels must pre-exist for gh issue create
+- Raised: 2026-10-11 by coder (STORY-5-6)
+- Current: The adapter passes `signal`, `signal:<kind>` and `signal-discards` to `gh issue create`, which fails if a label is missing; nothing creates them.
+- Risk: MEDIUM
+- Category: robustness
+- Address when: before the first live run of the routine.

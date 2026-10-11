@@ -188,6 +188,17 @@ else
   note "node not found — skipping signal-render tests"
 fi
 
+# 6a-sync. Issue matching runs against a stubbed gh, so a regression cannot reach the network.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/signal-sync.test.sh" >/dev/null 2>&1; then
+    ok "signal-sync invariants hold"
+  else
+    bad "signal-sync tests failed — run scripts/signal-sync.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping signal-sync tests"
+fi
+
 # 6a-ingest. The edge handler (ingest/src/handler.mjs) under plain Node against
 #     an in-memory db: validation, limits, idempotency and /register.
 if command -v node >/dev/null 2>&1; then

@@ -41,14 +41,24 @@ function impact(group, entries) {
   })
 }
 
+// The one timestamp an issue publishes: lets a later run count reports newer than what the issues already reflect.
+// Null when no member is among the entries, so a group rendered without evidence carries no line.
+function newestReceived(group, entries) {
+  const ids = new Set((group.members ?? []).map((m) => m.run_id))
+  const times = entries.filter((e) => ids.has(e.report.run.run_id)).map((e) => Date.parse(e.received_at)).filter(Number.isFinite)
+  return times.length ? new Date(Math.max(...times)).toISOString().replace(/\.\d+Z$/, 'Z') : null
+}
+
 export function renderIssue(group, ctx = {}) {
   const entries = ctx.entries ?? []
   const primary = fp(group.id)
   const merged = (ctx.merged ?? []).map(fp)
   const keyText = group.key.map(tok).join(' / ')
   const kind = tok(group.kind)
+  const newest = newestReceived(group, entries)
   const lines = [
     `<!-- signal: ${[primary, ...merged].join(' ')} -->`,
+    ...(newest ? [`<!-- signal-newest: ${newest} -->`] : []),
     '',
     '> Draft generated from aggregate counts only. A maintainer should write the brief from the evidence below; nothing here is a decision.',
     '',

@@ -3,6 +3,7 @@ import { evaluate } from './signal-scan.mjs'
 import { renderIssue } from './signal-render.mjs'
 
 const base = JSON.parse(readFileSync(new URL('./fixtures/signal/report.json', import.meta.url), 'utf8'))
+const NEWEST_LINE = /^<!-- signal-newest: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ -->\n/m
 let failed = 0
 const check = (name, cond, detail = '') => {
   if (cond) console.log(`  ✓ ${name}`)
@@ -74,7 +75,8 @@ check('fixture yields groups of both classes',
     const { title, body } = render(g)
     for (const v of raw) if ((title + body).includes(v)) leaked.push(v)
     if (/[0-9a-f]{32}/.test(title + body)) leaked.push('32-hex')
-    if (/\d{4}-\d\d-\d\dT/.test(title + body)) leaked.push('timestamp')
+    // The newest-received marker is the one published timestamp; any other is a leak.
+    if (/\d{4}-\d\d-\d\dT/.test((title + body).replace(NEWEST_LINE, ''))) leaked.push('timestamp')
   }
   check('no source, run_id, decision_id or timestamp in any body', leaked.length === 0, leaked.join())
 }
@@ -82,5 +84,12 @@ check('fixture yields groups of both classes',
   const a = qualified.map(render)
   const b = evaluate(entries, { now: new Date('2026-10-09T12:00:00Z') }).qualified.map(render)
   check('same group twice renders identically', JSON.stringify(a) === JSON.stringify(b))
+}
+{
+  const g = qualified.find((g) => g.kind === 'finding')
+  const [first, second] = render(g).body.split('\n')
+  check('the body carries the newest received_at of its members as one second-precision line after the marker',
+    first === `<!-- signal: ${g.id} -->` && second === '<!-- signal-newest: 2026-10-07T10:00:00Z -->', second)
+  check('a group rendered without evidence carries no newest line', !renderIssue(g, { entries: [] }).body.includes('signal-newest'))
 }
 process.exit(failed)

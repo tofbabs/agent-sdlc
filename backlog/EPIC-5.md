@@ -128,8 +128,9 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Writing into `docs/briefs/` or opening PRs.
 
 ### STORY-5-6: Match existing issues, update instead of duplicate, write discard log
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: L
 - select: risk_class=none@brief:L55-L58 one_way_doors=1@brief:L55-L58 existing_pattern=no@brief:L55-L58 modules_crossed=2@brief:L55-L58 review_bounced=no@brief:L55-L58 risk_kind=code@brief:L55-L58
 - depends_on: [STORY-5-5]

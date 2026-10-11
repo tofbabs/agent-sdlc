@@ -119,6 +119,10 @@ jobs:
       - name: signal-render invariants
         run: ./scripts/signal-render.test.sh
 
+      # Matching and update logic runs against a stubbed gh; CI never touches issues.
+      - name: signal-sync invariants
+        run: ./scripts/signal-sync.test.sh
+
       - name: ingest handler tests
         run: |
           ./scripts/ingest.test.sh

@@ -647,6 +647,46 @@ const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
   })
 }
 
+// --- verdict groups are judged by the same thresholds as every quality group --
+{
+  const { evaluate } = await import('./signal-scan.mjs')
+  const srcs = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  let n = 0
+  const settled = (source, rubric, right, size, first = '2026-09-01T00:00:00Z') => {
+    const x = { ...entry({}, source, uuid(9000 + ++n)), source_first_seen: first }
+    x.report.decisions = Array.from({ length: size }, (_, i) => ({
+      decision_id: String(++n + 100000).padStart(16, '0'), layer: 'lane', rubric, choice: 'PAIR',
+      overridden: false, fallback: false, verdict: i < right ? 'earned' : 'wasted', verdict_rubric: rubric,
+    }))
+    return x
+  }
+  const vid = fp('verdict', 'lane', 'PAIR', 2)
+  const did = fp('verdict_drift', 'lane', 'PAIR', 2)
+  const res = (es) => evaluate(es, { now: new Date(NOW) })
+  const all = (r) => [...r.qualified, ...r.discards]
+
+  const lone = res([settled(srcs[0], 1, 8, 10), settled(srcs[0], 2, 6, 10)])
+  check('a verdict group and its drift from one source are discarded for min_sources, never filed',
+    all(lone).filter((g) => g.id === vid || g.id === did).length === 2 &&
+    lone.discards.find((d) => d.id === vid)?.reason === 'min_sources' &&
+    lone.discards.find((d) => d.id === did)?.reason === 'min_sources' &&
+    !lone.qualified.some((g) => g.id === vid || g.id === did), JSON.stringify(lone))
+
+  const young = res([settled(srcs[0], 1, 8, 10), settled(srcs[0], 2, 6, 10),
+    settled(srcs[1], 2, 0, 1, '2026-10-08T00:00:00Z'), settled(srcs[2], 2, 0, 1, '2026-10-08T00:00:00Z')])
+  check('young sources weigh nothing toward a verdict group',
+    young.discards.find((d) => d.id === vid)?.reason === 'min_sources' && !young.qualified.some((g) => g.id === vid),
+    JSON.stringify(young))
+
+  const spread = res([
+    settled(srcs[0], 1, 8, 10), settled(srcs[1], 1, 0, 1), settled(srcs[2], 1, 0, 1),
+    settled(srcs[0], 2, 3, 5), settled(srcs[0], 2, 3, 5), settled(srcs[1], 2, 0, 2), settled(srcs[1], 2, 0, 2), settled(srcs[2], 2, 0, 1),
+  ])
+  check('three mature sources with capped runs at min_runs qualify a verdict group and its drift',
+    spread.qualified.some((g) => g.id === vid && g.runs === 5 && g.repos === 3) &&
+    spread.qualified.some((g) => g.id === did && g.kind === 'verdict_drift'), JSON.stringify(spread))
+}
+
 // --- the model's input is vocabulary only --------------------------------------
 {
   const mk = (n, source, findings) => {
