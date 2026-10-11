@@ -83,7 +83,7 @@
 
 ### STORY-8-3: preflight runs `check` on epics changed on the branch
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L123 one_way_doors=0@brief:L123 existing_pattern=yes@brief:L123 modules_crossed=2@brief:L123 review_bounced=no@brief:L123 risk_kind=code@brief:L123

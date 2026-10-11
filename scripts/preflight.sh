@@ -381,5 +381,42 @@ else
   note "node not found — skipping size budget"
 fi
 
+# 8. An oversized epic must not reach a PR. Only epics added or changed on this
+#    branch are checked (plus uncommitted ones, so a local run catches them
+#    before commit); the legacy epics predate the caps and are grandfathered.
+GRANDFATHERED_EPICS="EPIC-1 EPIC-2 EPIC-3"
+if command -v node >/dev/null 2>&1; then
+  BASE_REF=""
+  for r in origin/main main; do
+    if git -C "$ROOT" rev-parse --verify -q "$r" >/dev/null; then BASE_REF=$r; break; fi
+  done
+  MERGE_BASE=""
+  [ -n "$BASE_REF" ] && MERGE_BASE=$(git -C "$ROOT" merge-base "$BASE_REF" HEAD 2>/dev/null || true)
+  if [ -z "$MERGE_BASE" ]; then
+    note "no base ref to diff against — skipping epic size check"
+  else
+    EPIC_FILES=$( { git -C "$ROOT" diff --name-only "$MERGE_BASE" HEAD -- backlog
+                    git -C "$ROOT" diff --name-only HEAD -- backlog
+                    git -C "$ROOT" ls-files --others --exclude-standard -- backlog
+                  } | grep -E '^backlog/EPIC-[0-9]+\.md$' | sort -u || true)
+    checked=0
+    for f in $EPIC_FILES; do
+      [ -f "$ROOT/$f" ] || continue
+      epic=$(basename "$f" .md)
+      case " $GRANDFATHERED_EPICS " in *" $epic "*) continue ;; esac
+      checked=$((checked + 1))
+      if out=$(cd "$ROOT" && node plugins/agentic-sdlc/scripts/plan-artifacts.mjs check "$epic" 2>&1); then
+        ok "$epic passes plan-artifacts check"
+      else
+        bad "$epic fails plan-artifacts check"
+        printf '%s\n' "$out" | sed 's/^/    /' >&2
+      fi
+    done
+    [ "$checked" -gt 0 ] || note "no non-grandfathered epics changed — epic check skipped"
+  fi
+else
+  note "node not found — skipping epic check"
+fi
+
 [ "$fail" -eq 0 ] || { printf '\npreflight failed\n' >&2; exit 1; }
 printf '\npreflight passed — push, then let the release PR do the rest\n'
