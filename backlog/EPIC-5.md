@@ -190,8 +190,9 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Any change under `plugins/`.
 
 ### STORY-5-9: Report whether a signal's group shrank after its brief shipped
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: S
 - select: risk_class=none@brief:L111-L113 one_way_doors=1@brief:L111-L113 existing_pattern=no@brief:L111-L113 modules_crossed=1@brief:L111-L113 review_bounced=no@brief:L111-L113 risk_kind=code@brief:L111-L113
 - depends_on: [STORY-5-6]

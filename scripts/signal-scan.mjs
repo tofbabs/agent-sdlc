@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto'
 import { validate } from '../plugins/agentic-sdlc/scripts/run-report-schema.mjs'
 
 export const REASONS = ['unreadable', 'oversize', 'not_json', 'envelope_invalid', 'report_invalid', 'superseded', 'run_id_conflict']
-const THRESHOLDS = JSON.parse(readFileSync(fileURLToPath(new URL('./signal-thresholds.json', import.meta.url)), 'utf8'))
+export const THRESHOLDS = JSON.parse(readFileSync(fileURLToPath(new URL('./signal-thresholds.json', import.meta.url)), 'utf8'))
 const MAX_BYTES = 20 * 1024
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 

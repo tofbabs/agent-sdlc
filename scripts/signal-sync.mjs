@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { renderIssue } from './signal-render.mjs'
-import { scan, evaluate, validateMerges, mergeGroups, applyKnownMerges, parseSignalMarker } from './signal-scan.mjs'
+import { scan, evaluate, validateMerges, mergeGroups, applyKnownMerges, parseSignalMarker, THRESHOLDS } from './signal-scan.mjs'
 
 const idsOf = (body) => (parseSignalMarker(body) ?? []).filter((t) => t.startsWith('sig-'))
 
@@ -31,7 +31,7 @@ export function ghAdapter() {
   }
 }
 
-export async function syncIssues(qualified, { entries = [], gh = ghAdapter(), issues } = {}) {
+export async function syncIssues(qualified, { entries = [], gh = ghAdapter(), issues, claim = (found, group, body) => body } = {}) {
   const existing = issues ?? await gh.list()
 
   // Validate before any write so a corrupt tracker never gets half-updated.
@@ -52,7 +52,9 @@ export async function syncIssues(qualified, { entries = [], gh = ghAdapter(), is
     if (claimed.size > 1) {
       throw new Error(`group ${group.id} spans issues ${[...claimed].map((i) => `#${i.number}`).join(' and ')}; close one or split the merge`)
     }
-    return { group, found: [...claimed][0], ...renderIssue(group, { entries, merged }) }
+    const found = [...claimed][0]
+    const rendered = renderIssue(group, { entries, merged })
+    return { group, found, ...rendered, body: claim(found, group, rendered.body) }
   })
 
   const result = { created: [], updated: [], unchanged: [] }
@@ -146,7 +148,31 @@ export function newSinceLastRun(entries, issues) {
   return entries.filter((e) => Date.parse(e.received_at) > newest).length
 }
 
-export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghAdapter(), log = console.log }) {
+// Only an issue closed as completed claims a fix; the fix ships in the first release cut at or after the close.
+export function cutoverVersion(issue, tags) {
+  if (issue.state !== 'CLOSED' || issue.stateReason !== 'COMPLETED') return null
+  const closed = Date.parse(issue.closedAt)
+  const first = tags
+    .filter((t) => Date.parse(t.date) >= closed)
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date))[0]
+  return first ? first.tag.replace(/^v/, '') : null
+}
+
+// creatordate is the tag date for annotated tags and the commit date for lightweight ones, which is when the release was cut either way.
+export function readTags(repoDir = '.') {
+  try {
+    const raw = execFileSync('git', ['-C', repoDir, 'for-each-ref', '--format=%(refname:short) %(creatordate:iso-strict)', 'refs/tags/v*'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    return raw.split('\n').filter(Boolean).map((l) => {
+      const [tag, date] = l.split(' ')
+      return { tag, date }
+    }).filter((t) => /^v\d+(\.\d+)*$/.test(t.tag))
+  } catch {
+    return []
+  }
+}
+
+export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghAdapter(), log = console.log, tags = [] }) {
   const { entries, rejected } = scan(dir, { now })
 
   // Read both lists and validate before the first write, so a corrupt tracker leaves nothing half-done.
@@ -167,7 +193,28 @@ export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghA
   }
   const result = evaluate(entries, { now, merge })
 
-  const synced = await syncIssues(result.qualified, { entries, gh, issues })
+  const ratesFor = (issue, group) => {
+    const version = cutoverVersion(issue, tags)
+    return version ? shipRates(group, entries, version) : null
+  }
+  // The render would overwrite the claim, so re-apply it; the frozen marker comes from the issue's current body.
+  const claim = (found, group, body) => {
+    if (!found) return body
+    const frozen = (found.body ?? '').match(BEFORE_MARKER)
+    return withShipClaim(frozen ? `${body}${CLAIM_START}${frozen[0]}\n` : body, ratesFor(found, group))
+  }
+  const synced = await syncIssues(result.qualified, { entries, gh, issues, claim })
+
+  // A group that fell out of the qualified set still has a closed issue whose claim needs refreshing.
+  const qualifiedIssues = new Set(result.qualified.flatMap((g) => [g.id, ...(g.merged ?? [])]).flatMap((id) => issues.filter((i) => idsOf(i.body).includes(id))))
+  for (const issue of issues) {
+    if (qualifiedIssues.has(issue)) continue
+    const ids = idsOf(issue.body)
+    const group = result.discards.find((g) => ids.includes(g.id) || (g.merged ?? []).some((m) => ids.includes(m)))
+    if (!group) continue
+    const body = withShipClaim(issue.body ?? '', ratesFor(issue, group))
+    if (!same(issue.body, body)) await gh.edit(issue.number, { body })
+  }
   const acct = account(entries, result, rejected)
   if (out) {
     mkdirSync(out, { recursive: true })
@@ -183,17 +230,60 @@ export async function runSync({ dir, mergesFile, now = new Date(), out, gh = ghA
   return { synced, logged, acct }
 }
 
+const semverCmp = (a, b) => {
+  const [x, y] = [a, b].map((v) => v.split('.').map(Number))
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0)
+  return 0
+}
+
+// Caps apply to the group and the cohort alike so one chatty repo cannot swing either side of the ratio.
+export function shipRates(group, entries, version) {
+  const rules = group.kind === 'outlier' ? THRESHOLDS.cost : THRESHOLDS.quality
+  const capped = (items) => {
+    const perSource = new Map()
+    for (const s of items) perSource.set(s, (perSource.get(s) ?? 0) + 1)
+    return [...perSource.values()].reduce((a, n) => a + Math.min(n, rules.cap), 0)
+  }
+  const isAfter = (e) => semverCmp(e.report.run.plugin_version, version) >= 0
+  const versionOf = new Map(entries.map((e) => [e.report.run.run_id, e.report.run.plugin_version]))
+  const side = (after) => {
+    const inSide = (v) => v !== undefined && (semverCmp(v, version) >= 0) === after
+    const cohort = entries.filter((e) => isAfter(e) === after)
+    const weighted = capped(cohort.map((e) => e.source))
+    const runs = capped(group.members.filter((m) => inSide(versionOf.get(m.run_id))).map((m) => m.source))
+    return { runs, weighted, rate: weighted ? runs / weighted : 0 }
+  }
+  const after = side(true)
+  if (after.weighted < rules.min_runs) return null
+  return { before: side(false), after }
+}
+
+const CLAIM_START = '\n<!-- signal-claim -->\n'
+const BEFORE_MARKER = /<!-- signal-before: (\d+)\/(\d+) -->/
+
+// The before-rate is frozen on first sight so later runs cannot rewrite history
+// once the group has left the qualified set.
+export function withShipClaim(body, rates) {
+  if (!rates) return body
+  const at = body.indexOf(CLAIM_START)
+  const original = at === -1 ? body : body.slice(0, at)
+  const frozen = body.match(BEFORE_MARKER)
+  const before = frozen ? { runs: Number(frozen[1]), weighted: Number(frozen[2]) } : rates.before
+  const { after } = rates
+  return `${original}${CLAIM_START}<!-- signal-before: ${before.runs}/${before.weighted} -->\nbefore: ${before.runs} of ${before.weighted} runs\nafter: ${after.runs} of ${after.weighted} runs\n`
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   const flag = (n) => { const i = args.lastIndexOf(n); return i < 0 ? undefined : args[i + 1] }
   const source = flag('--source') ?? ''
   const now = flag('--now') === undefined ? new Date() : new Date(flag('--now'))
   if (!source.startsWith('dir:') || Number.isNaN(now.getTime())) {
-    console.error('usage: signal-sync.mjs --source dir:<path> [--merges <file>] [--now <iso>] [--out <dir>]')
+    console.error('usage: signal-sync.mjs --source dir:<path> [--merges <file>] [--now <iso>] [--out <dir>] [--repo <dir>]')
     process.exit(2)
   }
   try {
-    await runSync({ dir: source.slice(4), mergesFile: flag('--merges'), now, out: flag('--out') })
+    await runSync({ dir: source.slice(4), mergesFile: flag('--merges'), now, out: flag('--out'), tags: readTags(flag('--repo') ?? '.') })
   } catch (e) {
     console.error(`signal-sync: ${e.message}`)
     process.exit(1)

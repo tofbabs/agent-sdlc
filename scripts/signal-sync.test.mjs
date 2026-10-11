@@ -275,4 +275,163 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
       [withNewest('2026-10-01T00:00:00Z'), withNewest('2026-10-02T00:00:00Z')]) === 1)
 }
 
+// --- outcome: cut-over version from the closed issue -------------------------
+{
+  const sync = await import('./signal-sync.mjs')
+  const cutover = sync.cutoverVersion
+  const tags = [
+    { tag: 'v0.2.7', date: '2026-10-09T09:00:00Z' },
+    { tag: 'v0.2.5', date: '2026-10-01T09:00:00Z' },
+    { tag: 'v0.2.6', date: '2026-10-05T09:00:00Z' },
+  ]
+  const closed = (closedAt, stateReason = 'COMPLETED') => ({ state: 'CLOSED', stateReason, closedAt })
+  check('cutoverVersion is exported', typeof cutover === 'function')
+  if (typeof cutover === 'function') {
+    check('the cut-over is the first release at or after the close, as a bare version, whatever order tags arrive in',
+      cutover(closed('2026-10-04T00:00:00Z'), tags) === '0.2.6')
+    check('a release dated exactly at the close counts as the cut-over',
+      cutover(closed('2026-10-05T09:00:00Z'), tags) === '0.2.6')
+    check('no release yet after the close means no cut-over', cutover(closed('2026-10-10T00:00:00Z'), tags) === null)
+    check('closed as not planned makes no claim', cutover(closed('2026-10-04T00:00:00Z', 'NOT_PLANNED'), tags) === null)
+    check('an open issue makes no claim', cutover({ state: 'OPEN', stateReason: null, closedAt: null }, tags) === null)
+  }
+}
+
+// --- outcome: group rate before and after the cut-over -----------------------
+{
+  const { shipRates } = await import('./signal-sync.mjs')
+  check('shipRates is exported', typeof shipRates === 'function')
+  if (typeof shipRates === 'function') {
+    const src = (n) => String(n).repeat(32)
+    let seq = 0
+    const mk = (n, version) => ({ source: src(n), received_at: '2026-10-08T00:00:00Z',
+      report: { run: { run_id: `run-${++seq}`, plugin_version: version } } })
+    const cohort = (version, perSource) => [1, 2, 3, 4].flatMap((n) => Array.from({ length: perSource }, () => mk(n, version)))
+    const before = cohort('0.2.5', 4)
+    const after = [...cohort('0.2.6', 3), mk(1, '0.2.10')]
+    const entries = [...before, ...after]
+    const memberOf = (list, n, count) => list.filter((e) => e.source === src(n)).slice(0, count)
+      .map((e) => ({ run_id: e.report.run.run_id, source: e.source }))
+    // Source 1 repeats three times before; a per-source cap of 2 must keep it from dominating the numerator.
+    const g = { kind: 'finding', key: ['correctness', 'major'], id: 'sig-0123456789ab',
+      members: [...memberOf(before, 1, 3), ...memberOf(before, 2, 1), ...memberOf(after, 1, 1)] }
+    const r = shipRates(g, entries, '0.2.6')
+    check('before is the capped group runs over the capped runs of every older release',
+      r?.before?.runs === 3 && r.before.weighted === 8 && r.before.rate === 3 / 8, JSON.stringify(r))
+    check('after counts the cut-over release itself and compares versions numerically, so 0.2.10 is after 0.2.6',
+      r?.after?.runs === 1 && r.after.weighted === 8 && r.after.rate === 1 / 8, JSON.stringify(r))
+    check('an after cohort below the class minimum makes no claim',
+      shipRates(g, [...before, ...cohort('0.2.6', 1)], '0.2.6') === null)
+  }
+}
+
+// --- outcome: before-rate frozen into the body, after-rate refreshed ----------
+{
+  const { withShipClaim } = await import('./signal-sync.mjs')
+  check('withShipClaim is exported', typeof withShipClaim === 'function')
+  if (typeof withShipClaim === 'function') {
+    const base = '<!-- signal: sig-0123456789ab -->\n# finding\n'
+    const rates = (b, a) => ({ before: { runs: b[0], weighted: b[1], rate: b[0] / b[1] }, after: { runs: a[0], weighted: a[1], rate: a[0] / a[1] } })
+    const first = withShipClaim(base, rates([3, 8], [1, 8]))
+    check('the first claim freezes the before counts in a marker', first.includes('<!-- signal-before: 3/8 -->'), first)
+    check('the claim shows before and after as aggregate counts', first.includes('before: 3 of 8 runs') && first.includes('after: 1 of 8 runs'), first)
+    check('the original body is kept intact', first.startsWith(base), first)
+    const later = withShipClaim(first, rates([0, 2], [2, 9]))
+    check('a later run keeps the frozen before and refreshes after',
+      later.includes('<!-- signal-before: 3/8 -->') && later.includes('before: 3 of 8 runs') && later.includes('after: 2 of 9 runs') && !later.includes('1 of 8'), later)
+    check('the claim is replaced, not appended, so repeated runs are stable',
+      withShipClaim(later, rates([0, 2], [2, 9])) === later && later.split('signal-before').length === 2)
+    check('no rates means the body is untouched', withShipClaim(base, null) === base)
+  }
+}
+
+// --- outcome: the claim reaches the closed issue through the sync run --------
+{
+  const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const base = JSON.parse(readFileSync(new URL('./fixtures/signal/report.json', import.meta.url), 'utf8'))
+  const NOW = new Date('2026-10-09T12:00:00Z')
+  const dir = mkdtempSync(join(tmpdir(), 'signal-ship-'))
+  let seq = 0
+  const put = (name, s, version, received_at, finding) => {
+    const r = structuredClone(base)
+    r.run.run_id = `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`
+    r.run.plugin_version = version
+    r.review.findings = finding ? [{ round: 1, category: 'correctness', severity: 'MAJOR' }] : []
+    writeFileSync(join(dir, `${name}.json`), JSON.stringify({ envelope: 1, source: String(s).repeat(32),
+      source_first_seen: '2026-09-01T00:00:00Z', received_at, report: r }))
+  }
+  for (let s = 1; s <= 4; s++) for (let i = 0; i < 3; i++) put(`old-${s}-${i}`, s, '0.2.5', '2026-10-01T10:00:00Z', true)
+  for (let s = 1; s <= 4; s++) for (let i = 0; i < 2; i++) put(`new-${s}-${i}`, s, '0.2.6', '2026-10-08T10:00:00Z', s === 1 && i === 0)
+
+  const issues = []
+  const log = []
+  const gh = {
+    list: () => structuredClone(issues.filter((i) => i.labels.includes('signal'))),
+    listDiscards: () => structuredClone(issues.filter((i) => i.labels.includes('signal-discards'))),
+    create: ({ title, body, labels }) => { issues.push({ number: 100 + issues.length, state: 'OPEN', stateReason: null, closedAt: null, title, body, labels }); return { number: 99 + issues.length } },
+    edit: (n, { body }) => { issues.find((i) => i.number === n).body = body; log.push(`edit ${n}`) },
+  }
+  const tags = [{ tag: 'v0.2.5', date: '2026-10-01T00:00:00Z' }, { tag: 'v0.2.6', date: '2026-10-06T00:00:00Z' }]
+  const go = (extra = {}) => runSync({ dir, now: NOW, gh, log: () => {}, tags, ...extra })
+
+  await go()
+  const filed = issues.find((i) => i.labels.includes('signal') && i.body.includes('Kind: `finding`'))
+  check('an open issue carries no claim', !filed.body.includes('signal-before'))
+  Object.assign(filed, { state: 'CLOSED', stateReason: 'NOT_PLANNED', closedAt: '2026-10-05T00:00:00Z' })
+  await go()
+  check('closed as not planned makes no claim', !filed.body.includes('signal-before'), filed.body)
+
+  filed.stateReason = 'COMPLETED'
+  await go({ tags: [{ tag: 'v0.2.5', date: '2026-10-01T00:00:00Z' }] })
+  check('no release after the close makes no claim', !filed.body.includes('signal-before'), filed.body)
+
+  log.length = 0
+  await go()
+  check('a completed close with a later release shows before and after as aggregates',
+    filed.body.includes('before: 8 of 8 runs') && filed.body.includes('after: 1 of 8 runs'), filed.body)
+  check('the claim edits the body only and leaves the issue closed', filed.state === 'CLOSED' && log.every((l) => l === `edit ${filed.number}`), log.join())
+  check('the claim names no run ids', !/00000000-0000-4000/.test(filed.body))
+
+  log.length = 0
+  await go()
+  check('rerunning with nothing new edits nothing', log.length === 0, log.join())
+
+  // Once the older reports leave the window the group falls out of the qualified set;
+  // the frozen before-rate must still be there and the claim must still be refreshed.
+  for (let s = 1; s <= 4; s++) for (let i = 0; i < 3; i++) rmSync(join(dir, `old-${s}-${i}.json`))
+  put('new-2-late', 2, '0.2.6', '2026-10-08T11:00:00Z', true)
+  await go()
+  check('a group that left the qualified set keeps its frozen before and refreshes after',
+    filed.body.includes('before: 8 of 8 runs') && filed.body.includes('after: 2 of 8 runs'), filed.body)
+}
+
+// --- outcome: release tags are read from a cloned checkout ---------------------
+{
+  const { mkdtempSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { execFileSync } = await import('node:child_process')
+  const { readTags } = await import('./signal-sync.mjs')
+  const repo = mkdtempSync(join(tmpdir(), 'signal-tags-'))
+  const git = (args, date) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...args],
+    { encoding: 'utf8', env: { ...process.env, GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } })
+  git(['init', '-q'], '2026-10-01T00:00:00Z')
+  git(['commit', '-q', '--allow-empty', '-m', 'one'], '2026-10-01T00:00:00Z')
+  git(['tag', 'v0.2.5'], '2026-10-01T00:00:00Z')
+  git(['commit', '-q', '--allow-empty', '-m', 'two'], '2026-10-06T00:00:00Z')
+  git(['tag', '-a', 'v0.2.6', '-m', 'rel'], '2026-10-06T00:00:00Z')
+  git(['tag', 'not-a-release'], '2026-10-06T00:00:00Z')
+
+  const tags = readTags(repo)
+  const byTag = Object.fromEntries(tags.map((t) => [t.tag, t.date]))
+  check('lightweight and annotated release tags are listed with their dates',
+    Date.parse(byTag['v0.2.5']) === Date.parse('2026-10-01T00:00:00Z') && Date.parse(byTag['v0.2.6']) === Date.parse('2026-10-06T00:00:00Z'), JSON.stringify(tags))
+  check('only version tags count as releases', !('not-a-release' in byTag), JSON.stringify(tags))
+  const plain = mkdtempSync(join(tmpdir(), 'signal-notrepo-'))
+  check('a directory with no repository yields no tags instead of failing', JSON.stringify(readTags(plain)) === '[]')
+  rmSync(repo, { recursive: true, force: true }); rmSync(plain, { recursive: true, force: true })
+}
+
 process.exit(failed)
