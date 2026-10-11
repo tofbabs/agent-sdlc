@@ -21,7 +21,9 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 // A bare schema-1 report is the local-mode shape: no envelope to check.
 const unwrap = (doc, mtime) => {
   if (isObj(doc) && doc.schema === 1 && !('envelope' in doc)) {
-    return { report: doc, source: 'local', received_at: mtime.toISOString().slice(0, 19) + 'Z' }
+    const received_at = mtime.toISOString().slice(0, 19) + 'Z'
+    // Local mode has no earlier sighting than its own receipt.
+    return { report: doc, source: 'local', received_at, source_first_seen: received_at }
   }
   const ok = isObj(doc) && doc.envelope === 1 &&
     Object.keys(doc).every((k) => ENVELOPE_KEYS.includes(k)) &&
@@ -30,7 +32,7 @@ const unwrap = (doc, mtime) => {
     typeof doc.source_first_seen === 'string' && ISO_SECONDS.test(doc.source_first_seen) &&
     typeof doc.received_at === 'string' && ISO_SECONDS.test(doc.received_at) &&
     isObj(doc.report)
-  return ok ? { report: doc.report, source: doc.source, received_at: doc.received_at } : null
+  return ok ? { report: doc.report, source: doc.source, source_first_seen: doc.source_first_seen, received_at: doc.received_at } : null
 }
 
 const classify = (path) => {
@@ -120,17 +122,21 @@ const hasBaseline = (entries) =>
 
 export const discardsOf = (entries) => ({ no_baseline: hasBaseline(entries) ? 0 : entries.length })
 
-function outlierGroups(entries) {
+function outlierGroups(entries, { now, firstSeen } = {}) {
   const groups = new Map()
-  if (!hasBaseline(entries)) return []
+  // Fresh tokens are free to mint, so they must not move the median or satisfy the population check.
+  const minAge = THRESHOLDS.cost.min_source_age_days * 24 * 60 * 60 * 1000
+  const base = !now || !firstSeen ? entries : entries.filter((e) =>
+    !firstSeen.has(e.source) || now.getTime() - Date.parse(firstSeen.get(e.source)) >= minAge)
+  if (!hasBaseline(base)) return []
   for (const { report, source } of entries) {
     for (const metric of Object.keys(METRICS)) {
       const value = METRICS[metric](report)
-      const base = baselineOf(entries, report.run.command, metric)
-      if (value === undefined || !(base > 0) || value < THRESHOLDS.outlier_factor * base) continue
+      const baseMedian = baselineOf(base, report.run.command, metric)
+      if (value === undefined || !(baseMedian > 0) || value < THRESHOLDS.outlier_factor * baseMedian) continue
       const key = [report.run.command, report.run.lane, modeOf(report), metric]
       const id = fingerprint('outlier', key)
-      if (!groups.has(id)) groups.set(id, { kind: 'outlier', key, id, members: [], values: [], base })
+      if (!groups.has(id)) groups.set(id, { kind: 'outlier', key, id, members: [], values: [], base: baseMedian })
       const g = groups.get(id)
       g.members.push({ run_id: report.run.run_id, source })
       g.values.push(value)
@@ -145,7 +151,7 @@ function outlierGroups(entries) {
   }))
 }
 
-export function groupReports(entries) {
+export function groupReports(entries, weighting) {
   const groups = new Map()
   // A fixed visit order keeps first-seen dedupe from depending on input order.
   const ordered = [...entries].sort((a, b) =>
@@ -169,7 +175,44 @@ export function groupReports(entries) {
     members: byRunId(g.members),
     runs: g.members.length,
     repos: new Set(g.members.map((m) => m.source)).size,
-  })).concat(outlierGroups(entries)).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  })).concat(outlierGroups(entries, weighting)).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+
+// Capping per source keeps one noisy repo from manufacturing a cross-repo signal.
+// A brand-new source cannot be told apart from a flood, so it weighs nothing until it ages in.
+export function evaluateGroup(group, { now, firstSeen } = {}) {
+  const rules = group.kind === 'outlier' ? THRESHOLDS.cost : THRESHOLDS.quality
+  const minAge = rules.min_source_age_days * 24 * 60 * 60 * 1000
+  const mature = (s) => !now || !firstSeen?.has(s) || now.getTime() - Date.parse(firstSeen.get(s)) >= minAge
+  const perSource = new Map()
+  for (const m of group.members) {
+    if (mature(m.source)) perSource.set(m.source, (perSource.get(m.source) ?? 0) + 1)
+  }
+  const runs = [...perSource.values()].reduce((a, n) => a + Math.min(n, rules.cap), 0)
+  const repos = perSource.size
+  const reason = repos < rules.min_sources ? 'min_sources' : runs < rules.min_runs ? 'min_runs' : undefined
+  return { ...group, runs, repos, reason }
+}
+
+export function evaluate(entries, { now = new Date() } = {}) {
+  const qualified = []
+  const discards = []
+  const firstSeen = new Map()
+  for (const e of entries) {
+    const t = e.source_first_seen
+    if (t && (!firstSeen.has(e.source) || t < firstSeen.get(e.source))) firstSeen.set(e.source, t)
+  }
+  for (const g of groupReports(entries, { now, firstSeen })) {
+    // Ignored before thresholds so a known-noisy group never reads as a threshold miss.
+    if ((THRESHOLDS.ignore ?? []).includes(`${g.kind}:${g.key.at(-1)}`)) {
+      discards.push({ id: g.id, kind: g.kind, key: g.key, reason: 'ignored' })
+      continue
+    }
+    const { reason, ...evaluated } = evaluateGroup(g, { now, firstSeen })
+    if (reason) discards.push({ id: g.id, kind: g.kind, key: g.key, reason })
+    else qualified.push(evaluated)
+  }
+  return { qualified, discards }
 }
 
 // A settlement arrives in a later report than its decision, so the join spans all entries.
@@ -239,6 +282,7 @@ export function scan(dir, { now = new Date() } = {}) {
     byRun.get(id).push({ name, ...res })
   }
   let accepted = 0
+  const entries = []
   const kept = []
   for (const copies of byRun.values()) {
     if (new Set(copies.map((c) => c.source)).size > 1) {
@@ -246,11 +290,13 @@ export function scan(dir, { now = new Date() } = {}) {
       continue
     }
     accepted++
+    const { name, ...entry } = copies[0]
+    entries.push(entry)
     rejected.superseded += copies.length - 1
     // The latest copy wins, with name as the tiebreak, so the choice never depends on directory order.
     kept.push(copies.reduce((a, b) => (b.received_at + b.name > a.received_at + a.name ? b : a)))
   }
-  return { files: names.length, accepted, rejected, skipped_window: skipped, verdict: verdictSignals(kept) }
+  return { files: names.length, accepted, rejected, skipped_window: skipped, entries, verdict: verdictSignals(kept) }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -268,5 +314,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error('usage: signal-scan.mjs --source dir:<path> [--now <iso>]')
     process.exit(2)
   }
-  console.log(JSON.stringify(scan(source.slice(4), { now })))
+  const { entries, ...stats } = scan(source.slice(4), { now })
+  console.log(JSON.stringify(stats))
 }

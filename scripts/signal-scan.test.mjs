@@ -331,6 +331,163 @@ const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
   check('empty by_category yields no debt group', debts([withDebt({}, uuid(403))]).length === 0)
 }
 
+// --- per-source cap ------------------------------------------------------------
+{
+  const { evaluate } = await import('./signal-scan.mjs')
+  const srcs = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  const seen = (source, n, extra = {}) => {
+    const x = entry({ findings: [finding('correctness', 'MAJOR')] }, source, uuid(n))
+    return { ...x, source_first_seen: '2026-09-01T00:00:00Z', ...extra }
+  }
+  const spam = Array.from({ length: 1000 }, (_, n) => seen(srcs[0], 1000 + n))
+  const run1 = (es) => evaluate(es, { now: new Date(NOW) })
+  const dropped = run1([...spam, seen(srcs[1], 5000), seen(srcs[2], 5001)])
+  const fid = fp('finding', 'build', 'deliberate', 'SOLO', 'correctness', 'MAJOR')
+  const dFinding = dropped.discards.filter((d) => d.id === fid)
+  check('one source supplying 1000 reports stays below min_runs',
+    !dropped.qualified.some((g) => g.id === fid) && dFinding.length === 1 && dFinding[0].reason === 'min_runs',
+    JSON.stringify(dropped.discards))
+  check('a discard names the group it belongs to', dFinding[0]?.kind === 'finding', JSON.stringify(dFinding[0]))
+  const ok = run1([seen(srcs[0], 6000), seen(srcs[0], 6001), seen(srcs[0], 6002), seen(srcs[1], 6003), seen(srcs[1], 6004), seen(srcs[2], 6005)])
+  check('each source contributes at most 2 runs, so 2+2+1 qualifies at exactly min_runs',
+    ok.qualified.find((g) => g.id === fid)?.runs === 5 && ok.qualified.find((g) => g.id === fid)?.repos === 3 &&
+    !ok.discards.some((d) => d.id === fid), JSON.stringify(ok))
+  const es = [...spam, seen(srcs[1], 5000), seen(srcs[2], 5001)]
+  const others = groupReports(es).filter((g) => g.kind !== 'finding' && g.kind !== 'outlier')
+  const accounted = new Set([...dropped.qualified, ...dropped.discards].map((g) => g.id))
+  check('every non-outlier kind is judged by the quality class, none silently skipped',
+    others.length > 0 && others.every((g) => accounted.has(g.id)),
+    JSON.stringify(others.filter((g) => !accounted.has(g.id)).map((g) => g.kind)))
+}
+
+// --- source age ----------------------------------------------------------------
+{
+  const { evaluate } = await import('./signal-scan.mjs')
+  const srcs = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  const at = (source, n, first) => ({
+    ...entry({ findings: [finding('correctness', 'MAJOR')] }, source, uuid(n)),
+    source_first_seen: first,
+  })
+  const OLD = '2026-09-01T00:00:00Z'
+  const EXACTLY_7D = '2026-10-02T12:00:00Z'
+  const YOUNG = '2026-10-07T12:00:00Z'
+  const fid = fp('finding', 'build', 'deliberate', 'SOLO', 'correctness', 'MAJOR')
+  const run1 = (es) => evaluate(es, { now: new Date(NOW) })
+  const base = [at(srcs[0], 7000, OLD), at(srcs[0], 7001, OLD), at(srcs[1], 7002, OLD), at(srcs[1], 7003, OLD)]
+
+  const young = run1([...base, at(srcs[2], 7004, YOUNG), at(srcs[2], 7005, YOUNG)])
+  const dy = young.discards.find((d) => d.id === fid)
+  check('a source younger than min age adds no repo, so the group fails min_sources',
+    dy?.reason === 'min_sources' && !young.qualified.some((g) => g.id === fid), JSON.stringify(young.discards))
+
+  const mature = run1([...base, at(srcs[2], 7004, EXACTLY_7D)])
+  const gm = mature.qualified.find((g) => g.id === fid)
+  check('a source exactly at min age counts in full', gm?.repos === 3 && gm?.runs === 5, JSON.stringify(mature))
+
+  const flood = run1([...base, ...Array.from({ length: 50 }, (_, n) => at(srcs[2], 7100 + n, YOUNG))])
+  check('young-source reports add nothing to run counts however many arrive',
+    flood.discards.find((d) => d.id === fid)?.reason === 'min_sources', JSON.stringify(flood.discards))
+
+}
+
+// --- scan hands accepted entries to evaluate ---------------------------------------
+{
+  const { scan } = await import('./signal-scan.mjs')
+  const other = structuredClone(report)
+  other.run.run_id = uuid(8001)
+  const bare = structuredClone(report)
+  bare.run.run_id = uuid(8002)
+  withDir({ 'a-env.json': envelope(other, { source_first_seen: '2026-09-15T00:00:00Z' }), 'b-bare.json': bare }, (dir) => {
+    const res = scan(dir, { now: new Date(NOW) })
+    const env = res.entries?.find((e) => e.report.run.run_id === uuid(8001))
+    const loc = res.entries?.find((e) => e.report.run.run_id === uuid(8002))
+    check('accepted envelope entries keep their source_first_seen so age weighting can see them',
+      env?.source === 'a'.repeat(32) && env?.source_first_seen === '2026-09-15T00:00:00Z', JSON.stringify(env))
+    check('a local entry is as old as its own receipt, since local mode has no earlier sighting',
+      loc?.source_first_seen === loc?.received_at && typeof loc?.received_at === 'string', JSON.stringify(loc))
+    check('only accepted reports become entries', res.entries?.length === 2, JSON.stringify(res.entries?.length))
+    check('the CLI summary stays a stats-only document', !('entries' in JSON.parse(run(dir))))
+  })
+}
+
+// --- baseline counts only weighted reports ---------------------------------------
+{
+  const { evaluate } = await import('./signal-scan.mjs')
+  const old = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  const flooder = 'd'.repeat(32)
+  const at = (source, n, revise, first) => {
+    const x = entry({}, source, uuid(n))
+    x.report.build.revise_rounds = revise
+    return { ...x, source_first_seen: first }
+  }
+  const OLD = '2026-09-01T00:00:00Z'
+  const YOUNG = '2026-10-07T12:00:00Z'
+  const matureReports = Array.from({ length: 21 }, (_, n) => at(old[n % 3], 9000 + n, n < 3 ? 4 : 1, OLD))
+  // A burst of fresh fake tokens must not drag the median up and hide real outliers.
+  const burst = Array.from({ length: 30 }, (_, n) => at(flooder, 9100 + n, 10, YOUNG))
+  const res = evaluate([...matureReports, ...burst], { now: new Date(NOW) })
+  const oid = fp('outlier', 'build', 'deliberate', 'SOLO', 'revise_rounds')
+  check('young-source reports do not shift the baseline, so mature outliers are still found',
+    res.discards.find((d) => d.id === oid)?.reason === 'min_runs', JSON.stringify(res.discards.map((d) => [d.kind, d.reason])))
+}
+
+// --- ignore list -----------------------------------------------------------------
+{
+  const { evaluate } = await import('./signal-scan.mjs')
+  const srcs = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  const degraded = (n, token) => {
+    const x = entry({}, srcs[n % 3], uuid(7000 + n))
+    x.report.degraded = [token]
+    return { ...x, source_first_seen: '2026-09-01T00:00:00Z' }
+  }
+  const es = [
+    ...Array.from({ length: 6 }, (_, n) => degraded(n, 'gate_history')),
+    ...Array.from({ length: 6 }, (_, n) => degraded(n + 6, 'meter')),
+  ]
+  const res = evaluate(es, { now: new Date(NOW) })
+  const ignoredId = fp('degraded', 'build', 'deliberate', 'gate_history')
+  const keptId = fp('degraded', 'build', 'deliberate', 'meter')
+  check('a group on the data-file ignore list is discarded as ignored even when it clears every threshold',
+    res.discards.find((d) => d.id === ignoredId)?.reason === 'ignored' && !res.qualified.some((g) => g.id === ignoredId),
+    JSON.stringify(res.discards))
+  check('an unlisted token of the same kind still qualifies', res.qualified.some((g) => g.id === keptId), JSON.stringify(res.qualified.map((g) => g.id)))
+}
+
+// --- cost class and local mode ---------------------------------------------------
+{
+  const { evaluate, scan } = await import('./signal-scan.mjs')
+  const srcs = ['a', 'b', 'c', 'd', 'e'].map((c) => c.repeat(32))
+  const at = (source, n, revise) => {
+    const x = entry({}, source, uuid(n))
+    x.report.build.revise_rounds = revise
+    return { ...x, source_first_seen: '2026-09-01T00:00:00Z' }
+  }
+  const oid = fp('outlier', 'build', 'deliberate', 'SOLO', 'revise_rounds')
+  // Quiet reports keep the median at 1 so only the heavy ones are outliers.
+  const quiet = Array.from({ length: 30 }, (_, n) => at(srcs[n % 5], 9500 + n, 1))
+  const heavy = (count) => Array.from({ length: count * 2 }, (_, n) => at(srcs[n % count], 9600 + n, 4))
+  const judge = (count) => evaluate([...quiet, ...heavy(count)], { now: new Date(NOW) })
+  const four = judge(4)
+  check('an outlier group needs the cost-class 10 runs, so 4 sources x cap 2 falls short of the quality 5',
+    four.discards.find((d) => d.id === oid)?.reason === 'min_runs', JSON.stringify(four.discards.map((d) => [d.kind, d.reason])))
+  const five = judge(5)
+  const g = five.qualified.find((q) => q.id === oid)
+  check('5 sources x cap 2 clears the cost class', g?.runs === 10 && g?.repos === 5, JSON.stringify(five.discards))
+
+  const bare = Array.from({ length: 6 }, (_, n) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(9700 + n)
+    r.review.findings = [finding('correctness', 'MAJOR')]
+    return r
+  })
+  withDir(Object.fromEntries(bare.map((r, n) => [`l${n}.json`, r])), (dir) => {
+    const res = evaluate(scan(dir, { now: new Date(NOW) }).entries, { now: new Date(NOW) })
+    const fid = fp('finding', 'build', 'deliberate', 'SOLO', 'correctness', 'MAJOR')
+    check('local mode is one source, so a recurring finding always discards as min_sources',
+      res.discards.find((d) => d.id === fid)?.reason === 'min_sources', JSON.stringify(res.discards))
+  })
+}
+
 // --- verdict kind --------------------------------------------------------------
 {
   const { verdictSignals } = await import('./signal-scan.mjs')

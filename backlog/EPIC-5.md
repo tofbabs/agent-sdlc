@@ -67,7 +67,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Thresholds (5-3) and merging (5-7).
 
 ### STORY-5-3: Weighting and thresholds gate which groups become issues
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L48-L51 one_way_doors=1@brief:L48-L51 existing_pattern=no@brief:L48-L51 modules_crossed=1@brief:L48-L51 review_bounced=no@brief:L48-L51 risk_kind=code@brief:L48-L51
