@@ -51,6 +51,8 @@ cwd="$(read_field cwd)"
 
 # Subagent transcripts, when present, live beside the main one under <session>/subagents/.
 subdir="${transcript%.jsonl}/subagents"
+# macOS /bin/bash 3.2 treats an empty array as unbound under set -u, hence the
+# ${sub_arg[@]+...} expansion below.
 sub_arg=()
 [ -d "$subdir" ] && sub_arg=(--subagents "$subdir")
 
@@ -80,7 +82,7 @@ fi
 node "$meter" record \
   --stream "$transcript" \
   --transcript "$transcript" \
-  "${sub_arg[@]}" \
+  ${sub_arg[@]+"${sub_arg[@]}"} \
   --label "${session:-run}" \
   --store "$cwd/.agentic-sdlc/meter" >/dev/null 2>&1 || true
 
