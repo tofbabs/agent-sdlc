@@ -165,6 +165,18 @@ else
   note "node not found — skipping run-report schema tests"
 fi
 
+# 6a-signal. The signal routine re-validates untrusted stored reports; a
+#     regression here lets a poisoned report reach grouping.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/signal-scan.test.sh" >/dev/null 2>&1; then
+    ok "signal-scan invariants hold"
+  else
+    bad "signal-scan tests failed — run scripts/signal-scan.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping signal-scan tests"
+fi
+
 # 6a-ingest. The edge handler (ingest/src/handler.mjs) under plain Node against
 #     an in-memory db: validation, limits, idempotency and /register.
 if command -v node >/dev/null 2>&1; then

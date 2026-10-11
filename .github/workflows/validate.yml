@@ -110,6 +110,11 @@ jobs:
       - name: run-report schema invariants
         run: ./scripts/run-report-schema.test.sh
 
+      # The signal routine re-validates untrusted stored reports; a regression
+      # lets a poisoned report reach grouping.
+      - name: signal-scan invariants
+        run: ./scripts/signal-scan.test.sh
+
       - name: ingest handler tests
         run: |
           ./scripts/ingest.test.sh

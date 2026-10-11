@@ -22,7 +22,9 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 ## Stories
 
 ### STORY-5-1: Re-validate and account for every incoming report
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L84-L88 one_way_doors=1@brief:L84-L88 existing_pattern=yes@brief:L84-L88 modules_crossed=2@brief:L61-L62 review_bounced=no@brief:L84-L88 risk_kind=code@brief:L84-L88
 - depends_on: []
@@ -43,6 +45,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-2: Deterministic grouping by signature and metric outlier
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L43-L47 one_way_doors=1@brief:L43-L47 existing_pattern=no@brief:L43-L47 modules_crossed=1@brief:L43-L47 review_bounced=no@brief:L43-L47 risk_kind=code@brief:L43-L47
 - depends_on: [STORY-5-1]
@@ -63,6 +66,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-3: Weighting and thresholds gate which groups become issues
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L48-L51 one_way_doors=1@brief:L48-L51 existing_pattern=no@brief:L48-L51 modules_crossed=1@brief:L48-L51 review_bounced=no@brief:L48-L51 risk_kind=code@brief:L48-L51
 - depends_on: [STORY-5-2]
@@ -83,6 +87,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-4: Decision-outcome signals by rubric version and layer
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L52-L56 one_way_doors=1@brief:L52-L56 existing_pattern=no@brief:L52-L56 modules_crossed=1@brief:L52-L56 review_bounced=no@brief:L52-L56 risk_kind=code@brief:L52-L56
 - depends_on: [STORY-5-2]
@@ -100,6 +105,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-5: Render an aggregates-only issue with a draft brief
 - status: TODO
+- mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: M
 - select: risk_class=none@brief:L57-L60 one_way_doors=0@brief:L57-L60 existing_pattern=yes@brief:L57-L60 modules_crossed=1@brief:L57-L60 review_bounced=no@brief:L57-L60 risk_kind=code@brief:L57-L60
 - depends_on: [STORY-5-3]
@@ -120,6 +126,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-6: Match existing issues, update instead of duplicate, write discard log
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: L
 - select: risk_class=none@brief:L55-L58 one_way_doors=1@brief:L55-L58 existing_pattern=no@brief:L55-L58 modules_crossed=2@brief:L55-L58 review_bounced=no@brief:L55-L58 risk_kind=code@brief:L55-L58
 - depends_on: [STORY-5-5]
@@ -140,6 +147,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-7: Model-assisted merge of equivalent groups
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L45-L47 one_way_doors=1@brief:L45-L47 existing_pattern=no@brief:L45-L47 modules_crossed=1@brief:L45-L47 review_bounced=no@brief:L45-L47 risk_kind=code@brief:L45-L47
 - depends_on: [STORY-5-3]
@@ -157,6 +165,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-8: Routine prompt, schedule and CLAUDE.md line
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L59-L61 one_way_doors=1@brief:L59-L61 existing_pattern=yes@brief:L59-L61 modules_crossed=3@brief:L59-L61 review_bounced=no@brief:L59-L61 risk_kind=code@brief:L59-L61
 - depends_on: [STORY-5-6, STORY-5-7]
@@ -177,6 +186,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 
 ### STORY-5-9: Report whether a signal's group shrank after its brief shipped
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: S
 - select: risk_class=none@brief:L111-L113 one_way_doors=1@brief:L111-L113 existing_pattern=no@brief:L111-L113 modules_crossed=1@brief:L111-L113 review_bounced=no@brief:L111-L113 risk_kind=code@brief:L111-L113
 - depends_on: [STORY-5-6]
