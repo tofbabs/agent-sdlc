@@ -363,3 +363,10 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: MEDIUM
 - Category: robustness
 - Address when: before the first live run of the routine.
+
+### Estimate-vs-actual calibration of S/M/L anchors
+- Raised: 2026-10-11 by architect (ARCH-2)
+- Current: the anchors are a one-time hand measurement from EPIC-1..3, and `check` treats them as advisory. Nothing compares a story's real diff with its estimate, so a drifting benchmark goes unseen.
+- Risk: MEDIUM
+- Category: observability
+- Address when: after 3 epics planned under the budget
