@@ -137,5 +137,34 @@ EOF
 out=$(chk EPIC-7); rc=$?
 [ $rc -eq 1 ] && echo "$out" | grep -q '18' && ok "STUB-shaped epic is scored like any other" || bad "stub: rc=$rc out=$out"
 
+# 8. check: 150 lines and "## Stories" by line 40 pass; one more of either fails.
+pad() { local n=$1; local i; for ((i=0;i<n;i++)); do echo "filler"; done; }
+{ echo "# EPIC-10: t"; pad 38; echo "## Stories"; echo; echo "### STORY-10-1: s"; echo "- estimate: S"; pad 150; } | head -n 150 > "$TMP/chk/backlog/EPIC-10.md"
+chk EPIC-10 >/dev/null; [ $? -eq 0 ] && ok "check passes at 150 lines, Stories at line 40" || bad "150 lines / line 40 rejected"
+{ cat "$TMP/chk/backlog/EPIC-10.md"; echo x; } > "$TMP/chk/backlog/EPIC-11.md"
+out=$(chk EPIC-11); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q '151 lines' && ok "check rejects 151 lines naming the limit" || bad "151 lines: rc=$rc out=$out"
+{ echo "# EPIC-12: t"; pad 39; echo "## Stories"; echo; echo "### STORY-12-1: s"; echo "- estimate: S"; } > "$TMP/chk/backlog/EPIC-12.md"
+out=$(chk EPIC-12); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'line 41' && ok "check rejects Stories at line 41 naming the limit" || bad "Stories at 41: rc=$rc out=$out"
+{ echo "# EPIC-13: t"; pad 50; echo "## Stories"; pad 110; echo "### STORY-13-1: s"; echo "- estimate: S"; } > "$TMP/chk/backlog/EPIC-13.md"
+out=$(chk EPIC-13); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'lines exceeds' && echo "$out" | grep -q 'starts at line' \
+  && ok "check reports both line failures in one run" || bad "both limits: rc=$rc out=$out"
+
+# 9. check: Depends-on targets must exist in backlog/; none or no header is fine.
+dep() { printf '# %s: t\n- Depends on: %s\n\n## Stories\n\n### STORY-1-1: s\n- estimate: S\n' "$1" "$2" > "$TMP/chk/backlog/$1.md"; }
+dep EPIC-20 "EPIC-98 (merged)"
+out=$(chk EPIC-20); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'EPIC-98' && ok "check names a missing Depends-on target" || bad "missing target: rc=$rc out=$out"
+dep EPIC-21 "EPIC-1 (released), EPIC-99 (merged)"
+out=$(chk EPIC-21); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'EPIC-99' && ! echo "$out" | grep -q 'EPIC-1 ' && ok "check flags only the absent target in a list" || bad "list: rc=$rc out=$out"
+dep EPIC-22 "EPIC-1 (merged)"
+chk EPIC-22 >/dev/null; [ $? -eq 0 ] && ok "check passes when the Depends-on target exists" || bad "present target rejected"
+dep EPIC-23 "none"
+chk EPIC-23 >/dev/null; [ $? -eq 0 ] && ok "check passes Depends on: none" || bad "none rejected"
+chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes an epic with no Depends-on header" || bad "no header rejected"
+
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'

@@ -61,7 +61,7 @@
 
 ### STORY-8-2: `check` enforces the epic line budget and Depends-on links
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L117 one_way_doors=0@brief:L117 existing_pattern=yes@AC1 modules_crossed=1@brief:L117 review_bounced=no@brief:L117 risk_kind=code@brief:L117

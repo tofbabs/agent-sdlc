@@ -37,6 +37,8 @@ const LEDGER = 'docs/TOOLING-DEBT.md'
 // Kept together so a later epic can swap them for project config in one place.
 const POINTS = { S: 3, M: 5, L: 15 }
 const EPIC_CAP = 15
+const MAX_LINES = 150
+const STORIES_BY_LINE = 40
 
 const [, , command, arg, ...rest] = process.argv
 const flags = {}
@@ -202,6 +204,18 @@ function check(id) {
   const stories = section.split(/^(?=### STORY-)/m).filter((b) => b.startsWith('### STORY-'))
 
   const errors = []
+
+  const lines = text.replace(/\n$/, '').split('\n')
+  if (lines.length > MAX_LINES) errors.push(`${id}: ${lines.length} lines exceeds the limit of ${MAX_LINES}`)
+  const storiesAt = lines.findIndex((l) => /^## Stories\s*$/.test(l)) + 1
+  if (storiesAt > STORIES_BY_LINE) errors.push(`${id}: "## Stories" starts at line ${storiesAt}, after the limit of line ${STORIES_BY_LINE}`)
+
+  // "none" or a missing header yields no EPIC-<n> tokens, so nothing to resolve.
+  const depends = /^- Depends on:[ \t]*(.*)$/m.exec(text)?.[1] ?? ''
+  for (const target of new Set(depends.match(/EPIC-\d+/g) ?? [])) {
+    if (!existsSync(join(process.cwd(), 'backlog', `${target}.md`))) errors.push(`${id}: Depends on ${target}, but backlog/${target}.md does not exist`)
+  }
+
   let total = 0
   for (const block of stories) {
     const name = /^### (STORY-[^:\s]+)/.exec(block)[1]
