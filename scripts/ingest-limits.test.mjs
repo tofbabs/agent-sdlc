@@ -50,4 +50,25 @@ const reg = (db, at, ip = '203.0.113.7', env = { IP_SALT: 's' }) =>
   const res = await reg(db, '2026-10-09T12:00:00Z')
   check("yesterday's global count does not block today", res.status === 201, String(res.status))
 }
+{
+  const db = fakeDb()
+  for (const env of [{}, { IP_SALT: '' }]) {
+    const res = await reg(db, '2026-10-09T12:00:00Z', '203.0.113.7', env)
+    check(`IP_SALT ${JSON.stringify(env.IP_SALT)} → 503, no token minted, no counter touched`,
+      res.status === 503 && db.tokenRows.size === 0 && db.counters.size === 0, String(res.status))
+  }
+}
+{
+  const db = fakeDb()
+  const all = await Promise.all(Array.from({ length: 5 }, () => reg(db, '2026-10-09T12:00:10Z')))
+  check('5 concurrent registrations from one IP → exactly one token', all.filter((r) => r.status === 201).length === 1 && db.tokenRows.size === 1,
+    all.map((r) => r.status).join())
+}
+{
+  const db = fakeDb()
+  await db.incCounter('register-global', '2026-10-09', 499)
+  const all = await Promise.all(['1', '2', '3', '4'].map((n) => reg(db, '2026-10-09T12:00:10Z', `203.0.113.${n}`)))
+  check('concurrent registrations at 499/500 → exactly one more token', all.filter((r) => r.status === 201).length === 1,
+    all.map((r) => r.status).join())
+}
 process.exit(failed)

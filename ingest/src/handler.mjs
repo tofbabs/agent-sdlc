@@ -94,24 +94,24 @@ async function register(request, { db, now, env }) {
     return json(400, { error: 'body must be {"repo_id":"<64 lowercase hex>"}' })
   }
 
+  // An empty salt would make the stored hashes reversible by enumerating the IPv4 space.
+  if (!env.IP_SALT) return json(503, { error: 'registration unavailable' })
+
   const nowDate = now()
   const day = nowDate.toISOString().slice(0, 10)
   // Salting with the UTC day makes the hash unlinkable across days, so no IP is ever stored.
   const ip = request.headers.get('cf-connecting-ip') ?? 'unknown'
-  const ipHash = await sha256Hex(`${env.IP_SALT ?? ''}|${day}|${ip}`)
+  const ipHash = await sha256Hex(`${env.IP_SALT}|${day}|${ip}`)
   const epochSeconds = Math.floor(nowDate.getTime() / 1000)
   const window = Math.floor(epochSeconds / REGISTER_WINDOW_SECONDS)
-  const ipKey = `register-ip:${ipHash}:${window}`
-  if ((await db.getCounter(ipKey, day)) >= 1) {
+  // Reserve, not read-then-increment: concurrent registrations must not all see the old count.
+  if (!(await db.reserveCounter(`register-ip:${ipHash}:${window}`, day, 1))) {
     const wait = (window + 1) * REGISTER_WINDOW_SECONDS - epochSeconds
     return json(429, { error: 'slow down' }, { 'retry-after': String(wait) })
   }
-  const globalKey = 'register-global'
-  if ((await db.getCounter(globalKey, day)) >= REGISTER_DAILY_CAP) {
+  if (!(await db.reserveCounter('register-global', day, REGISTER_DAILY_CAP))) {
     return json(429, { error: 'daily limit reached' }, { 'retry-after': String(secondsToMidnight(nowDate)) })
   }
-  await db.incCounter(ipKey, day, 1)
-  await db.incCounter(globalKey, day, 1)
 
   const token = base64url(globalThis.crypto.getRandomValues(new Uint8Array(32)))
   await db.insertToken(await sha256Hex(token), { repo_id: body.repo_id, created_at: nowDate.toISOString() })
@@ -142,6 +142,7 @@ async function reports(request, { db, now, env }) {
   async function ingest() {
   const day = nowDate.toISOString().slice(0, 10)
   const capKey = `token:${tokenHash}`
+  // A cheap early refusal only; the per-report reservation below is what enforces the cap.
   if ((await db.getCounter(capKey, day)) >= DAILY_CAP) {
     return json(429, { error: 'daily limit reached' }, { 'retry-after': String(secondsToMidnight(nowDate)) })
   }
@@ -165,7 +166,13 @@ async function reports(request, { db, now, env }) {
       continue
     }
     const { run_id, sessions } = report.run
+    if (!(await db.reserveCounter(capKey, day, DAILY_CAP))) {
+      results.push({ status: 'capped', run_id, sessions })
+      continue
+    }
     // repo_id comes from the token record only; the schema forbids it in the body.
+    // The port commits the row only while the token still exists, so an upload
+    // racing DELETE /v1/repo cannot land after the deletion.
     const inserted = await db.insertReport({
       repo_id: record.repo_id,
       run_id,
@@ -175,12 +182,11 @@ async function reports(request, { db, now, env }) {
       token_hash: tokenHash,
       received_at: now().toISOString(),
     })
-    if (inserted) {
-      accepted++
-      await db.incCounter(capKey, day, 1)
-    }
+    if (inserted) accepted++
+    else await db.incCounter(capKey, day, -1)
     results.push({ status: inserted ? 'stored' : 'duplicate', run_id, sessions })
   }
+  // One result per report, in request order: clients correlate by position.
   return json(200, { results })
   }
 }

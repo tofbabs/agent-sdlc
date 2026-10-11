@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readdirSync, readFileSync, realpathSync, utimesSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -165,6 +165,89 @@ test('flush keeps every request body within 16384 bytes', async () => {
     assert.ok(s.calls.length >= 2)
     assert.ok(s.calls.every((c) => Buffer.byteLength(c.body) <= 16384))
     assert.equal(readdirSync(queueDir(cwd)).length, 0)
+  } finally {
+    s.close()
+  }
+})
+
+test('a rejected result without run_id is dropped by position, not left to retry', async () => {
+  const cwd = mkrepo()
+  for (let i = 0; i < 3; i++) await mod.enqueue({ cwd, report: report(uid(i)) })
+  // The real handler: rejected carries only errors, settled ones echo their key.
+  const s = await stub((req, res, body) => {
+    const { reports } = JSON.parse(body)
+    json(res, 200, { results: reports.map((r, i) => (i === 1 ? { status: 'rejected', errors: ['bad'] } : { status: 'stored', run_id: r.run.run_id, sessions: r.run.sessions })) })
+  })
+  try {
+    await mod.flush({ cwd, auth: auth(), baseUrl: s.baseUrl, jitterMs: 0 })
+    assert.equal(readdirSync(queueDir(cwd)).length, 0)
+  } finally {
+    s.close()
+  }
+})
+
+test('capped results stay queued, and a short results array settles nothing', async () => {
+  const cwd = mkrepo()
+  for (let i = 0; i < 2; i++) await mod.enqueue({ cwd, report: report(uid(i)) })
+  const s = await stub((req, res, body, n) => {
+    const { reports } = JSON.parse(body)
+    json(res, 200, { results: n === 1 ? [{ status: 'stored' }] : reports.map(() => ({ status: 'capped' })) })
+  })
+  try {
+    await mod.flush({ cwd, auth: auth(), baseUrl: s.baseUrl, jitterMs: 0 })
+    assert.equal(readdirSync(queueDir(cwd)).length, 2)
+    await mod.flush({ cwd, auth: auth(), baseUrl: s.baseUrl, jitterMs: 0 })
+    assert.equal(readdirSync(queueDir(cwd)).length, 2)
+  } finally {
+    s.close()
+  }
+})
+
+test('an opt-out seen under the lock clears the queue and never registers or uploads', async () => {
+  const cwd = mkrepo()
+  await mod.enqueue({ cwd, report: report(uid(1)) })
+  let asked = 0
+  const s = await stub(settleAll)
+  try {
+    await mod.flush({ cwd, auth: { token: async () => (asked++, 'tok'), invalidate: async () => {} }, baseUrl: s.baseUrl, jitterMs: 0, consent: () => false })
+    assert.equal(s.calls.length, 0)
+    assert.equal(asked, 0)
+    assert.equal(existsSync(queueDir(cwd)), false)
+  } finally {
+    s.close()
+  }
+})
+
+test('unanswered consent under the lock sends nothing and keeps the queue', async () => {
+  const cwd = mkrepo()
+  await mod.enqueue({ cwd, report: report(uid(1)) })
+  const s = await stub(settleAll)
+  try {
+    await mod.flush({ cwd, auth: auth(), baseUrl: s.baseUrl, jitterMs: 0, consent: () => 'unanswered' })
+    assert.equal(s.calls.length, 0)
+    assert.equal(readdirSync(queueDir(cwd)).length, 1)
+  } finally {
+    s.close()
+  }
+})
+
+test('flush skips while another holder has the export lock, and releases its own', async () => {
+  const cwd = mkrepo()
+  await mod.enqueue({ cwd, report: report(uid(1)) })
+  const { acquireExportLock } = await import(join(EXPORT, '..', 'repo-id.mjs'))
+  const release = await acquireExportLock(cwd, { waitMs: 0 })
+  const s = await stub(settleAll)
+  try {
+    const t = Date.now()
+    await mod.flush({ cwd, auth: auth(), baseUrl: s.baseUrl, jitterMs: 0 })
+    assert.equal(s.calls.length, 0)
+    assert.ok(Date.now() - t >= 4000, 'waited for the holder before giving up')
+    release()
+    await mod.flush({ cwd, auth: auth(), baseUrl: s.baseUrl, jitterMs: 0 })
+    assert.equal(s.calls.length, 1)
+    const again = await acquireExportLock(cwd, { waitMs: 0 })
+    assert.ok(again, 'flush released the lock')
+    again()
   } finally {
     s.close()
   }

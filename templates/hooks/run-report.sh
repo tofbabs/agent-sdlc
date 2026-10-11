@@ -26,7 +26,9 @@
 #   stored token (in the git common dir, shared by worktrees) it runs
 #   `export-identity.mjs revoke` instead, so an opt-out withdraws the identity.
 #   An unanswered question does nothing beyond the report, even with a token:
-#   silence is not consent to either direction. Nothing is left to wait for: SessionEnd fires after the
+#   silence is not consent to either direction. flush and revoke share one
+#   per-clone lock, and flush re-reads consent under it, so an opt-out that
+#   lands mid-chain is never overtaken by an upload. Nothing is left to wait for: SessionEnd fires after the
 #   session's last turn, so every artifact the pipeline writes locally (backlog
 #   statuses, pair sessions, the ledger) and every PR comment it posted through
 #   a synchronous `gh` call is already in place. No marker file at all →

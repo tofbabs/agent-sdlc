@@ -20,6 +20,14 @@ export const d1Port = (d1) => ({
       .first()
     return row.n
   },
+  // One statement, so D1 serializes it: false means the cap was already reached.
+  async reserveCounter(key, day, cap) {
+    const row = await d1
+      .prepare('INSERT INTO counters (key, day, n) VALUES (?, ?, 1) ON CONFLICT (key, day) DO UPDATE SET n = n + 1 WHERE n < ? RETURNING n')
+      .bind(key, day, cap)
+      .first()
+    return row != null
+  },
   async touchToken(hash, { seenAt, accepted }) {
     await d1
       .prepare('UPDATE tokens SET last_seen_at = ?, accepted_total = accepted_total + ? WHERE token_hash = ?')
@@ -39,13 +47,14 @@ export const d1Port = (d1) => ({
       d1.prepare('DELETE FROM counters WHERE day < ?').bind(countersBefore),
     ])
   },
-  // First write wins on (run_id, sessions); false means the row already existed.
+  // First write wins on (run_id, sessions); false means the row already existed
+  // or the token was deleted since it authenticated this request.
   async insertReport(row) {
     const res = await d1
       .prepare(
-        'INSERT OR IGNORE INTO reports (run_id, sessions, repo_id, token_hash, received_at, schema, body) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO reports (run_id, sessions, repo_id, token_hash, received_at, schema, body) SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM tokens WHERE token_hash = ?)',
       )
-      .bind(row.run_id, row.sessions, row.repo_id, row.token_hash, row.received_at, row.schema, row.body)
+      .bind(row.run_id, row.sessions, row.repo_id, row.token_hash, row.received_at, row.schema, row.body, row.token_hash)
       .run()
     return res.meta.changes > 0
   },

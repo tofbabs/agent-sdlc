@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createOnce, exportDir, repoId } from './repo-id.mjs'
+import { acquireExportLock, createOnce, exportDir, repoId } from './repo-id.mjs'
 
 // Anything else from the server (or disk) is untrusted and must never reach an Authorization header.
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
@@ -10,6 +10,7 @@ const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/
 const DEFAULT_COOLDOWN_S = 60
 // A hostile or buggy Retry-After must not park registration for longer than a day.
 const MAX_COOLDOWN_S = 24 * 60 * 60
+const REVOKE_LOCK_WAIT_MS = 30_000
 
 function cooldownSeconds(res) {
   const n = Number(res?.headers?.get?.('retry-after'))
@@ -71,7 +72,11 @@ export function createAuth({ cwd = process.cwd(), baseUrl, fetch = globalThis.fe
       rmSync(join(exportDir(cwd), 'token.json'), { force: true })
     },
     async revoke() {
+      let release
       try {
+        // Outlasts a whole flush, so an in-flight upload finishes before the deletion, never after it.
+        release = await acquireExportLock(cwd, { waitMs: REVOKE_LOCK_WAIT_MS })
+        if (!release) return 'retry'
         const dir = exportDir(cwd)
         // Never register here: opting out must not create the identity it is deleting.
         const file = join(dir, 'token.json')
@@ -89,6 +94,8 @@ export function createAuth({ cwd = process.cwd(), baseUrl, fetch = globalThis.fe
         return 'done'
       } catch {
         return 'retry'
+      } finally {
+        release?.()
       }
     },
     async token() {

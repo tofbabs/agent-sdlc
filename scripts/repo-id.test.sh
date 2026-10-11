@@ -66,7 +66,9 @@ for needle in zebrafish glorbnax example.invalid "$HOST" "$HOSTSHORT" "$ME"; do
 done
 [ "$leak" -eq 0 ] && ok "no repo name, remote, user or hostname in the ID or any export file"
 
-mode="$(stat -f %Lp "$EXP/repo-id.salt" 2>/dev/null || stat -c %a "$EXP/repo-id.salt")"
+# Not a BSD-then-GNU stat chain: GNU `stat -f` is filesystem status and
+# succeeds, so the fallback never runs on Linux.
+mode="$(node -e 'process.stdout.write((require("fs").statSync(process.argv[1]).mode & 0o777).toString(8))' "$EXP/repo-id.salt")"
 [ "$mode" = 600 ] && ok "salt file is mode 0600" || bad "salt mode $mode"
 
 LEAKID="$(USER=zebrafish node "$RID" --cwd "$REPO")"

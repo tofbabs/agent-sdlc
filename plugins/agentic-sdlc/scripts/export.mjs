@@ -2,10 +2,11 @@
 // Export client: queues anonymous reports on disk. Telemetry must never break
 // the work it observes, so nothing here is allowed to throw.
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { randomBytes } from 'node:crypto'
+import { acquireExportLock } from './repo-id.mjs'
 
 // Same common-git-dir rule as repo-id.mjs so every worktree shares one queue.
 function queueDir(cwd) {
@@ -58,6 +59,8 @@ const BACKOFF_BASE_MS = 30_000
 const BACKOFF_CAP_MS = 3_600_000
 const RETRY_AFTER_CAP_MS = 86_400_000
 const KILL_DEFAULT_MS = 3_600_000
+// Short: a busy lock means another flush or a revoke is already handling the queue.
+const LOCK_WAIT_MS = 5000
 const ENVELOPE_BYTES = Buffer.byteLength('{"reports":[]}')
 
 const stateFile = (cwd) => join(dirname(queueDir(cwd)), 'state.json')
@@ -132,7 +135,15 @@ const drop = (dir, it) => {
   }
 }
 
-async function run({ cwd, auth, baseUrl, fetch, now, jitterMs, timeoutMs, deadline }) {
+async function run({ cwd, auth, baseUrl, fetch, now, jitterMs, timeoutMs, deadline, consent }) {
+  // Re-read under the lock: the caller's check may predate an opt-out that
+  // revoked in between, and a revoked clone must not register again.
+  const answer = consent()
+  if (answer === false) {
+    rmSync(queueDir(cwd), { recursive: true, force: true })
+    return
+  }
+  if (answer !== true) return
   const t0 = now()
   const state = readState(cwd)
   if ((state.backoff_until ?? 0) > t0) return
@@ -183,10 +194,12 @@ async function run({ cwd, auth, baseUrl, fetch, now, jitterMs, timeoutMs, deadli
     }
     if (res.status === 200) {
       const { results } = await res.json()
-      for (const r of results ?? []) {
-        if (!['stored', 'duplicate', 'rejected'].includes(r.status)) continue
-        const it = batch.find((p) => p.report.run.run_id === r.run_id && p.report.run.sessions === r.sessions)
-        if (it) drop(dir, it)
+      // Results come back one per report in request order; a rejected result
+      // carries no run_id, so position is the only correlation that covers it.
+      if (Array.isArray(results) && results.length === batch.length) {
+        results.forEach((r, i) => {
+          if (['stored', 'duplicate', 'rejected'].includes(r?.status)) drop(dir, batch[i])
+        })
       }
       writeState(cwd, {})
     } else if (res.status === 401) {
@@ -220,12 +233,16 @@ export async function flush({
   jitterMs = 0,
   timeoutMs = CALL_TIMEOUT_MS,
   budgetMs = FLUSH_BUDGET_MS,
+  consent = () => true,
 }) {
   let timer
+  let release
   try {
+    release = await acquireExportLock(cwd, { waitMs: LOCK_WAIT_MS })
+    if (!release) return
     // The race bounds the whole call even if an injected auth/fetch ignores its signal.
     await Promise.race([
-      run({ cwd, auth, baseUrl, fetch, now, jitterMs, timeoutMs, deadline: now() + budgetMs }),
+      run({ cwd, auth, baseUrl, fetch, now, jitterMs, timeoutMs, deadline: now() + budgetMs, consent }),
       new Promise((r) => {
         timer = setTimeout(r, budgetMs)
       }),
@@ -234,6 +251,7 @@ export async function flush({
     // swallowed on purpose: see header
   } finally {
     clearTimeout(timer)
+    release?.()
   }
 }
 
@@ -246,7 +264,14 @@ async function main(argv) {
     const baseUrl = process.env.AGENTIC_SDLC_EXPORT_URL ?? DEFAULT_EXPORT_URL
     const { createAuth } = await import('./export-identity.mjs')
     const j = argv.indexOf('--jitter-ms')
-    await flush({ cwd, baseUrl, auth: createAuth({ cwd, baseUrl, timeoutMs: CALL_TIMEOUT_MS }), jitterMs: j > 0 ? Number(argv[j + 1]) || 0 : 0 })
+    const { readConsent } = await import('./consent.mjs')
+    await flush({
+      cwd,
+      baseUrl,
+      auth: createAuth({ cwd, baseUrl, timeoutMs: CALL_TIMEOUT_MS }),
+      jitterMs: j > 0 ? Number(argv[j + 1]) || 0 : 0,
+      consent: () => readConsent(cwd),
+    })
   }
 }
 

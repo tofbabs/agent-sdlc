@@ -204,8 +204,10 @@ sections are `run`, `plan`, `build`, `review`, `debt`, `cost` and `degraded`,
 plus optional `decisions`, `outcome_events` and `settlements`. The `run` section
 carries `run_id`, `plugin_version`, `command`, `lane`, `outcome`, `ended_at`,
 `wall_clock_s` and `sessions`. The rest are counts, enum values and cost totals.
-The report is code-free by construction: every field is a number or a value from
-a closed list, so no source, path, brief text or backlog text can reach it.
+The report is code-free by construction: every field is a number, a boolean, a
+value from a closed list, or one of four fixed-format strings (a UUID, a semver,
+a UTC timestamp, a 16-hex decision id), so no source, path, brief text or
+backlog text can reach it.
 
 The local report under `.agentic-sdlc/runs/` is always kept, regardless of the
 answer. Declining, or never answering, only means nothing is sent.
@@ -214,7 +216,9 @@ To change your mind, edit one line in `.claude/agentic-sdlc.json`:
 
     {"telemetry": {"share": false}}
 
-Use `true` to opt in.
+To opt in, set `share` to `true` together with the current `terms` value (shown
+below). A `true` without `terms` counts as unanswered. Alternatively, run
+`node <plugin>/scripts/consent.mjs set true`, which writes both.
 
 An opt-in is stored with the terms it was given under:
 

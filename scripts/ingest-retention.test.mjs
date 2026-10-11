@@ -176,7 +176,7 @@ const del = (db, token, { env = {}, path = '/v1/repo', method = 'DELETE', body, 
   })
   for (const [i, days] of [[1, 89], [2, 91]]) {
     await db.insertReport({
-      repo_id: REPO_B, run_id: `r${i}`, sessions: 1, schema: 1, body: '{}', token_hash: 'x', received_at: ago(days),
+      repo_id: REPO_B, run_id: `r${i}`, sessions: 1, schema: 1, body: '{}', token_hash: 'old-but-active', received_at: ago(days),
     })
   }
   await db.incCounter('token:t', dayAgo(1))

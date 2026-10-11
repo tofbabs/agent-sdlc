@@ -142,6 +142,24 @@ test('no token means done with zero requests and no registration', async () => {
   }
 })
 
+test('revoke waits for an in-flight flush to release the lock before deleting', async () => {
+  const c = enrolledRepo('locked')
+  const { acquireExportLock } = await import(pathToFileURL(join(root, 'plugins/agentic-sdlc/scripts/repo-id.mjs')).href)
+  const release = await acquireExportLock(c.dir, { waitMs: 0 })
+  const s = await stub(status(204))
+  try {
+    const pending = createAuth({ cwd: c.dir, baseUrl: s.baseUrl, timeoutMs: 2000 }).revoke()
+    await new Promise((r) => setTimeout(r, 300))
+    assert.equal(s.requests.length, 0, 'no DELETE while the lock is held')
+    release()
+    assert.equal(await pending, 'done')
+    assert.equal(s.requests.length, 1)
+    assert.equal(existsSync(c.tokenFile), false)
+  } finally {
+    await s.close()
+  }
+})
+
 let failed = 0
 for (const [name, fn] of tests) {
   try {

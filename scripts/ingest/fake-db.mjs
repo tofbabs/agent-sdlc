@@ -11,7 +11,7 @@ export function fakeDb({ tokens = {} } = {}) {
     reports,
     counters,
     calls,
-    writes: () => calls.filter((c) => c === 'insertReport' || c === 'incCounter'),
+    writes: () => calls.filter((c) => c === 'insertReport' || c === 'incCounter' || c === 'reserveCounter'),
     async getToken(hash) {
       calls.push('getToken')
       return tokenRows.get(hash) ?? null
@@ -31,6 +31,14 @@ export function fakeDb({ tokens = {} } = {}) {
       const n = (counters.get(ck(key, day)) ?? 0) + by
       counters.set(ck(key, day), n)
       return n
+    },
+    // Synchronous body, so like the D1 statement it cannot interleave with another call.
+    async reserveCounter(key, day, cap) {
+      calls.push('reserveCounter')
+      const n = counters.get(ck(key, day)) ?? 0
+      if (n >= cap) return false
+      counters.set(ck(key, day), n + 1)
+      return true
     },
     async touchToken(hash, { seenAt, accepted }) {
       calls.push('touchToken')
@@ -54,7 +62,7 @@ export function fakeDb({ tokens = {} } = {}) {
     async insertReport(row) {
       calls.push('insertReport')
       const k = `${row.run_id}|${row.sessions}`
-      if (reports.has(k)) return false
+      if (reports.has(k) || !tokenRows.has(row.token_hash)) return false
       reports.set(k, row)
       return true
     },

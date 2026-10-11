@@ -130,6 +130,42 @@ const CAP_KEY = `token:${sha(TOKEN)}`
   check('replayed report is a duplicate and does not consume the cap', j.results?.[0]?.status === 'duplicate' && (await db.getCounter(CAP_KEY, '2026-10-09')) === 1, JSON.stringify(j))
 }
 
+{
+  const db = fresh()
+  await db.incCounter(CAP_KEY, '2026-10-09', 99)
+  const other = mk({ mutate: (r) => { r.run.sessions = 2 } })
+  const all = await Promise.all([post(db, { reports: [report] }), post(db, { reports: [other] })])
+  // The loser is refused either by the early 429 or by its failed reservation, depending on interleaving.
+  const statuses = (await Promise.all(all.map(async (r) => r.status === 200 ? (await r.json()).results?.[0]?.status : r.status))).sort().join()
+  check('concurrent uploads at 99/100 → exactly one stored', db.reports.size === 1 && (await db.getCounter(CAP_KEY, '2026-10-09')) === 100
+    && ['429,stored', 'capped,stored'].includes(statuses), statuses)
+}
+{
+  const db = fresh()
+  await db.incCounter(CAP_KEY, '2026-10-09', 99)
+  const other = mk({ mutate: (r) => { r.run.sessions = 2 } })
+  const j = await (await post(db, { reports: [report, other] })).json()
+  check('a batch crossing the cap stores up to it and marks the rest capped',
+    j.results?.map((x) => x.status).join() === 'stored,capped' && (await db.getCounter(CAP_KEY, '2026-10-09')) === 100, JSON.stringify(j))
+}
+{
+  const db = fresh()
+  // DELETE /v1/repo lands after this request authenticated but before it inserts.
+  const getToken = db.getToken
+  db.getToken = async (h) => {
+    const rec = await getToken(h)
+    await db.deleteRepo(REPO)
+    return rec
+  }
+  await post(db, { reports: [report] })
+  check('an upload racing DELETE /v1/repo stores nothing', db.reports.size === 0, String(db.reports.size))
+}
+{
+  const db = fresh()
+  const j = await (await post(db, { reports: [mk({ mutate: (r) => { r.run.sessions = 'x' } }), report] })).json()
+  check('one result per report, in request order', j.results?.length === 2 && j.results[0].status === 'rejected' && j.results[1].status === 'stored', JSON.stringify(j))
+}
+
 // --- idempotency key is (run_id, sessions) ------------------------------------
 {
   const db = fresh()
