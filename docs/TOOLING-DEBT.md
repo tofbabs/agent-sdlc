@@ -323,3 +323,31 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Address when: the first deploy to the real hostname, or before the first
   `wrangler` major bump; commit `ingest/package-lock.json` then and switch the
   workflow to `npm ci`.
+
+### Signal routine is not scheduled until 02 ships a store
+- Raised: 2026-10-09 by architect (ARCH-5)
+- Current: The prompt and script ship, but they are run by hand against local `.agentic-sdlc/runs/`, and the cloud schedule is off.
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: 02's store is reachable from a cloud environment with a read-only token.
+
+### Full-window rescan on every run
+- Raised: 2026-10-09 by architect (ARCH-1)
+- Current: Every run re-reads and re-validates all 30 days of reports, with no incremental aggregates.
+- Risk: LOW
+- Category: robustness
+- Address when: a run reads more than 20,000 reports, or takes longer than 10 minutes.
+
+### Discard-log issue body truncated at 60,000 characters
+- Raised: 2026-10-09 by architect (ARCH-4)
+- Current: The lowest-count discard rows are dropped from the public table, and only a count of the omitted rows remains. The full log exists only in that run's `discards.json`.
+- Risk: LOW
+- Category: observability
+- Address when: the truncation note appears in two runs in a row. At that point, move the discard log to a store prefix.
+
+### Threshold values are unvalidated guesses
+- Raised: 2026-10-09 by architect (ARCH-1, ARCH-2)
+- Current: These v1 values are not backed by data: min runs 5/10, 3 sources, 7 days, cap 2, outlier ratio 2.0, drift margin 0.15.
+- Risk: MEDIUM
+- Category: hardcoded_value
+- Address when: 30 days of reports from at least 5 sources exist. Then retune from the discard log's near-miss distribution.
