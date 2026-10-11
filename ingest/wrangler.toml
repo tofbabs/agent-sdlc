@@ -5,7 +5,7 @@ compatibility_date = "2026-10-01"
 # Custom hostname only: the human picks it and sets it here and in the WAF rule.
 workers_dev = false
 routes = [
-  { pattern = "REPLACE_WITH_INGEST_HOSTNAME/*", zone_name = "REPLACE_WITH_ZONE" },
+  { pattern = "ingest-agent-sdlc.afani.cloud/*", zone_name = "afani.cloud" },
 ]
 
 [vars]
@@ -15,7 +15,7 @@ KILL_SWITCH = "off"
 [[d1_databases]]
 binding = "DB"
 database_name = "agentic-sdlc-ingest"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "3eb58e02-f66f-4a96-9f41-a30964d91a96"
 migrations_dir = "migrations"
 
 [triggers]
