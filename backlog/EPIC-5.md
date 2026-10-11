@@ -16,6 +16,7 @@
 | ARCH-4 | Issue fingerprint for dedupe and the discard-log location | 5-6 | RESOLVED |
 | ARCH-5 | Where the routine runs and which credential reads the store | 5-8 | RESOLVED |
 | ARCH-6 | How a shipped brief is tied to its signal for the shrink check | 5-9 | RESOLVED |
+| ARCH-7 | Debt signal key: report has no joint category × risk cell | 5-2 | RESOLVED |
 
 Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs` with `.test.sh`, importing the run-report validator and vocabulary read-only from the plugin; the prompt goes in `templates/routines/signal-scan-prompt.md`. `02-telemetry-export.md` has no brief yet, so 5-1 reads local fixtures through envelope 1 (ADR-0004).
 
@@ -44,8 +45,9 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Reading the real store (5-8).
 
 ### STORY-5-2: Deterministic grouping by signature and metric outlier
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L43-L47 one_way_doors=1@brief:L43-L47 existing_pattern=no@brief:L43-L47 modules_crossed=1@brief:L43-L47 review_bounced=no@brief:L43-L47 risk_kind=code@brief:L43-L47
 - depends_on: [STORY-5-1]
@@ -259,7 +261,16 @@ diff. The values below are its v1 contents.
 - **Why:** Consuming repos adopt fixes by pin bump, so a release cohort says when the change actually reached users, and close time alone does not. A rate corrects for changes in report volume.
 - **Note:** The routine reads tags from the cloned checkout. It updates the issue body only and never reopens.
 
+### ARCH-7: Debt signal key without a joint category × risk cell
+- status: RESOLVED
+- reversibility: ONE-WAY (key, ADR-0004 amended in place, unpublished) / TWO-WAY (secondary figure)
+- category: contract
+- **Decision:** Option (a). Emit one `debt` key per `debt.by_category` entry whose count is > 0: `["debt", command, lane, mode, <debt_category>, "*"]`. `severity` is always the structural `*`. `debt.by_risk` feeds no key. The group counts one report per group, as usual. Its secondary figure is the sum of `by_category[<cat>]` across those reports (debt rows, not runs).
+- **Why:** The report schema keeps `by_risk` and `by_category` as independent tallies, so any category × risk pairing is invented and a cross product inflates counts. What a maintainer can act on across repos is the category ("repos keep stubbing integrations"); a risk-only family ("repos log HIGH debt") names no fix, and per-repo risk is already triaged by gap-scan in each repo's `docs/TOOLING-DEBT.md`. Keeping the `severity` slot as `*` lets a later additive report field with joint cells add `(category, risk)` keys without changing any existing fingerprint.
+- **Note:** 5-2 test: a report with `by_category: {robustness: 2, other: 1}` and `by_risk: {HIGH: 3}` yields exactly two debt groups, both with severity `*`, each counting 1 report; secondary figures 2 and 1. A report with `rows_logged: 0` (empty `by_category`) yields no debt group. Nothing under `plugins/` changes (see Debt).
+
 ## Debt
 
 Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 
+- Debt signals ignore risk (ARCH-7): `debt` keys carry `severity = *` until the report schema has a joint category × risk count. Appended to docs/TOOLING-DEBT.md mid-build, since carry had already run.

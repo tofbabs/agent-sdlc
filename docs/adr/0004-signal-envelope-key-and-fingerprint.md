@@ -94,7 +94,7 @@ field list:
 |------|-----------------------|----------------------|
 | finding | command, lane, mode, category, severity | `review.findings[]` (finding_category, severity) |
 | arch_handoff / arch_block | command, lane, mode, category | `plan.arch_handoffs` / `build.arch_blocks` keys |
-| debt | command, lane, mode, category, severity | `debt.by_category` / `by_risk` (risk is the severity) |
+| debt | command, lane, mode, category, severity | one key per `debt.by_category` entry with a count > 0; `severity` is always `*` (see below) |
 | outcome | command, lane, mode, category | `run.outcome` in {blocked, aborted} |
 | degraded | command, lane, category | `degraded[]` token |
 | outlier | command, lane, mode, metric | see the metric list below |
@@ -109,6 +109,13 @@ field list:
   `alternations_per_story` (PAIR stories only), `revise_rounds`,
   `review_rounds`. These are token-space measures, never USD, because the
   meter says dollars drift.
+- `debt.by_risk` and `debt.by_category` are independent tallies with no joint
+  category × risk cell, so pairing them would invent data and a cross product
+  would inflate counts. A debt key therefore carries `severity = *` and
+  `by_risk` feeds no key (amended by EPIC-5 ARCH-7 before any fingerprint was
+  published). The slot stays in the key so that a future additive report field
+  with joint cells can emit `(category, <risk>)` keys alongside the existing
+  `*` keys, without changing any existing fingerprint.
 - The counting unit is **one report per group**. Five identical findings in one
   run count 1, and the finding total is kept as a secondary figure.
 - Adding a `kind`, a metric or a vocabulary token is additive and creates new

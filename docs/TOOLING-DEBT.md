@@ -351,3 +351,10 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: MEDIUM
 - Category: hardcoded_value
 - Address when: 30 days of reports from at least 5 sources exist. Then retune from the discard log's near-miss distribution.
+
+### Debt signals ignore risk
+- Raised: 2026-10-11 by architect (ARCH-7)
+- Current: The signal routine keys `debt` on category only (`severity = *`), because a run report's `debt.by_risk` and `debt.by_category` are independent tallies with no joint cell. A category whose debt is mostly HIGH-risk looks the same as one that is mostly LOW.
+- Risk: LOW
+- Category: observability
+- Address when: a maintainer needs risk to triage a debt signal. Then add an additive joint `debt.by_category_risk` count map to the report schema, and the routine emits `(category, risk)` keys alongside the existing `*` keys.
