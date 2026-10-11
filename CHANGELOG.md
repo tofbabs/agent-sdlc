@@ -2,6 +2,35 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.9](https://github.com/tofbabs/agent-sdlc/compare/v0.2.8...v0.2.9) (2026-10-11)
+
+
+### Features
+
+* **agentic-sdlc:** Anonymous repo ID from a salted hash [STORY-4-2] ([5234a3d](https://github.com/tofbabs/agent-sdlc/commit/5234a3d2cf03dc18234387792a024ed37bd3ebc5))
+* **agentic-sdlc:** Client identity — registration and token storage [STORY-4-5] ([1a3b9d6](https://github.com/tofbabs/agent-sdlc/commit/1a3b9d65958480ec7dc75f8fe557ef1066e47deb))
+* **agentic-sdlc:** Client upload module — zero-dependency, non-blocking, hardened [STORY-4-3] ([be5b93d](https://github.com/tofbabs/agent-sdlc/commit/be5b93d5c40beb9860e68b84cef7abc32f5b38b6))
+* **agentic-sdlc:** First-run consent prompt, checked-in config, and documented payload [STORY-4-1] ([53558d8](https://github.com/tofbabs/agent-sdlc/commit/53558d88b2cabead091fcf75d2f7aa613a043460))
+* **agentic-sdlc:** Outcome events export [STORY-4-6] ([b1d6705](https://github.com/tofbabs/agent-sdlc/commit/b1d6705f1db35510182dd9e7f3c0e318ef71c572))
+* **agentic-sdlc:** Re-consent on schema version change [STORY-4-7] ([1a6531a](https://github.com/tofbabs/agent-sdlc/commit/1a6531af7bccfef9a51c9088838c821a6204ada3))
+* **agentic-sdlc:** Storage retention and deletion-on-opt-out [STORY-4-9] ([54e17c6](https://github.com/tofbabs/agent-sdlc/commit/54e17c6ed8d4b644e83f403fe3596da24867bd85))
+* **agentic-sdlc:** telemetry export — consented, hardened upload of run reports [EPIC-4] ([8eefb8f](https://github.com/tofbabs/agent-sdlc/commit/8eefb8f73fdaf113e963c630c35e64917239c264))
+* **agentic-sdlc:** v1 ingest endpoint — hardened edge validation [STORY-4-8] ([80ca164](https://github.com/tofbabs/agent-sdlc/commit/80ca1649f6140c9d1a2442ba5dbea2318da5e310))
+* **agentic-sdlc:** Wire upload into the session lifecycle [STORY-4-4] ([a134085](https://github.com/tofbabs/agent-sdlc/commit/a13408507959bfcb3c29a9ecd05b3af98a8375f8))
+
+
+### Bug Fixes
+
+* **agentic-sdlc:** address Copilot review on telemetry export [EPIC-4] ([2a80fa1](https://github.com/tofbabs/agent-sdlc/commit/2a80fa174da406c2ec8c551f9846ffeb4b5f7aa9))
+* **agentic-sdlc:** hook tests record consent with current terms; test scripts fail on any failing file [EPIC-4] ([c0f0b95](https://github.com/tofbabs/agent-sdlc/commit/c0f0b95397b202bfbe4134175ad0d110beddd7c7))
+* meter hook aborts on macOS bash 3.2 when no subagents dir exists ([3469a35](https://github.com/tofbabs/agent-sdlc/commit/3469a35b028cee60c9fbb8155d3050ef91111007))
+* meter hook aborts on macOS bash 3.2 when no subagents dir exists ([2cb89fe](https://github.com/tofbabs/agent-sdlc/commit/2cb89fee69095f2223d1f328c4ab61764898164a))
+
+
+### Documentation
+
+* add EPIC-4 plan ([5313a9e](https://github.com/tofbabs/agent-sdlc/commit/5313a9ed8df16035e595ae8ac56b1314189290b2))
+
 ## [0.2.8](https://github.com/tofbabs/agent-sdlc/compare/v0.2.7...v0.2.8) (2026-10-07)
 
 
