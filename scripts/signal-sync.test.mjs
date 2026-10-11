@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs'
 import { syncIssues, account, summaryLine, discardsJson, renderDiscardLog, syncDiscardLog, runSync, newSinceLastRun } from './signal-sync.mjs'
 import { evaluate } from './signal-scan.mjs'
 import { renderIssue } from './signal-render.mjs'
@@ -432,6 +433,61 @@ const open = (number, g, over = {}) => ({ number, state: 'OPEN', stateReason: nu
   const plain = mkdtempSync(join(tmpdir(), 'signal-notrepo-'))
   check('a directory with no repository yields no tags instead of failing', JSON.stringify(readTags(plain)) === '[]')
   rmSync(repo, { recursive: true, force: true }); rmSync(plain, { recursive: true, force: true })
+}
+
+// The routine prompt is the only operating instruction a cloud run gets, so its
+// contract is pinned here rather than trusted to review.
+{
+  const path = new URL('../templates/routines/signal-scan-prompt.md', import.meta.url)
+  const prompt = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  const gap = readFileSync(new URL('../templates/routines/gap-scan-prompt.md', import.meta.url), 'utf8')
+  check('the prompt file exists', prompt.length > 0)
+  check('it opens with the same heading shape as the gap-scan prompt',
+    /^# Routine prompt: signal scan$/m.test(prompt) && /^# Routine prompt: /m.test(gap))
+  check('it states the routine proposes only and never writes briefs',
+    /never write[s]? (a )?briefs?/i.test(prompt) && /propos/i.test(prompt), prompt.slice(0, 200))
+  check('it forbids briefs, PRs and commits explicitly',
+    /no briefs/i.test(prompt) || (/never/i.test(prompt) && /pull request|PR/.test(prompt) && /commit/i.test(prompt)))
+  check('it names the reader adapter flag so switching stores is a one-line change',
+    prompt.includes('--source dir:.agentic-sdlc/runs'))
+  const at = (s) => prompt.indexOf(s)
+  check('steps run groups, then apply-merges, then the filing run, in that order',
+    at('groups') >= 0 && at('groups') < at('apply-merges') && at('apply-merges') < at('signal-sync.mjs'), JSON.stringify([at('groups'), at('apply-merges'), at('signal-sync.mjs')]))
+  check('it names merges.json as the closed-shape proposal', prompt.includes('merges.json'))
+  check('it ends by printing the summary with the accounting line',
+    /accounting/i.test(prompt) && prompt.includes('accepted N = filed a + discarded b + no_signal c'))
+}
+
+// Contributors read CLAUDE.md first; without the line, a routine-filed issue
+// looks like an invitation to open a PR instead of a prompt for a human brief.
+{
+  const lines = readFileSync(new URL('../CLAUDE.md', import.meta.url), 'utf8').split('\n')
+  const hits = lines.filter((l) => /signal/i.test(l) && /routine/i.test(l))
+  check('CLAUDE.md has exactly one line on the signal routine', hits.length === 1, JSON.stringify(hits))
+  check('that line says the routine proposes briefs and humans write them',
+    hits.length === 1 && /propos/i.test(hits[0]) && /brief/i.test(hits[0]) && /human/i.test(hits[0]), hits[0])
+}
+
+// Setup docs are where a maintainer learns the schedule must stay off; a doc
+// that reads as "enabled" would start a routine with no store to read.
+{
+  const doc = readFileSync(new URL('../docs/setup.md', import.meta.url), 'utf8')
+  const at = doc.indexOf('## Routines')
+  const section = at >= 0 ? doc.slice(at) : ''
+  check('Routines section says three prompts, not two',
+    /three prompts/i.test(section) && !/the two prompts/i.test(section))
+  check('it names the signal scan prompt', section.includes('signal-scan-prompt.md'))
+  check('it marks the signal routine as not yet scheduled',
+    /not (yet )?(be )?(scheduled|enabled)/i.test(section))
+  check('it ties enabling to the 02 store being reachable', /02 store/i.test(section))
+  check('it gives the manual path over the local runs directory',
+    section.includes('node scripts/signal-sync.mjs --source dir:.agentic-sdlc/runs'))
+  check('it holds the store credential as a network secret, never an env var',
+    /network secret/i.test(section) && /not an environment variable|never an environment variable/i.test(section))
+  check('it states the plan limit and the single repo',
+    /Pro\/Max/.test(section) && section.includes('tofbabs/agent-sdlc'))
+  check('it removes every connector and scopes the allowlist',
+    /connector/i.test(section) && /allowlist/i.test(section))
 }
 
 process.exit(failed)

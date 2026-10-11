@@ -271,8 +271,8 @@ copy-in starting point, not a live dependency.
 
 ## Routines
 
-`templates/routines/` holds the two prompts that run **outside** the pipeline as
-Claude Code cloud routines — hourly PR review, weekly gap scan. They are not plugin
+`templates/routines/` holds the three prompts that run **outside** the pipeline as
+Claude Code cloud routines — hourly PR review, weekly gap scan, daily signal scan. They are not plugin
 components; they are pasted into the routine configuration. They live here so the
 review bar and the maturity ladder are diffable and versioned alongside the agents
 that they judge.
@@ -283,3 +283,23 @@ enabled in the project's settings. A cloud routine starts from a checkout of the
 project's integration branch (`<base>` — `main` unless `CLAUDE.md` says
 otherwise); `/agentic-sdlc:review` builds its own worktree of the PR head from
 there.
+
+### Signal scan — NOT YET SCHEDULED
+
+`signal-scan-prompt.md` proposes briefs as issues from run signals. Do not
+schedule it until the 02 store is reachable: a scheduled run with no store to
+read only produces noise. Until then, run the same read by hand over the local
+runs directory:
+
+    node scripts/signal-sync.mjs --source dir:.agentic-sdlc/runs
+
+When the store exists, set the routine up like this:
+
+- Cloud routine, daily, a few minutes past the hour so it does not queue with
+  the hourly review. Pro/Max plans only.
+- A single repo, `tofbabs/agent-sdlc`. Remove every connector; the routine
+  needs none.
+- The read-only store token goes in as a network secret, never an environment variable,
+  because those are visible to the agent's shell.
+- Use a dedicated environment whose network allowlist is the default plus the
+  store host only.

@@ -169,7 +169,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Model choice of mode or rubric changes.
 
 ### STORY-5-8: Routine prompt, schedule and CLAUDE.md line
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: M
 - select: risk_class=none@brief:L59-L61 one_way_doors=1@brief:L59-L61 existing_pattern=yes@brief:L59-L61 modules_crossed=3@brief:L59-L61 review_bounced=no@brief:L59-L61 risk_kind=code@brief:L59-L61
