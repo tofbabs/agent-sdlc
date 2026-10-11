@@ -149,8 +149,9 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Scheduling (5-8).
 
 ### STORY-5-7: Model-assisted merge of equivalent groups
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L45-L47 one_way_doors=1@brief:L45-L47 existing_pattern=no@brief:L45-L47 modules_crossed=1@brief:L45-L47 review_bounced=no@brief:L45-L47 risk_kind=code@brief:L45-L47
 - depends_on: [STORY-5-3]

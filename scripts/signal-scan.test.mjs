@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, mkdtempSync, rmSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 
 const SCAN = new URL('./signal-scan.mjs', import.meta.url).pathname
 const report = JSON.parse(readFileSync(new URL('./fixtures/signal/report.json', import.meta.url), 'utf8'))
@@ -647,4 +647,200 @@ const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
   })
 }
 
+// --- the model's input is vocabulary only --------------------------------------
+{
+  const mk = (n, source, findings) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(7000 + n)
+    r.review.findings = findings
+    return envelope(r, { source })
+  }
+  const srcs = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  const files = {
+    'a.json': mk(1, srcs[0], [finding('correctness', 'MAJOR')]),
+    'b.json': mk(2, srcs[1], [finding('correctness', 'MAJOR'), finding('security', 'MINOR')]),
+    'c.json': mk(3, srcs[2], [finding('security', 'MINOR')]),
+  }
+  withDir(files, (dir) => {
+    const out = join(dir, '..', `groups-${process.pid}.json`)
+    try {
+      execFileSync('node', [SCAN, 'groups', '--source', `dir:${dir}`, '--now', NOW, '--out', out], { encoding: 'utf8' })
+      const text = readFileSync(out, 'utf8')
+      const doc = JSON.parse(text)
+      const vocab = new Set(['build', 'deliberate', 'SOLO', 'correctness', 'security', 'MAJOR', 'MINOR', 'contract', '*'])
+      const strings = []
+      const walk = (v, path) => {
+        if (typeof v === 'string') strings.push([path, v])
+        else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${path}[${i}]`))
+        else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`)
+        else if (typeof v !== 'number') strings.push([path, String(v)])
+      }
+      walk(doc, '$')
+      check('groups.json holds one entry per group with only id, kind, key, runs, repos',
+        Array.isArray(doc.groups) && doc.groups.length >= 2 && Object.keys(doc).join() === 'groups' &&
+        doc.groups.every((g) => Object.keys(g).sort().join() === 'id,key,kind,repos,runs'), text)
+      check('every string is a sig-* fingerprint, a kind, a vocabulary token or *',
+        strings.every(([p, s]) => /^sig-[0-9a-f]{12}$/.test(s) ||
+          (p.endsWith('.kind') && ['finding', 'arch_handoff', 'arch_block', 'debt', 'outcome', 'degraded', 'outlier'].includes(s)) ||
+          vocab.has(s)), JSON.stringify(strings.filter(([, s]) => !/^sig-/.test(s) && !vocab.has(s))))
+      check('no raw report field reaches the model: no run id, source, or timestamp',
+        !text.includes(uuid(7001)) && !srcs.some((s) => text.includes(s)) && !/20\d\d-\d\d-\d\d/.test(text), text)
+      const f = doc.groups.find((g) => g.id === fp('finding', 'build', 'deliberate', 'SOLO', 'correctness', 'MAJOR'))
+      check('counts are carried as numbers', f?.runs === 2 && f?.repos === 2, JSON.stringify(f))
+    } finally { rmSync(out, { force: true }) }
+  })
+}
+
+
+// --- a bad merge proposal rejects the whole file --------------------------------
+{
+  const mk = (n, source, findings) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(7500 + n)
+    r.review.findings = findings
+    return envelope(r, { source })
+  }
+  const srcs = ['a', 'b', 'c'].map((c) => c.repeat(32))
+  const files = {
+    'a.json': mk(1, srcs[0], [finding('correctness', 'MAJOR')]),
+    'b.json': mk(2, srcs[1], [finding('correctness', 'MAJOR'), finding('security', 'MINOR')]),
+    'c.json': mk(3, srcs[2], [finding('security', 'MINOR')]),
+  }
+  withDir(files, (dir) => {
+    const tmp = mkdtempSync(join(tmpdir(), 'merge-'))
+    try {
+      const gfile = join(tmp, 'groups.json')
+      execFileSync('node', [SCAN, 'groups', '--source', `dir:${dir}`, '--now', NOW, '--out', gfile], { encoding: 'utf8' })
+      const groups = JSON.parse(readFileSync(gfile, 'utf8')).groups
+      const [a, b] = groups.filter((g) => g.kind === 'finding').map((g) => g.id)
+      const other = groups.find((g) => g.kind !== 'finding')?.id
+      const apply = (name, doc) => {
+        const mf = join(tmp, `${name}.json`)
+        writeFileSync(mf, JSON.stringify(doc))
+        return JSON.parse(execFileSync('node', [SCAN, 'apply-merges', '--source', `dir:${dir}`, '--now', NOW, '--merges', mf], { encoding: 'utf8' }))
+      }
+      const cases = [
+        ['unknown_field', { merges: 1, proposals: [{ members: [a, b] }], note: 'x' }],
+        ['unknown_field', { merges: 1, proposals: [{ members: [a, b], why: 'same' }] }],
+        ['unknown_fingerprint', { merges: 1, proposals: [{ members: [a, 'sig-000000000000'] }] }],
+        ['too_few_members', { merges: 1, proposals: [{ members: [a] }] }],
+        ['duplicate_member', { merges: 2, proposals: [{ members: [a, b] }, { members: [b, other] }] }],
+        ['mixed_kind', { merges: 1, proposals: [{ members: [a, other] }] }],
+      ]
+      check('fixture has two finding groups and one of another kind', Boolean(a && b && other), JSON.stringify(groups))
+      for (const [reason, doc] of cases) {
+        const s = apply(reason, doc)
+        check(`${reason} rejects the whole proposal`, s.merge_rejected === reason, JSON.stringify(s))
+        check(`${reason} leaves every group unmerged`,
+          s.groups?.length === groups.length && s.groups.every((g) => groups.some((x) => x.id === g.id)) &&
+          s.groups.every((g) => !g.members || g.members.length === 1), JSON.stringify(s.groups))
+      }
+    } finally { rmSync(tmp, { recursive: true, force: true }) }
+  })
+}
+
+
+// --- a valid merge unions reports and re-applies the caps -------------------------
+{
+  const mk = (n, source, findings) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(7800 + n)
+    r.review.findings = findings
+    return envelope(r, { source })
+  }
+  const A = 'a'.repeat(32)
+  const B = 'b'.repeat(32)
+  const corr = [finding('correctness', 'MAJOR')]
+  const sec = [finding('security', 'MINOR')]
+  // Run 5 sits in both groups, so a naive sum would count it twice; source A alone is over the cap.
+  const files = {
+    '1.json': mk(1, A, corr), '2.json': mk(2, A, corr), '3.json': mk(3, A, sec), '4.json': mk(4, A, sec),
+    '5.json': mk(5, A, [...corr, ...sec]), '6.json': mk(6, B, corr),
+  }
+  const idCorr = fp('finding', 'build', 'deliberate', 'SOLO', 'correctness', 'MAJOR')
+  const idSec = fp('finding', 'build', 'deliberate', 'SOLO', 'security', 'MINOR')
+  const primary = [idCorr, idSec].sort()[0]
+  withDir(files, (dir) => {
+    const tmp = mkdtempSync(join(tmpdir(), 'merge-'))
+    try {
+      const mf = join(tmp, 'merges.json')
+      writeFileSync(mf, JSON.stringify({ merges: 1, proposals: [{ members: [idCorr, idSec] }] }))
+      const s = JSON.parse(execFileSync('node', [SCAN, 'apply-merges', '--source', `dir:${dir}`, '--now', NOW, '--merges', mf], { encoding: 'utf8' }))
+      const merged = s.groups?.find((g) => g.id === primary)
+      check('a valid proposal reports no rejection', s.merge_rejected === undefined, JSON.stringify(s))
+      check('the merged group takes the smallest member fingerprint and lists every member',
+        JSON.stringify(merged?.merged) === JSON.stringify([idCorr, idSec].sort()), JSON.stringify(merged))
+      check('the other member no longer stands alone',
+        s.groups?.filter((g) => g.id === idCorr || g.id === idSec).length === 1, JSON.stringify(s.groups?.map((g) => g.id)))
+      check('merged counts are the deduplicated union with the per-source cap: A capped to 2 plus B 1',
+        merged?.runs === 3 && merged?.repos === 2, JSON.stringify(merged))
+      check('a merge that stays under the source threshold still fails it', merged?.reason === 'min_sources', JSON.stringify(merged))
+    } finally { rmSync(tmp, { recursive: true, force: true }) }
+  })
+}
+{
+  // A routine run with nothing to merge writes no merges.json; that must not read as a rejection.
+  const mk = (n, source, findings) => {
+    const r = structuredClone(report)
+    r.run.run_id = uuid(7900 + n)
+    r.review.findings = findings
+    return envelope(r, { source })
+  }
+  const A = 'a'.repeat(32)
+  const corr = [finding('correctness', 'MAJOR')]
+  const sec = [finding('security', 'MINOR')]
+  const idCorr = fp('finding', 'build', 'deliberate', 'SOLO', 'correctness', 'MAJOR')
+  const idSec = fp('finding', 'build', 'deliberate', 'SOLO', 'security', 'MINOR')
+  withDir({ '1.json': mk(1, A, [...corr, ...sec]) }, (dir) => {
+    const tmp = mkdtempSync(join(tmpdir(), 'merge-'))
+    try {
+      const r = spawnSync('node', [SCAN, 'apply-merges', '--source', `dir:${dir}`, '--now', NOW, '--merges', join(tmp, 'absent.json')], { encoding: 'utf8' })
+      const s = r.status === 0 ? JSON.parse(r.stdout) : {}
+      check('an absent merges file skips the pass with exit 0', r.status === 0, r.stderr)
+      check('an absent merges file is not a rejection', s.merge_rejected === undefined, r.stdout)
+      check('an absent merges file leaves every group unmerged',
+        s.groups?.some((g) => g.id === idCorr) && s.groups?.some((g) => g.id === idSec) && s.groups?.every((g) => g.merged === undefined), r.stdout)
+    } finally { rmSync(tmp, { recursive: true, force: true }) }
+  })
+}
+{
+  const { applyKnownMerges, parseSignalMarker, mergeGroups, validateMerges } = await import('./signal-scan.mjs')
+  const mem = (n, source) => ({ run_id: `r${n}`, source })
+  const grp = (id, kind, members) => ({ id, kind, key: [id], members, runs: members.length, repos: new Set(members.map((m) => m.source)).size })
+  const A = 'a'.repeat(32)
+  const B = 'b'.repeat(32)
+  const opts = { now: new Date(NOW) }
+
+  check('the marker parses to its fingerprints, primary first',
+    JSON.stringify(parseSignalMarker('body\n<!-- signal: sig-b sig-a  sig-c -->\n')) === '["sig-b","sig-a","sig-c"]')
+  check('text without a marker parses to null', parseSignalMarker('no marker here') === null && parseSignalMarker(undefined) === null)
+
+  const groups = [
+    grp('sig-a', 'finding', [mem(1, A), mem(2, A), mem(3, A)]),
+    grp('sig-b', 'finding', [mem(3, A), mem(4, A), mem(5, A)]),
+    grp('sig-c', 'finding', [mem(6, B)]),
+    grp('sig-o', 'outlier', [mem(7, B)]),
+  ]
+  const known = applyKnownMerges(groups, [['sig-b', 'sig-a']], opts)
+  const m = known.find((g) => g.id === 'sig-b')
+  check('a known set merges under its marker primary with the union deduped by run_id',
+    m && JSON.stringify(m.merged) === '["sig-a","sig-b"]' && m.members.length === 5 && !known.some((g) => g.id === 'sig-a'), JSON.stringify(known))
+  check('known-merge counts are re-capped per source, not summed', m.runs === 2 && m.reason === 'min_sources', JSON.stringify(m))
+
+  const partial = applyKnownMerges(groups, [['sig-a', 'sig-gone', 'sig-c']], opts)
+  check('absent fingerprints are dropped and the present ones still merge',
+    partial.find((g) => g.id === 'sig-a')?.merged?.join() === 'sig-a,sig-c', JSON.stringify(partial))
+  check('a known set with fewer than two present fingerprints is skipped',
+    JSON.stringify(applyKnownMerges(groups, [['sig-a', 'sig-gone'], ['sig-zz', 'sig-yy']], opts)) === JSON.stringify(groups))
+  check('a known set mixing kinds merges only the primary kind',
+    JSON.stringify(applyKnownMerges(groups, [['sig-a', 'sig-o']], opts)) === JSON.stringify(groups))
+  const overlap = applyKnownMerges(groups, [['sig-a', 'sig-b'], ['sig-b', 'sig-c']], opts)
+  check('a fingerprint in two known sets stays with the first', !overlap.some((g) => g.merged?.includes('sig-c')), JSON.stringify(overlap))
+
+  check('a proposal naming a fingerprint absorbed by a known merge is rejected',
+    validateMerges({ merges: 1, proposals: [{ members: ['sig-a', 'sig-c'] }] }, known) === 'unknown_fingerprint')
+  const onward = mergeGroups(known, { merges: 1, proposals: [{ members: ['sig-b', 'sig-c'] }] }, opts)
+  check('the merged primary can be merged onward and keeps the whole set',
+    onward.find((g) => g.id === 'sig-b')?.merged?.join() === 'sig-a,sig-b,sig-c', JSON.stringify(onward))
+}
 process.exit(failed)

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Re-validates every stored report against the shipped schema, so the store's
 // own checks are never the only line of defence.
-import { readdirSync, statSync, readFileSync } from 'node:fs'
+import { readdirSync, statSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
@@ -195,14 +195,19 @@ export function evaluateGroup(group, { now, firstSeen } = {}) {
   return { ...group, runs, repos, reason }
 }
 
-export function evaluate(entries, { now = new Date() } = {}) {
-  const qualified = []
-  const discards = []
+function firstSeenOf(entries) {
   const firstSeen = new Map()
   for (const e of entries) {
     const t = e.source_first_seen
     if (t && (!firstSeen.has(e.source) || t < firstSeen.get(e.source))) firstSeen.set(e.source, t)
   }
+  return firstSeen
+}
+
+export function evaluate(entries, { now = new Date() } = {}) {
+  const qualified = []
+  const discards = []
+  const firstSeen = firstSeenOf(entries)
   for (const g of groupReports(entries, { now, firstSeen })) {
     // Ignored before thresholds so a known-noisy group never reads as a threshold miss.
     if ((THRESHOLDS.ignore ?? []).includes(`${g.kind}:${g.key.at(-1)}`)) {
@@ -300,6 +305,76 @@ export function scan(dir, { now = new Date() } = {}) {
   return { files: names.length, accepted, rejected, skipped_window: skipped, entries, verdict: verdictSignals(kept) }
 }
 
+// Any violation rejects the whole file, so a half-valid proposal can never merge anything.
+export function validateMerges(doc, groups) {
+  if (!isObj(doc) || Object.keys(doc).some((k) => k !== 'merges' && k !== 'proposals')) return 'unknown_field'
+  const proposals = Array.isArray(doc.proposals) ? doc.proposals : []
+  if (proposals.some((p) => !isObj(p) || Object.keys(p).some((k) => k !== 'members'))) return 'unknown_field'
+  const kindOf = new Map(groups.map((g) => [g.id, g.kind]))
+  const seen = new Set()
+  for (const { members } of proposals) {
+    if (!Array.isArray(members) || members.some((m) => !kindOf.has(m))) return 'unknown_fingerprint'
+    if (members.length < 2) return 'too_few_members'
+    if (members.some((m) => seen.has(m)) || new Set(members).size !== members.length) return 'duplicate_member'
+    members.forEach((m) => seen.add(m))
+    if (new Set(members.map((m) => kindOf.get(m))).size > 1) return 'mixed_kind'
+  }
+  return null
+}
+
+// Recounting through evaluateGroup keeps the caps and source-age rules identical to unmerged groups.
+function unionGroup(byId, ids, primaryId, opts) {
+  const seenRuns = new Set()
+  const members = ids.flatMap((id) => byId.get(id).members).filter((m) => !seenRuns.has(m.run_id) && seenRuns.add(m.run_id))
+  const merged = [...new Set(ids.flatMap((id) => byId.get(id).merged ?? [id]))].sort()
+  const { id, kind, key, runs, repos, reason } = evaluateGroup({ ...byId.get(primaryId), members }, opts)
+  return { id, kind, key, merged, members, runs, repos, ...(reason && { reason }) }
+}
+
+function applySets(groups, sets, opts) {
+  const byId = new Map(groups.map((g) => [g.id, g]))
+  const absorbed = new Set()
+  const out = []
+  for (const { ids, primaryId } of sets) {
+    out.push(unionGroup(byId, ids, primaryId, opts))
+    ids.forEach((i) => absorbed.add(i))
+  }
+  return [...groups.filter((g) => !absorbed.has(g.id)), ...out]
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+}
+
+export function mergeGroups(groups, doc, opts) {
+  const sets = (doc.proposals ?? []).map(({ members }) => ({ ids: members, primaryId: [...members].sort()[0] }))
+  return applySets(groups, sets, opts)
+}
+
+const MARKER = /<!--\s*signal:\s*([^>]*?)\s*-->/
+
+// Returns the fingerprints in marker order (primary first), or null when the text carries no marker.
+export function parseSignalMarker(text) {
+  const m = MARKER.exec(text ?? '')
+  const ids = m ? m[1].split(/\s+/).filter(Boolean) : []
+  return ids.length ? ids : null
+}
+
+// Runs before the model pass so an issue's merge survives across runs. Unlike a model proposal, a stale
+// known set is never an error: fingerprints that aged out of the window are simply absent. After this,
+// absorbed non-primary fingerprints no longer exist as groups, so a model proposal naming one is rejected
+// as unknown_fingerprint, while the merged group's primary can still be merged onward.
+export function applyKnownMerges(groups, knownSets, opts) {
+  const kindOf = new Map(groups.map((g) => [g.id, g.kind]))
+  const used = new Set()
+  const sets = []
+  for (const known of knownSets) {
+    const kind = kindOf.get(known.find((f) => kindOf.has(f)))
+    const ids = [...new Set(known)].filter((f) => kindOf.get(f) === kind && kind !== undefined && !used.has(f))
+    if (ids.length < 2) continue
+    ids.forEach((f) => used.add(f))
+    sets.push({ ids, primaryId: ids[0] })
+  }
+  return applySets(groups, sets, opts)
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2)
   // Last occurrence wins so a caller can override an earlier flag.
@@ -316,5 +391,41 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(2)
   }
   const { entries, ...stats } = scan(source.slice(4), { now })
+  if (process.argv[2] === 'groups') {
+    const out = flag('--out')
+    if (!out) {
+      console.error('usage: signal-scan.mjs groups --source dir:<path> --out <file> [--now <iso>]')
+      process.exit(2)
+    }
+    // Only fingerprints, vocabulary keys and counts leave here, so no report text can reach the model.
+    const groups = groupReports(entries).map(({ id, kind, key, runs, repos }) => ({ id, kind, key, runs, repos }))
+    writeFileSync(out, JSON.stringify({ groups }))
+    process.exit(0)
+  }
+  if (process.argv[2] === 'apply-merges') {
+    const mergesFile = flag('--merges')
+    if (!mergesFile) {
+      console.error('usage: signal-scan.mjs apply-merges --source dir:<path> --merges <file> [--now <iso>]')
+      process.exit(2)
+    }
+    const full = groupReports(entries)
+    const groups = full.map(({ id, kind, key, runs, repos }) => ({ id, kind, key, runs, repos }))
+    // Only a missing file skips the pass; a present-but-broken one must reject, or bad output would pass as "no merges".
+    if (!existsSync(mergesFile)) {
+      console.log(JSON.stringify({ groups }))
+      process.exit(0)
+    }
+    let doc
+    try { doc = JSON.parse(readFileSync(mergesFile, 'utf8')) } catch { doc = null }
+    const merge_rejected = validateMerges(doc, groups)
+    if (merge_rejected) {
+      console.log(JSON.stringify({ merge_rejected, groups }))
+      process.exit(0)
+    }
+    const firstSeen = firstSeenOf(entries)
+    const out = mergeGroups(full, doc, { now, firstSeen }).map(({ id, kind, key, merged, runs, repos, reason }) => ({ id, kind, key, ...(merged && { merged }), runs, repos, ...(reason && { reason }) }))
+    console.log(JSON.stringify({ groups: out }))
+    process.exit(0)
+  }
   console.log(JSON.stringify(stats))
 }
