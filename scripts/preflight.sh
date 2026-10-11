@@ -165,6 +165,40 @@ else
   note "node not found — skipping run-report schema tests"
 fi
 
+# 6a-signal. The signal routine re-validates untrusted stored reports; a
+#     regression here lets a poisoned report reach grouping.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/signal-scan.test.sh" >/dev/null 2>&1; then
+    ok "signal-scan invariants hold"
+  else
+    bad "signal-scan tests failed — run scripts/signal-scan.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping signal-scan tests"
+fi
+
+# 6a-render. Issues are public; a regression here could publish a run_id or token.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/signal-render.test.sh" >/dev/null 2>&1; then
+    ok "signal-render invariants hold"
+  else
+    bad "signal-render tests failed — run scripts/signal-render.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping signal-render tests"
+fi
+
+# 6a-sync. Issue matching runs against a stubbed gh, so a regression cannot reach the network.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/signal-sync.test.sh" >/dev/null 2>&1; then
+    ok "signal-sync invariants hold"
+  else
+    bad "signal-sync tests failed — run scripts/signal-sync.test.sh to see which invariant broke"
+  fi
+else
+  note "node not found — skipping signal-sync tests"
+fi
+
 # 6a-ingest. The edge handler (ingest/src/handler.mjs) under plain Node against
 #     an in-memory db: validation, limits, idempotency and /register.
 if command -v node >/dev/null 2>&1; then

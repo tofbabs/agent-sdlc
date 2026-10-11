@@ -1,0 +1,4 @@
+{"version":1,"baseline_min_reports":20,"baseline_min_sources":3,"outlier_factor":2.0,"verdict_drift_margin":0.15,"verdict_min_settled":10,
+"quality":{"min_runs":5,"min_sources":3,"min_source_age_days":7,"cap":2},
+"cost":{"min_runs":10,"min_sources":3,"min_source_age_days":7,"cap":2},
+"ignore":["degraded:gate_history"]}

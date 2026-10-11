@@ -307,3 +307,59 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Address when: the first deploy to the real hostname, or before the first
   `wrangler` major bump; commit `ingest/package-lock.json` then and switch the
   workflow to `npm ci`.
+
+### Signal routine is not scheduled until 02 ships a store
+- Raised: 2026-10-09 by architect (ARCH-5)
+- Current: The prompt and script ship, but they are run by hand against local `.agentic-sdlc/runs/`, and the cloud schedule is off.
+- Risk: LOW
+- Category: stubbed_integration
+- Address when: 02's store is reachable from a cloud environment with a read-only token.
+
+### Full-window rescan on every run
+- Raised: 2026-10-09 by architect (ARCH-1)
+- Current: Every run re-reads and re-validates all 30 days of reports, with no incremental aggregates.
+- Risk: LOW
+- Category: robustness
+- Address when: a run reads more than 20,000 reports, or takes longer than 10 minutes.
+
+### Discard-log issue body truncated at 60,000 characters
+- Raised: 2026-10-09 by architect (ARCH-4)
+- Current: The lowest-count discard rows are dropped from the public table, and only a count of the omitted rows remains. The full log exists only in that run's `discards.json`.
+- Risk: LOW
+- Category: observability
+- Address when: the truncation note appears in two runs in a row. At that point, move the discard log to a store prefix.
+
+### Threshold values are unvalidated guesses
+- Raised: 2026-10-09 by architect (ARCH-1, ARCH-2)
+- Current: These v1 values are not backed by data: min runs 5/10, 3 sources, 7 days, cap 2, outlier ratio 2.0, drift margin 0.15.
+- Risk: MEDIUM
+- Category: hardcoded_value
+- Address when: 30 days of reports from at least 5 sources exist. Then retune from the discard log's near-miss distribution.
+
+### Debt signals ignore risk
+- Raised: 2026-10-11 by architect (ARCH-7)
+- Current: The signal routine keys `debt` on category only (`severity = *`), because a run report's `debt.by_risk` and `debt.by_category` are independent tallies with no joint cell. A category whose debt is mostly HIGH-risk looks the same as one that is mostly LOW.
+- Risk: LOW
+- Category: observability
+- Address when: a maintainer needs risk to triage a debt signal. Then add an additive joint `debt.by_category_risk` count map to the report schema, and the routine emits `(category, risk)` keys alongside the existing `*` keys.
+
+### A merged group spanning two existing issues aborts the sync
+- Raised: 2026-10-11 by coder (STORY-5-6)
+- Current: If a merge puts fingerprints from two already-filed issues into one group, the run fails before any write naming both issues. Picking one would leave a second issue claiming fingerprints the first now carries, which ARCH-4 forbids.
+- Risk: LOW
+- Category: robustness
+- Address when: a maintainer hits the abort. Then decide which issue survives and whether the other is closed as a duplicate.
+
+### Issue-body comparison tolerates CRLF and trailing whitespace only
+- Raised: 2026-10-11 by coder (STORY-5-6)
+- Current: Stored and rendered bodies are compared after normalising CRLF and trimming trailing whitespace, an assumption about what GitHub returns that no test can check offline.
+- Risk: MEDIUM
+- Category: missing_test
+- Address when: the first live run edits an issue whose body did not change. Then widen the normalisation or compare a body hash.
+
+### Labels must pre-exist for gh issue create
+- Raised: 2026-10-11 by coder (STORY-5-6)
+- Current: The adapter passes `signal`, `signal:<kind>` and `signal-discards` to `gh issue create`, which fails if a label is missing; nothing creates them.
+- Risk: MEDIUM
+- Category: robustness
+- Address when: before the first live run of the routine.

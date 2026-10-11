@@ -39,6 +39,9 @@ a branch or at the working tree.
 - **Shipped scripts are tested.** `plugins/agentic-sdlc/scripts/*.mjs` each have
   a `scripts/<name>.test.sh` that preflight and CI run. Use plain Node, with no
   dependencies.
+- **The signal routine proposes briefs as issues; humans write them.** An
+  issue it files is a prompt for a hand-written brief, never a task to start
+  coding from.
 - **Keep project-specific knowledge out of `plugins/`.** What one consuming
   project learned about itself stays in that project.
 - **Comments say why, never what.**
