@@ -107,7 +107,7 @@ Assumptions (no handoff): scripts live in repo `scripts/` as plain Node 22 `.mjs
 - Editing the rubric.
 
 ### STORY-5-5: Render an aggregates-only issue with a draft brief
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 0 at or below 2 is SOLO
 - estimate: M
 - select: risk_class=none@brief:L57-L60 one_way_doors=0@brief:L57-L60 existing_pattern=yes@brief:L57-L60 modules_crossed=1@brief:L57-L60 review_bounced=no@brief:L57-L60 risk_kind=code@brief:L57-L60

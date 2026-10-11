@@ -115,6 +115,10 @@ jobs:
       - name: signal-scan invariants
         run: ./scripts/signal-scan.test.sh
 
+      # Issues are public; a regression here could publish a run_id or token.
+      - name: signal-render invariants
+        run: ./scripts/signal-render.test.sh
+
       - name: ingest handler tests
         run: |
           ./scripts/ingest.test.sh

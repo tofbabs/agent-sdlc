@@ -83,7 +83,7 @@ const fingerprint = (kind, key) =>
 const byRunId = (members) =>
   [...members].sort((a, b) => (a.run_id < b.run_id ? -1 : a.run_id > b.run_id ? 1 : 0))
 
-const median = (xs) => {
+export const median = (xs) => {
   const s = [...xs].sort((a, b) => a - b)
   const m = s.length >> 1
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
@@ -91,7 +91,7 @@ const median = (xs) => {
 
 // A metric a report lacks yields undefined and is skipped, never read as zero.
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
-const METRICS = {
+export const METRICS = {
   boot_tokens_mean: (r) => num(r.cost?.derived?.boot_tokens_mean),
   billed_input_per_story: (r) => {
     const n = (r.build?.stories ?? []).length
@@ -144,6 +144,7 @@ function outlierGroups(entries, { now, firstSeen } = {}) {
   }
   return [...groups.values()].map(({ values, base, ...g }) => ({
     ...g,
+    baseline: base,
     members: byRunId(g.members),
     ratio: median(values) / base,
     runs: g.members.length,
