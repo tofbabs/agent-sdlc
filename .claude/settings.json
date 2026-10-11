@@ -29,7 +29,8 @@
 
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/templates/hooks/lsp-preflight.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/templates/hooks/lsp-preflight.sh" } ] },
+      { "hooks": [ { "type": "command", "command": "RUN_REPORT_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/run-report.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/run-report.sh" } ] }
     ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "RUN_REPORT_MJS=\"$CLAUDE_PROJECT_DIR/plugins/agentic-sdlc/scripts/run-report.mjs\" \"$CLAUDE_PROJECT_DIR\"/templates/hooks/run-report.sh" } ] }

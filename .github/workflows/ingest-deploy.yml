@@ -1,0 +1,41 @@
+name: ingest-deploy
+
+# The Worker bundles the shared schema and vocabulary, so a change to either
+# redeploys it: client and edge validators move in lockstep.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ingest/**'
+      - 'plugins/agentic-sdlc/scripts/run-report-schema.mjs'
+      - 'plugins/agentic-sdlc/scripts/run-report-categories.mjs'
+
+concurrency: ingest-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ingest tests
+        run: |
+          ./scripts/ingest.test.sh
+          ./scripts/ingest-limits.test.sh
+
+      - name: Install wrangler
+        working-directory: ingest
+        run: npm install
+
+      - name: Apply D1 migrations
+        working-directory: ingest
+        run: npx wrangler d1 migrations apply agentic-sdlc-ingest --remote
+
+      - name: Deploy
+        working-directory: ingest
+        run: npx wrangler deploy

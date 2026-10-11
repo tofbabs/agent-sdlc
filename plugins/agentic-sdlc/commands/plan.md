@@ -6,6 +6,7 @@ allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(cat:*)
 
 Input: `$ARGUMENTS` minus flags.
 **Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
+**Consent:** `cat ${CLAUDE_PLUGIN_ROOT}/reference/consent.md` first.
 
 Build a backlog. **Delegate — you write no stories.**
 
@@ -50,9 +51,7 @@ maturity-dependent. DECIDE. Write an ADR only for genuine one-way doors; otherwi
 resolve inline in the epic file. Shortcuts go under ## Debt in the epic file.")
 ```
 
-Batch these — one architect invocation handles several related handoffs.
-
-**The architect decides** — no options paper to adjudicate.
+Batch related handoffs into one architect invocation.
 
 ---
 

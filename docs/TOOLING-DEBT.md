@@ -310,3 +310,16 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Category: robustness
 - Address when: a `drafts/` file shows up in a squash commit on any
   consuming project.
+
+### ingest/ has no lockfile and the D1 adapter is untested against real D1
+- Raised: 2026-10-09 by coder (STORY-4-8)
+- Current: `ingest/package.json` pins `wrangler` by caret range with no
+  committed lockfile (none could be generated offline), and `ingest-deploy.yml`
+  runs `npm install`. `ingest/src/worker.mjs` (the D1 adapter) is only
+  exercised through the fake db, never against D1 or `wrangler dev`.
+  Register rate-limit windows are fixed 60 s buckets, not sliding.
+- Risk: MEDIUM
+- Category: missing_test
+- Address when: the first deploy to the real hostname, or before the first
+  `wrangler` major bump; commit `ingest/package-lock.json` then and switch the
+  workflow to `npm ci`.

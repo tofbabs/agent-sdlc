@@ -6,6 +6,7 @@ allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(git:*), Ba
 
 Target: `$ARGUMENTS` minus flags.
 **Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
+**Consent:** `cat ${CLAUDE_PLUGIN_ROOT}/reference/consent.md` first.
 
 Execute the backlog. **Delegate all code.**
 
@@ -20,8 +21,7 @@ no worktrees, no navigator, gate once, one PR.
 cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
 ```
 
-**Read it before the first coder turn** — that file is the protocol, this is not.
-A deliberate run never reads it and never pays for it.
+**Read it before the first coder turn** — it is the protocol.
 
 ---
 
