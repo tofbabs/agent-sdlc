@@ -2,6 +2,27 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.12](https://github.com/tofbabs/agent-sdlc/compare/v0.2.11...v0.2.12) (2026-10-12)
+
+
+### Features
+
+* **plan-artifacts:** /build stops when a merged dependency is not merged [STORY-9-2] ([f124a42](https://github.com/tofbabs/agent-sdlc/commit/f124a4238fc40aeb0e270903bcdee2c04237828f))
+* **plan:** /plan EPIC-n fills in a stub; carry replaces a stub [STORY-9-4] ([f00f059](https://github.com/tofbabs/agent-sdlc/commit/f00f059d67ba347862170434c7a9fe708bb24e10))
+* **plan:** planner splits a brief into linked epics; /plan runs check [STORY-9-3] ([eea2545](https://github.com/tofbabs/agent-sdlc/commit/eea2545820e45bf652177a7cb6f155792d182103))
+* **plan:** planner splits briefs into linked epics with stubs, fill-in and /build link checks, part 2 of 3 [EPIC-9] ([6a9eef3](https://github.com/tofbabs/agent-sdlc/commit/6a9eef373535d4147bf8a9d6bdc15a6cd3021804))
+* **plan:** reference/epic-budget.md, anchors, and pointer-only prose in planner/plan [STORY-9-1] ([0edd8b6](https://github.com/tofbabs/agent-sdlc/commit/0edd8b62d9099631cfa6c3312a059f6247c55e48))
+
+
+### Bug Fixes
+
+* **plan:** address PR [#52](https://github.com/tofbabs/agent-sdlc/issues/52) review comments [EPIC-9] ([4e1ef4f](https://github.com/tofbabs/agent-sdlc/commit/4e1ef4fac74115e774f3ebea04171c60510a8e7b))
+
+
+### Documentation
+
+* add EPIC-9 plan ([81d958d](https://github.com/tofbabs/agent-sdlc/commit/81d958d70bd5f1298b772ea637ae58d219684d05))
+
 ## [0.2.11](https://github.com/tofbabs/agent-sdlc/compare/v0.2.10...v0.2.11) (2026-10-12)
 
 
