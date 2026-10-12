@@ -68,3 +68,21 @@ what Part 1 actually merged.
 - Keep any RESOLVED ARCH rows the part relies on. An architecture question the
   part will probably raise goes in as an OPEN ARCH row.
 - Stubs are not added to Part 1's Artifacts.
+
+---
+
+## FILL-IN
+
+Planning a stub's detail once the parts it depends on have merged.
+
+- Run `ready EPIC-n --base <base> --deps-only` first. `/plan` omits `--base`, so
+  pass it here. Not ready: stop.
+- Re-read the brief at the stub's `Brief:`, limited to that part's stories and
+  nothing else in it.
+- Read the merged code, so the detail matches what the earlier parts built
+  rather than what the brief assumed.
+- Overwrite the same file. There is no new claim: the epic keeps its number.
+- Run the architect, then `plan-artifacts.mjs check`.
+- The result is `Status: TODO`.
+- Over the cap: report and stop. There is no re-split in v1, because a re-split
+  would need new part numbers the other stubs already depend on.

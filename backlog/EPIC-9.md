@@ -74,7 +74,7 @@
 **Out of scope:** fill-in, the `ready` call, config, building epics in sequence.
 
 ### STORY-9-4: `/plan EPIC-n` fills in a stub; `carry` replaces a stub
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: S
 - select: risk_class=none@brief:L104 one_way_doors=0@brief:L104 existing_pattern=no@brief:L121 modules_crossed=3@brief:L104 review_bounced=no@brief:L104 risk_kind=code@brief:L104

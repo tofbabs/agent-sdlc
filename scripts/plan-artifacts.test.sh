@@ -88,6 +88,36 @@ grep -q "someone else" ../build7/backlog/FAST-7.md \
   && ok "branch copy left intact" || bad "branch copy clobbered"
 [ -e backlog/FAST-7.md ] && ok "planning copy kept when carry refuses" || bad "planning copy lost"
 
+# 5b. A committed STUB of the same ID is the one differing copy carry may replace:
+#     the filled-in plan supersedes it, and the result must be committed.
+printf '# EPIC-41: later part\n- Status: STUB\n' > "$TMP/stubcopy"
+printf '# EPIC-41: later part\n- Status: TODO\n\n## Stories\n\n### STORY-41-1: filled\n- estimate: S\n' > backlog/EPIC-41.md
+g worktree add -q ../build41 -b feat/EPIC-41 main
+mkdir -p ../build41/backlog && cp "$TMP/stubcopy" ../build41/backlog/EPIC-41.md
+g -C ../build41 add backlog/EPIC-41.md && g -C ../build41 commit -qm "docs: stub EPIC-41"
+( cd ../build41 && node "$PA" carry EPIC-41 --from "$TMP/main" >/dev/null 2>&1 )
+rc=$?
+[ $rc -eq 0 ] && ok "carry replaces a STUB copy of the same ID" || bad "stub replace: rc=$rc"
+g -C ../build41 show HEAD:backlog/EPIC-41.md 2>/dev/null | grep -q 'STORY-41-1: filled' \
+  && ok "filled-in plan is what the branch commits" || bad "stub still committed"
+subj=$(g -C ../build41 log -1 --format=%s)
+[ "$subj" = "docs: add EPIC-41 plan" ] && ok "stub replacement is committed" || bad "last commit is '$subj'"
+
+# 5c. Only a STUB of that ID is replaceable: a STUB heading another ID, or a non-STUB
+#     body that merely mentions STUB, is somebody else's work.
+printf '# EPIC-42: fill\n- Status: TODO\n' > backlog/EPIC-42.md
+g worktree add -q ../build42 -b feat/EPIC-42 main
+mkdir -p ../build42/backlog && printf '# EPIC-43: other\n- Status: STUB\n' > ../build42/backlog/EPIC-42.md
+( cd ../build42 && node "$PA" carry EPIC-42 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'EPIC-43' ../build42/backlog/EPIC-42.md \
+  && ok "carry refuses a STUB that belongs to another ID" || bad "foreign stub overwritten"
+printf '# EPIC-44: fill\n- Status: TODO\n' > backlog/EPIC-44.md
+g worktree add -q ../build44 -b feat/EPIC-44 main
+mkdir -p ../build44/backlog && printf '# EPIC-44: built\n- Status: DONE\n\nNotes: was Status: STUB once\n' > ../build44/backlog/EPIC-44.md
+( cd ../build44 && node "$PA" carry EPIC-44 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'DONE' ../build44/backlog/EPIC-44.md \
+  && ok "carry refuses a non-STUB copy that mentions STUB" || bad "non-stub overwritten"
+
 # 6. The shared ledger is never an Artifact — whole-file copy would clobber it.
 printf '# FAST-8\n- Artifacts: docs/TOOLING-DEBT.md\n' > backlog/FAST-8.md
 ( node "$PA" carry FAST-8 --from "$TMP/main" >/dev/null 2>&1 )
@@ -266,6 +296,32 @@ g clone -q --depth 1 "file://$TMP/rorigin.git" "$TMP/rshallow" && mkdir -p "$TMP
 cp "$TMP/rw/backlog/EPIC-32.md" "$TMP/rshallow/backlog/"
 out=$(cd "$TMP/rshallow" && node "$PA" ready EPIC-32 --base main 2>&1); rc=$?
 [ $rc -eq 3 ] && echo "$out" | grep -q 'git fetch --unshallow origin main' && ok "ready fails closed in a shallow checkout" || bad "shallow: rc=$rc out=$out"
+
+# 12. Fill-in: a stub whose merged dependency is unmerged must stop before the planner
+#     touches it, and /plan must route EPIC-<n> there without growing past its cap.
+printf '# EPIC-37\n- Depends on: EPIC-77 (merged)\n- Status: STUB\n\n## Stories\n\n### STORY-37-1: s\n- estimate: S\n' > backlog/EPIC-37.md
+before=$(cksum < backlog/EPIC-37.md)
+out=$(rdy EPIC-37 --base main --deps-only); rc=$?
+[ $rc -eq 3 ] && [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 1 ] && [ "$before" = "$(cksum < backlog/EPIC-37.md)" ] \
+  && ok "deps-only stops an unmerged stub with one line and leaves it unchanged" || bad "stub deps: rc=$rc out=$out"
+fill=$(sed -n '/^## FILL-IN/,/^## /p' "$PLANMD")
+miss=""
+for s in 'EPIC-<n>' '--deps-only' 'STUB' 'epic-budget.md'; do
+  printf '%s' "$fill" | grep -qF -- "$s" || miss="$miss [$s]"
+done
+printf '%s' "$fill" | grep -qiE 'refus|not a stub' || miss="$miss [refusal of a non-STUB]"
+[ -z "$miss" ] && ok "plan.md has a FILL-IN section: deps-only gate, STUB only, protocol in the reference" || bad "FILL-IN missing:$miss"
+
+# 13. The fill-in protocol lives in the reference; without each rule the planner may claim a
+#     new number, re-split an over-cap result, or leave the stub's Status unchanged.
+fi=$(sed -n '/^## FILL-IN/,$p' "$REF")
+miss=""
+for s in 'Brief:' 'no new claim' 'merged code' 'architect' 'check' 'Status: TODO' 're-split'; do
+  printf '%s' "$fi" | grep -qF -- "$s" || miss="$miss [$s]"
+done
+printf '%s' "$fi" | grep -qiE 'only (that part|the part)|that part.s stories' || miss="$miss [limited to the part's stories]"
+printf '%s' "$fi" | grep -qiE 'over the cap.*(report|stop)|(report|stop).*over the cap' || miss="$miss [over cap reports and stops]"
+[ -z "$miss" ] && ok "epic-budget.md has a FILL-IN protocol" || bad "FILL-IN protocol missing:$miss"
 
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'

@@ -4,7 +4,7 @@ argument-hint: <path-to-brief.md-or-epic-description> [--fast] [--model <agent>=
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(cat:*)
 ---
 
-Input: `$ARGUMENTS` minus flags.
+Input: `$ARGUMENTS` sans flags.
 **Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md`.
 **Consent:** `cat ${CLAUDE_PLUGIN_ROOT}/reference/consent.md` first.
 
@@ -14,7 +14,7 @@ Input: `$ARGUMENTS` minus flags.
 
 ## FAST LANE
 
-`--fast` replaces everything below: one planner call, a ~40-line task list, no architect pass unless a one-way door is tagged.
+`--fast` replaces everything below: one planner call, a ~40-line list, no architect pass unless a one-way door is tagged.
 
 ```bash
 cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
@@ -29,11 +29,10 @@ epic — the planner never picks a number.
 
 ```
 Agent(subagent_type: "agentic-sdlc:planner", prompt: "Decompose this into epics and stories with
-acceptance criteria. Raise ARCH-<n> handoffs for architecture or tooling
-decisions — do NOT decide them. Overwrite <claimed path>.")
+acceptance criteria. Raise ARCH-<n> for architecture or tooling decisions; do NOT decide them. Overwrite <claimed path>.")
 ```
 
-Over the cap: planner returns later parts' outline (SPLIT in epic-budget.md); claim one EPIC per part, Part 1 in full, later parts stubs. Several epics: parallel.
+Over the cap: planner returns later parts' outline (SPLIT in epic-budget.md); claim one EPIC per part, Part 1 in full, later parts stubs.
 
 ---
 
@@ -43,24 +42,25 @@ Each `OPEN` `ARCH-<n>`:
 
 ```
 Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n>. Read the codebase first;
-consistency beats cleverness. WebFetch version-dependent facts. DECIDE. ADR only for one-way doors; else resolve inline in the epic file. Shortcuts go under ## Debt there.")
+consistency beats cleverness. DECIDE. ADR only for one-way doors; else resolve inline in the epic file. Shortcuts go under ## Debt there.")
 ```
 
-Batch related handoffs into one call.
+Batch related handoffs.
 
 ---
 
 ## STEP 3 — Review (non-blocking)
 
-Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>` on each epic. Fail → one re-split with the error text; again → report "still over", stop.
+Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>` on each epic. Fail → one re-split with the error; again → "still over", stop.
 Add `- Artifacts:` (new ADRs, brief). Record the lane (Part 1 only):
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen deliberate`.
-Show:
-- Epics, stories
-- Architecture decisions and reasoning
-- Any ADR, new tooling debt
+Show epics, stories, decisions and reasoning, ADRs, debt. Silence lets `/build` proceed.
 
-**Skim it, correct anything wrong.** Silence lets `/build` proceed.
+---
+
+## FILL-IN
+
+Input `EPIC-<n>`: run `plan-artifacts.mjs ready EPIC-<n> --deps-only`; non-zero → stop. Not a STUB → refuse, change nothing. Else follow `reference/epic-budget.md`.
 
 ---
 

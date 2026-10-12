@@ -114,6 +114,12 @@ function isUntracked(file, cwd) {
   return tryGit(['ls-files', '--error-unmatch', '--', file], cwd) === null
 }
 
+// A stub is a placeholder awaiting its fill-in; matching the status line and the
+// own-ID heading (not a substring) keeps someone else's real work from qualifying.
+function isOwnStub(text, id) {
+  return new RegExp(`^# ${id}\\b`, 'm').test(text) && /^[-*\s]*Status:\s*STUB\s*$/m.test(text)
+}
+
 function carry(id, from) {
   if (!/^(EPIC|FAST)-\d+$/.test(id ?? '')) die(`carry takes an ID like FAST-7, got "${id}"`)
   if (!from) die('carry needs --from <the checkout /plan ran in>')
@@ -137,7 +143,8 @@ function carry(id, from) {
     const src = join(there, rel)
     if (!existsSync(src)) die(`${rel} is listed in ${planRel} but missing from ${there}`)
     const dst = join(here, rel)
-    if (!sameCheckout && existsSync(dst) && readFileSync(dst, 'utf8') !== readFileSync(src, 'utf8')) {
+    if (!sameCheckout && existsSync(dst) && readFileSync(dst, 'utf8') !== readFileSync(src, 'utf8') &&
+        !(rel === planRel && isOwnStub(readFileSync(dst, 'utf8'), id))) {
       die(`${rel} already exists on this branch with different content — refusing to overwrite`)
     }
   }
