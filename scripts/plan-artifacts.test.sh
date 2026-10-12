@@ -210,11 +210,40 @@ dep EPIC-23 "none"
 chk EPIC-23 >/dev/null; [ $? -eq 0 ] && ok "check passes Depends on: none" || bad "none rejected"
 chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes an epic with no Depends-on header" || bad "no header rejected"
 
+# 9b. check reads its cap, weights and limits from .claude/agentic-sdlc.json; a bad
+#     config stops it with exit 2 instead of quietly applying the plugin's numbers.
+mkdir -p "$TMP/chk/.claude"
+cfg() { printf '%s' "$1" > "$TMP/chk/.claude/agentic-sdlc.json"; }
+cfg '{"plan":{"epic":{"cap":8,"points":{"S":2,"M":4,"L":8}}}}'
+epic EPIC-30 M M S; out=$(chk EPIC-30); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'cap of 8' && ok "check names the configured cap of 8" || bad "10 over cap 8: rc=$rc out=$out"
+epic EPIC-31 M M;   chk EPIC-31 >/dev/null; [ $? -eq 0 ] && ok "check passes exactly at the configured cap" || bad "2 M at cap 8 rejected"
+cfg '{"plan":{"epic":{"max_lines":20,"stories_by_line":5}}}'
+{ echo "# EPIC-32: t"; pad 5; echo "## Stories"; echo "### STORY-32-1: s"; echo "- estimate: S"; } > "$TMP/chk/backlog/EPIC-32.md"
+out=$(chk EPIC-32); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'line 5' && ok "check reports the configured stories-by-line" || bad "configured stories_by_line: rc=$rc out=$out"
+cfg '{"plan":{"epic":{"max_lines":4,"stories_by_line":3}}}'
+{ echo "# EPIC-33: t"; echo; echo "## Stories"; echo "### STORY-33-1: s"; echo "- estimate: S"; } > "$TMP/chk/backlog/EPIC-33.md"
+out=$(chk EPIC-33); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'limit of 4' && ok "check reports the configured max_lines" || bad "configured max_lines: rc=$rc out=$out"
+cfg '{"plan":{"epic":{"cap":"big"}}}'
+epic EPIC-34 S; out=$(chk EPIC-34); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'config: plan.epic.cap' && ! echo "$out" | grep -q 'points' && ok "check exits 2 on a bad config, no default fallback" || bad "bad config: rc=$rc out=$out"
+cfg '{ not json'
+chk EPIC-34 >/dev/null; [ $? -eq 2 ] && ok "check exits 2 on invalid JSON" || bad "invalid JSON did not exit 2"
+cfg '{"telemetry":{"consent":true}}'
+out=$(cd "$TMP/chk" && node "$PA" check EPIC-1 2>&1 >/dev/null); rc=$?
+[ $rc -eq 0 ] && [ -z "$out" ] && ok "telemetry-only config behaves as today, silent on stderr" || bad "telemetry-only: rc=$rc err=$out"
+rm -f "$TMP/chk/.claude/agentic-sdlc.json"
+
 # 10. The budget reference must state the constants plan-artifacts.mjs enforces.
 REF="$ROOT/plugins/agentic-sdlc/reference/epic-budget.md"
-const() { sed -n "s/^const $1 = \\(.*\\)$/\\1/p" "$PA"; }
-pts=$(const POINTS | tr -d '{}:,' | tr -s ' ' | sed 's/^ *//;s/ *$//')
-cap=$(const EPIC_CAP); ml=$(const MAX_LINES); sl=$(const STORIES_BY_LINE)
+CFG="$ROOT/plugins/agentic-sdlc/scripts/config.mjs"
+# Defaults are owned by config.mjs alone; read them the way /plan does.
+dflt=$(mkdir -p "$TMP/nocfg" && cd "$TMP/nocfg" && node "$CFG" get plan.epic)
+jq_() { node -e "const e=JSON.parse(process.argv[1]);console.log($1)" "$dflt"; }
+pts=$(jq_ "['S','M','L'].map(k=>k+' '+e.points[k]).join(' ')")
+cap=$(jq_ 'e.cap'); ml=$(jq_ 'e.max_lines'); sl=$(jq_ 'e.stories_by_line')
 want_rows=$(for k in S M L; do echo "| $k | $(echo "$pts" | sed -n "s/.*$k \\([0-9]*\\).*/\\1/p") |"; done)
 drift=""
 while IFS= read -r row; do grep -qF -- "$row" "$REF" || drift="$drift [$row]"; done <<< "$want_rows"

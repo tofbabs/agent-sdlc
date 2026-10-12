@@ -4,24 +4,23 @@
 // because of a bad config file.
 
 import fs from 'node:fs';
-import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { TERMS } from './run-report-categories.mjs';
+import { readRaw, updateConfig } from './config.mjs';
 
-const fileFor = (cwd) => path.join(cwd, '.claude', 'agentic-sdlc.json');
-
-function load(file) {
+function load(cwd) {
   try {
-    const v = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    return readRaw(cwd) ?? {};
   } catch {
     return {};
   }
 }
 
+const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+
 // true, false or 'unanswered'.
 export function readConsent(cwd) {
-  const { share, terms } = load(fileFor(cwd)).telemetry ?? {};
+  const { share, terms } = load(cwd).telemetry ?? {};
   // A yes covers only the terms it was given under; a no is never re-asked.
   const stale = share === true && !(Number.isInteger(terms) && terms >= TERMS);
   return typeof share === 'boolean' && !stale ? share : 'unanswered';
@@ -32,7 +31,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process
   const [cmd, ...rest] = process.argv.slice(2);
   const ci = rest.indexOf('--cwd');
   const cwd = ci >= 0 ? rest[ci + 1] : process.cwd();
-  const file = fileFor(cwd);
 
   if (cmd === 'get') {
     console.log(`share=${readConsent(cwd)}`);
@@ -42,12 +40,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process
       console.error('usage: consent.mjs set <true|false> [--cwd <dir>]');
       process.exit(2);
     }
-    const cfg = load(file);
-    const tel = cfg.telemetry && typeof cfg.telemetry === 'object' ? cfg.telemetry : {};
-    const { share: _s, ...rest2 } = tel;
-    cfg.telemetry = val === 'true' ? { ...rest2, share: true, terms: TERMS } : { ...rest2, share: false };
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
+    try {
+      updateConfig(cwd, (cfg) => {
+        const tel = isObj(cfg.telemetry) ? cfg.telemetry : {};
+        const { share: _s, ...others } = tel;
+        cfg.telemetry = val === 'true' ? { ...others, share: true, terms: TERMS } : { ...others, share: false };
+        return cfg;
+      });
+    } catch (e) {
+      console.error(e.message);
+      process.exit(1);
+    }
   } else {
     console.error('usage: consent.mjs get|set <true|false> [--cwd <dir>]');
     process.exit(2);

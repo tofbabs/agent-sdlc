@@ -55,6 +55,11 @@ check "set preserves other top-level keys" \
 check "set preserves sibling telemetry keys" \
   "$(node -e "process.stdout.write(String(JSON.parse(require('fs').readFileSync('$(cfg "$P")','utf8')).telemetry.terms))")" '2'
 
+P=$(proj setbroken); mkdir -p "$P/.claude"; printf '{ "telemetry": ' > "$(cfg "$P")"; before=$(cat "$(cfg "$P")")
+node "$S/consent.mjs" set true --cwd "$P" 2>/dev/null; rc=$?
+[ "$rc" != 0 ] && [ "$(cat "$(cfg "$P")")" = "$before" ] \
+  && ok "set on a syntactically broken config exits non-zero and leaves it byte-identical" || bad "set on broken config: rc=$rc or file changed"
+
 P=$(proj badarg)
 node "$S/consent.mjs" set maybe --cwd "$P" 2>/dev/null; rc=$?
 [ "$rc" != 0 ] && ok "set rejects a value that is not true or false" || bad "set accepted 'maybe'"
