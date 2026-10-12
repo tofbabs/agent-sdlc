@@ -252,6 +252,39 @@ grep -qF -- "**$ml lines**" "$REF" || drift="$drift [max_lines $ml]"
 grep -qF -- "starts by line $sl" "$REF" || drift="$drift [stories_by_line $sl]"
 [ -z "$cap" ] || [ -z "$ml" ] || [ -z "$sl" ] && drift="$drift [constants not parsed]"
 [ -z "$drift" ] && ok "epic-budget.md matches the weights, cap and limits in plan-artifacts.mjs" || bad "epic-budget.md drifted:$drift"
+# 10a. The reference names the config file as the source, labels its numbers as
+#      defaults, and tells /plan to fetch the effective budget for the planner
+#      (which has no Bash); anchors in the table must match the defaults too.
+miss=""
+grep -qF '.claude/agentic-sdlc.json' "$REF" || miss="$miss [names the config file]"
+grep -qiE 'defaults' "$REF" || miss="$miss [labels numbers as defaults]"
+grep -qF 'config.mjs get plan.epic' "$REF" || miss="$miss [get plan.epic call]"
+grep -qiE 'before (spawning|running) the planner' "$REF" || miss="$miss [before spawning the planner]"
+grep -qiE 'paste' "$REF" || miss="$miss [paste JSON into prompt]"
+grep -qiE 'non-zero' "$REF" || miss="$miss [stop on non-zero exit]"
+grep -qF 'STEP 1' "$REF" || miss="$miss [STEP 1]"
+grep -qF 'FILL-IN' "$REF" || miss="$miss [FILL-IN]"
+[ -z "$miss" ] && ok "epic-budget.md names the config source and the /plan fetch-and-paste step" || bad "epic-budget.md missing:$miss"
+anchor_rows=$(node -e "const a=JSON.parse(process.argv[1]).anchors;for(const k of ['S','M','L'])console.log(k+' '+a[k].lines+' '+a[k].files)" "$dflt")
+drift=""
+while read -r k l f; do
+  grep -qE "^\| $k \| ≤ ~$l \| ≤ ~$f \|" "$REF" || drift="$drift [anchors $k $l/$f]"
+done <<< "$anchor_rows"
+[ -z "$drift" ] && ok "epic-budget.md anchors match the config.mjs defaults" || bad "anchor table drifted:$drift"
+# The setup guide is where a project owner learns the file exists, so it must say what the plan.epic block overrides.
+SETUP="$ROOT/docs/setup.md"
+sect=$(awk '/^## /{on=0} /^## Plugin settings|^## Settings/{on=1} on' "$SETUP")
+miss=""
+[ -n "$sect" ] || miss="$miss [settings section]"
+echo "$sect" | grep -qF '.claude/agentic-sdlc.json' || miss="$miss [file]"
+echo "$sect" | grep -qF 'plan.epic' || miss="$miss [plan.epic]"
+echo "$sect" | grep -qF 'config.mjs get plan.epic' || miss="$miss [get command]"
+[ -z "$miss" ] && ok "setup.md documents the plan.epic settings" || bad "setup.md missing:$miss"
+# 10a'. AC1: configured weights score 2 M + 1 S as 10 of 12 and pass.
+cfg '{"plan":{"epic":{"cap":12,"points":{"S":2,"M":4,"L":12}}}}'
+epic EPIC-35 M M S; out=$(chk EPIC-35); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '10/12' && ok "check scores 2 M + 1 S as 10/12 and passes" || bad "10/12: rc=$rc out=$out"
+rm -f "$TMP/chk/.claude/agentic-sdlc.json"
 # 10b. The template is what the planner copies; without these header lines a split
 #      epic has nowhere to record its parent brief, position and predecessor.
 TPL="$ROOT/templates/backlog/EPIC-template.md"

@@ -27,7 +27,7 @@ check "no file: max_lines defaults to 150" "$(get "$P" plan.epic.max_lines)" "15
 check "no file: stories_by_line defaults to 40" "$(get "$P" plan.epic.stories_by_line)" "40"
 check "no file: points.M defaults to 5" "$(get "$P" plan.epic.points.M)" "5"
 check "no file: plan.epic prints one line of compact JSON" "$(get "$P" plan.epic)" \
-  '{"points":{"S":3,"M":5,"L":15},"cap":15,"max_lines":150,"stories_by_line":40}'
+  '{"points":{"S":3,"M":5,"L":15},"cap":15,"max_lines":150,"stories_by_line":40,"anchors":{"S":{"lines":150,"files":4},"M":{"lines":400,"files":8},"L":{"lines":800,"files":12}}}'
 check "no file: stderr is empty" "$(cat "$TMP/err")" ""
 
 P=$(proj teleonly); echo '{"telemetry":{"share":true,"terms":1}}' > "$(cfg "$P")"
@@ -45,6 +45,12 @@ check "an unset leaf keeps its default beside an override" "$(get "$P" plan.epic
 P=$(proj lines); echo '{"plan":{"epic":{"max_lines":200,"stories_by_line":60}}}' > "$(cfg "$P")"
 check "max_lines override" "$(get "$P" plan.epic.max_lines)" "200"
 check "stories_by_line override" "$(get "$P" plan.epic.stories_by_line)" "60"
+
+P=$(proj anch); echo '{"plan":{"epic":{"anchors":{"M":{"lines":300}}}}}' > "$(cfg "$P")"
+check "a partial anchors override merges per leaf into the effective plan.epic" "$(get "$P" plan.epic)" \
+  '{"points":{"S":3,"M":5,"L":15},"cap":15,"max_lines":150,"stories_by_line":40,"anchors":{"S":{"lines":150,"files":4},"M":{"lines":300,"files":8},"L":{"lines":800,"files":12}}}'
+check "an anchors leaf is reachable by dotted key" "$(get "$P" plan.epic.anchors.M.lines)" "300"
+check "anchors override: stderr is empty" "$(cat "$TMP/err")" ""
 
 echo "invalid config is an error, never a default (AC4)"
 bogus() { # name, file body, key to get, expected stderr
@@ -65,6 +71,11 @@ bogus lcap '{"plan":{"epic":{"cap":8}}}' plan.epic.cap 'config: plan.epic.points
 bogus order '{"plan":{"epic":{"points":{"S":6}}}}' plan.epic.cap 'config: plan.epic.points.S: 6 exceeds plan.epic.points.M 5, the default'
 bogus lineorder '{"plan":{"epic":{"stories_by_line":151}}}' plan.epic.cap 'config: plan.epic.stories_by_line: 151 exceeds plan.epic.max_lines 150, the default'
 bogus badsize '{"plan":{"epic":{"points":{"m":4}}}}' plan.epic.cap 'config: plan.epic.points.m: unknown size, expected S, M or L'
+bogus anchorsize '{"plan":{"epic":{"anchors":{"m":{"lines":400}}}}}' plan.epic.cap 'config: plan.epic.anchors.m: unknown size, expected S, M or L'
+bogus anchorint '{"plan":{"epic":{"anchors":{"M":{"files":2.5}}}}}' plan.epic.cap 'config: plan.epic.anchors.M.files: must be an integer >= 1'
+bogus anchorobj '{"plan":{"epic":{"anchors":[]}}}' plan.epic.cap 'config: plan.epic.anchors: must be an object'
+bogus anchororder '{"plan":{"epic":{"anchors":{"S":{"lines":500}}}}}' plan.epic.cap 'config: plan.epic.anchors.S.lines: 500 exceeds plan.epic.anchors.M.lines 400, the default'
+bogus anchorfiles '{"plan":{"epic":{"anchors":{"M":{"files":13}}}}}' plan.epic.cap 'config: plan.epic.anchors.M.files: 13 exceeds plan.epic.anchors.L.files 12, the default'
 
 echo "unknown keys warn once and are ignored (AC4)"
 P=$(proj unk); echo '{"schema":1,"foo":1,"plan":{"bar":2,"epic":{"cap":20,"baz":3}}}' > "$(cfg "$P")"

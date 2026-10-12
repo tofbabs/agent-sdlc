@@ -193,6 +193,19 @@ cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
 
 ---
 
+## Plugin settings
+
+Optional. `.claude/agentic-sdlc.json` lets a project override plugin defaults;
+without it the defaults apply. The `plan.epic` block sets the epic budget, and
+each leaf (`points`, `cap`, `max_lines`, `stories_by_line`, `anchors`) overrides
+its default on its own. `anchors` are advisory sizing guidance, not enforced.
+
+```bash
+config.mjs get plan.epic   # prints the effective values, defaults merged in
+```
+
+---
+
 ## Telemetry consent
 
 `/agentic-sdlc:plan` and `/agentic-sdlc:build` ask once, per project, whether

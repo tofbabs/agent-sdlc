@@ -1,8 +1,17 @@
 # Epic budget — weights, limits and size anchors
 
 Read by `/plan` in STEP 1, and by the planner when it sizes a story. The
-numbers live in `scripts/plan-artifacts.mjs`; `plan-artifacts.test.sh` fails
-if this file and the script disagree.
+numbers below are the **defaults**; they live in `scripts/plan-artifacts.mjs`,
+and `plan-artifacts.test.sh` fails if this file and the script disagree. A
+project overrides them in `.claude/agentic-sdlc.json` under `plan.epic`.
+
+## EFFECTIVE BUDGET
+
+The planner has no Bash, so it cannot read the config itself. In STEP 1 and
+in FILL-IN, before spawning the planner, `/plan` runs
+`config.mjs get plan.epic`, pastes the JSON into the planner prompt as the
+effective budget, and stops on a non-zero exit rather than planning against
+the defaults.
 
 ---
 
@@ -26,7 +35,7 @@ non-S|M|L estimate and a missing `Depends on` target.
 
 ## ANCHORS
 
-Counted over production plus test lines, excluding `backlog/` and `docs/`.
+Defaults, counted over production plus test lines, excluding `backlog/` and `docs/`.
 
 | Size | Lines changed | Files touched | New modules |
 |------|---------------|---------------|-------------|

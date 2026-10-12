@@ -13,6 +13,7 @@ const DEFAULTS = {
       cap: 15,
       max_lines: 150,
       stories_by_line: 40,
+      anchors: { S: { lines: 150, files: 4 }, M: { lines: 400, files: 8 }, L: { lines: 800, files: 12 } },
     },
   },
 };
@@ -35,6 +36,7 @@ export class ConfigError extends Error {
 
 const isInt = (v) => Number.isInteger(v) && v >= 1;
 const SIZES = ['S', 'M', 'L'];
+const ANCHOR_DIMS = ['lines', 'files'];
 const LIMITS = ['cap', 'max_lines', 'stories_by_line'];
 
 function validateShape(raw) {
@@ -49,13 +51,26 @@ function validateShape(raw) {
       throw new ConfigError(`plan.epic.${k}`, 'must be an integer >= 1');
     }
   }
-  if (epic.points === undefined) return;
-  if (!isObj(epic.points)) throw new ConfigError('plan.epic.points', 'must be an object');
-  for (const [k, v] of Object.entries(epic.points)) {
-    if (!SIZES.includes(k)) {
-      throw new ConfigError(`plan.epic.points.${k}`, 'unknown size, expected S, M or L');
+  if (epic.points !== undefined) {
+    if (!isObj(epic.points)) throw new ConfigError('plan.epic.points', 'must be an object');
+    for (const [k, v] of Object.entries(epic.points)) {
+      if (!SIZES.includes(k)) {
+        throw new ConfigError(`plan.epic.points.${k}`, 'unknown size, expected S, M or L');
+      }
+      if (!isInt(v)) throw new ConfigError(`plan.epic.points.${k}`, 'must be an integer >= 1');
     }
-    if (!isInt(v)) throw new ConfigError(`plan.epic.points.${k}`, 'must be an integer >= 1');
+  }
+  if (epic.anchors === undefined) return;
+  if (!isObj(epic.anchors)) throw new ConfigError('plan.epic.anchors', 'must be an object');
+  for (const [size, leaf] of Object.entries(epic.anchors)) {
+    const at = `plan.epic.anchors.${size}`;
+    if (!SIZES.includes(size)) throw new ConfigError(at, 'unknown size, expected S, M or L');
+    if (!isObj(leaf)) throw new ConfigError(at, 'must be an object');
+    for (const dim of ANCHOR_DIMS) {
+      if (leaf[dim] !== undefined && !isInt(leaf[dim])) {
+        throw new ConfigError(`${at}.${dim}`, 'must be an integer >= 1');
+      }
+    }
   }
 }
 
@@ -71,6 +86,7 @@ function validateOrder(epic, rawEpic) {
     ['points.M', 'points.L'],
     ['points.L', 'cap'],
     ['stories_by_line', 'max_lines'],
+    ...ANCHOR_DIMS.flatMap((d) => [[`anchors.S.${d}`, `anchors.M.${d}`], [`anchors.M.${d}`, `anchors.L.${d}`]]),
   ];
   const at = (key) => key.split('.').reduce((o, k) => o[k], epic);
   for (const [lo, hi] of chain) {
@@ -87,7 +103,7 @@ function validateOrder(epic, rawEpic) {
 const KNOWN = {
   schema: true,
   telemetry: true,
-  plan: { epic: { points: { S: true, M: true, L: true }, cap: true, max_lines: true, stories_by_line: true } },
+  plan: { epic: { points: { S: true, M: true, L: true }, cap: true, max_lines: true, stories_by_line: true, anchors: { S: { lines: true, files: true }, M: { lines: true, files: true }, L: { lines: true, files: true } } } },
 };
 
 // Keeps only registered keys so a typo can never leak into the effective config.
