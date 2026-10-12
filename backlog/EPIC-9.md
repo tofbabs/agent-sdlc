@@ -18,7 +18,7 @@
 
 ## Stories
 ### STORY-9-1: `reference/epic-budget.md`, anchors, and pointer-only prose in planner/plan
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L142 one_way_doors=0@brief:L142 existing_pattern=yes@brief:L142 modules_crossed=2@brief:L142 review_bounced=no@brief:L142 risk_kind=code@brief:L142

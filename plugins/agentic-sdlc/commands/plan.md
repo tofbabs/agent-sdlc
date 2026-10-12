@@ -21,13 +21,13 @@ Build a backlog. **Delegate — you write no stories.**
 cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
 ```
 
-**Read it before STEP 1** — that file is the protocol, this is not.
+**Read it before STEP 1.**
 
 ---
 
 ## STEP 1 — Decompose
 
-`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md`, then `claim EPIC` once
+`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md` and `reference/epic-budget.md`, then `claim EPIC` once
 per epic — never let the planner pick a number.
 
 ```

@@ -166,7 +166,20 @@ dep EPIC-23 "none"
 chk EPIC-23 >/dev/null; [ $? -eq 0 ] && ok "check passes Depends on: none" || bad "none rejected"
 chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes an epic with no Depends-on header" || bad "no header rejected"
 
-# 10. ready: stub refusal and merged-dependency anchoring against origin/<base>.
+# 10. The budget reference must state the constants plan-artifacts.mjs enforces.
+REF="$ROOT/plugins/agentic-sdlc/reference/epic-budget.md"
+const() { sed -n "s/^const $1 = \\(.*\\)$/\\1/p" "$PA"; }
+pts=$(const POINTS | tr -d '{}:,' | tr -s ' ' | sed 's/^ *//;s/ *$//')
+cap=$(const EPIC_CAP); ml=$(const MAX_LINES); sl=$(const STORIES_BY_LINE)
+want_rows=$(for k in S M L; do echo "| $k | $(echo "$pts" | sed -n "s/.*$k \\([0-9]*\\).*/\\1/p") |"; done)
+drift=""
+while IFS= read -r row; do grep -qF -- "$row" "$REF" || drift="$drift [$row]"; done <<< "$want_rows"
+grep -qF -- "**Cap: $cap points" "$REF" || drift="$drift [cap $cap]"
+grep -qF -- "**$ml lines**" "$REF" || drift="$drift [max_lines $ml]"
+grep -qF -- "starts by line $sl" "$REF" || drift="$drift [stories_by_line $sl]"
+[ -z "$cap" ] || [ -z "$ml" ] || [ -z "$sl" ] && drift="$drift [constants not parsed]"
+[ -z "$drift" ] && ok "epic-budget.md matches the weights, cap and limits in plan-artifacts.mjs" || bad "epic-budget.md drifted:$drift"
+# 11. ready: stub refusal and merged-dependency anchoring against origin/<base>.
 rdy() { (cd "$TMP/rw" && node "$PA" ready "$@" 2>&1); }
 g init -q --bare "$TMP/rorigin.git"
 g init -q "$TMP/rw" && cd "$TMP/rw"
