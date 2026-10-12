@@ -21,6 +21,7 @@
 ### STORY-10-1: `config.mjs` reader with the `plan` key; `check` and `consent` use it
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: M
 - select: risk_class=none@brief:L125 one_way_doors=0@brief:L125 existing_pattern=yes@brief:L190 modules_crossed=3@brief:L125 review_bounced=no@brief:L125 risk_kind=code@brief:L125
 - depends_on: []
@@ -46,6 +47,7 @@
 ### STORY-10-2: Config covers anchors and the planner's numbers end to end
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: S
 - select: risk_class=none@brief:L125 one_way_doors=0@brief:L125 existing_pattern=yes@brief:L190 modules_crossed=3@brief:L125 review_bounced=no@brief:L125 risk_kind=code@brief:L125
 - depends_on: [STORY-10-1]
