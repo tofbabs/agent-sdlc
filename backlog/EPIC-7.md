@@ -169,7 +169,7 @@ only delegates to `/review`.
 
 ### STORY-7-2: `/build` resumes an existing `feat/<id>`
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 4 at or above 4 is PAIR
 - correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M

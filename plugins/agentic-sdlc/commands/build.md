@@ -79,12 +79,12 @@ Set up the integration branch once, then topologically sort by `depends_on` into
 waves:
 
 ```bash
-git worktree add ../wt-EPIC-<n> -b feat/EPIC-<n> origin/<base>   # integration only — never edit here
+node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs resume EPIC-<n> --base <base>   # never edit here
 cd ../wt-EPIC-<n> && node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs carry EPIC-<n> --from <plan checkout>
 ```
 
-`carry` commits the plan as the epic's first commit (`reference/plan-artifacts.md`);
-from then on update status in the branch copy only. It refuses → ask the human.
+A `resume` conflict stops the run. `carry` commits the plan first (`reference/plan-artifacts.md`);
+then update status in the branch copy only. Either refuses → ask the human.
 
 ```
 For each wave (stories whose depends_on have all LANDED on feat/EPIC-<n>):
@@ -254,8 +254,7 @@ the PR comment; the coder owns only the judgment.** When the latest round says
 0. Set up — the round gets its own branch, exactly like a story:
        gh pr view <n> --json headRefName,baseRefName   → feat/EPIC-<n>, <base>
        git fetch origin feat/EPIC-<n>
-       ../wt-EPIC-<n> missing (a new session)?
-           git worktree add ../wt-EPIC-<n> feat/EPIC-<n>
+       ../wt-EPIC-<n> missing (a new session)?  run `resume EPIC-<n>` again
        git worktree add ../wt-REVISE-<n>-<k> -b fix/EPIC-<n>-round-<k> feat/EPIC-<n>
 
 1. Agent(subagent_type: "agentic-sdlc:coder", prompt: "MODE: REVISE on PR <n> in

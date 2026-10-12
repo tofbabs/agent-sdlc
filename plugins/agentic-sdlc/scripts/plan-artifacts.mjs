@@ -161,6 +161,9 @@ function carry(id, from) {
 
   const planRel = `backlog/${id}.md`
   const planSrc = join(there, planRel)
+  // A resumed branch already carries its plan; the planning checkout may never
+  // have had it. An untracked copy still goes through the refusal check below.
+  if (!existsSync(planSrc) && !sameCheckout && tryGit(['cat-file', '-e', `HEAD:${planRel}`], here) !== null) return
   if (!existsSync(planSrc)) die(`${planSrc} not found — nothing to carry`)
   let plan = readFileSync(planSrc, 'utf8')
 
@@ -328,10 +331,42 @@ function ready(id) {
   }
 }
 
+// ---------------------------------------------------------------- resume
+
+// A branch pushed by an earlier session already holds the committed plan, so it is
+// checked out (tracking, no -b) rather than recreated.
+function resume(id, base) {
+  const top = git(['rev-parse', '--show-toplevel']).trim()
+  const wt = resolve(top, '..', `wt-${id}`)
+  if (tryGit(['fetch', 'origin', `feat/${id}`], top) === null) {
+    // Unpushed work from an earlier session: a second branch would orphan it.
+    if (tryGit(['rev-parse', '--verify', '--quiet', `refs/heads/feat/${id}`], top) !== null) {
+      git(['worktree', 'add', wt, `feat/${id}`], top)
+      return
+    }
+    // No branch anywhere: a first session, so start from the base as claim would.
+    git(['fetch', 'origin', base], top)
+    git(['worktree', 'add', wt, '-b', `feat/${id}`, `origin/${base}`], top)
+    return
+  }
+  git(['worktree', 'add', wt, `feat/${id}`], top)
+  // Merge, never rebase: the branch is already pushed and a force push is denied.
+  git(['fetch', 'origin', base], wt)
+  const mine = git(['rev-parse', 'HEAD'], wt).trim()
+  const theirs = git(['rev-parse', `origin/${base}`], wt).trim()
+  if (tryGit(['merge', '--no-edit', `origin/${base}`], wt) === null) {
+    // Listed before the abort, which clears the unmerged state.
+    const paths = (tryGit(['diff', '--name-only', '--diff-filter=U'], wt) ?? '').trim().split('\n').join(', ')
+    tryGit(['merge', '--abort'], wt)
+    die(`merge of origin/${base} conflicts in: ${paths}; branch ${mine}, base ${theirs}; resolve by hand`)
+  }
+}
+
 // ---------------------------------------------------------------- dispatch
 
 if (command === 'claim') claim(arg)
+else if (command === 'resume') resume(arg, flags.base)
 else if (command === 'carry') carry(arg, flags.from)
 else if (command === 'check') check(arg)
 else if (command === 'ready') ready(arg)
-else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | carry <ID> --from <planning checkout> | check <ID> | ready <EPIC-n> --base <base> [--deps-only]')
+else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | resume <ID> --base <base> | carry <ID> --from <planning checkout> | check <ID> | ready <EPIC-n> --base <base> [--deps-only]')
