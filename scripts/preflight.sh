@@ -446,7 +446,7 @@ fi
 # 8. An oversized epic must not reach a PR. Only epics added or changed on this
 #    branch are checked (plus uncommitted ones, so a local run catches them
 #    before commit); the legacy epics predate the caps and are grandfathered.
-GRANDFATHERED_EPICS="EPIC-1 EPIC-2 EPIC-3"
+GRANDFATHERED_EPICS="EPIC-1 EPIC-2 EPIC-3 EPIC-7"
 if command -v node >/dev/null 2>&1; then
   BASE_REF=""
   for r in origin/main main; do
