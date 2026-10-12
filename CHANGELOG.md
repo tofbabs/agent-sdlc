@@ -2,6 +2,38 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.13](https://github.com/tofbabs/agent-sdlc/compare/v0.2.12...v0.2.13) (2026-10-12)
+
+
+### Features
+
+* **build:** /build resumes an existing feat/&lt;id&gt; [STORY-7-2] ([c89adbf](https://github.com/tofbabs/agent-sdlc/commit/c89adbfcbdcd6847e1b34cf7e4b217d64e33d425))
+* **config:** config.mjs reader with the plan key; check and consent use it [STORY-10-1] ([0918dde](https://github.com/tofbabs/agent-sdlc/commit/0918dde60d84044362fe38d1d14b8e6a64eb0522))
+* **gh:** REST-only gh [STORY-7-3] ([fffd1ea](https://github.com/tofbabs/agent-sdlc/commit/fffd1eab9c50e439c4e3664f8b2a4bc313c5dde7))
+* **plan-artifacts:** /build resumes an existing feat/&lt;id&gt; [STORY-7-2] ([c89adbf](https://github.com/tofbabs/agent-sdlc/commit/c89adbfcbdcd6847e1b34cf7e4b217d64e33d425))
+* **plan-artifacts:** plan --id &lt;id&gt; [STORY-7-1] ([4dc2bbf](https://github.com/tofbabs/agent-sdlc/commit/4dc2bbf7150f7481d9ebe8ba5da4d865940868c1))
+* **plan:** config covers anchors and the planner's numbers end to end [STORY-10-2] ([02bd271](https://github.com/tofbabs/agent-sdlc/commit/02bd2713ca90bf9a222f373f1e061f42b54609d6))
+* **plan:** plan --id &lt;id&gt; [STORY-7-1] ([4dc2bbf](https://github.com/tofbabs/agent-sdlc/commit/4dc2bbf7150f7481d9ebe8ba5da4d865940868c1))
+* **review:** consumers read the body verdict [STORY-7-9] ([b25d2b0](https://github.com/tofbabs/agent-sdlc/commit/b25d2b0a3ebed280923c4959ad9bc2926058f32b))
+* **review:** explicit reviewer model [STORY-7-4] ([9e4a1c1](https://github.com/tofbabs/agent-sdlc/commit/9e4a1c1adf88e274e535abdd15e91e4872785ce5))
+* **review:** review only green heads [STORY-7-5] ([d9ef475](https://github.com/tofbabs/agent-sdlc/commit/d9ef4757512625c1c31b029cdadeb2b3548d23eb))
+* **review:** round 1 is complete: BLOCKING tags and body verdict [STORY-7-6] ([278b2f9](https://github.com/tofbabs/agent-sdlc/commit/278b2f9074ff32875ea5dc61ffaf554c0ece9b77))
+* **review:** round cap from config, "needs a human" [STORY-7-8] ([7622b96](https://github.com/tofbabs/agent-sdlc/commit/7622b960816d2d817404eda9c65184f150e91d3f))
+* **review:** rounds 2+ only re-check [STORY-7-7] ([00dc05d](https://github.com/tofbabs/agent-sdlc/commit/00dc05d6a22b64ed874e8f4382da4a754ff434a6))
+
+
+### Documentation
+
+* add EPIC-10 plan ([153a912](https://github.com/tofbabs/agent-sdlc/commit/153a91295145c31508497407337588ceb8249773))
+* add EPIC-7 plan ([a14bd0a](https://github.com/tofbabs/agent-sdlc/commit/a14bd0ac26f26cbedd4c221de1422ac38a75d945))
+* mark EPIC-10 stories done [EPIC-10] ([7890da6](https://github.com/tofbabs/agent-sdlc/commit/7890da6fdfaf6ec01fa439786960be495dd8b974))
+* record mode selection [EPIC-10] ([5e62713](https://github.com/tofbabs/agent-sdlc/commit/5e62713e6e129e404b20e22cb3ce4fc0ac4e67ec))
+
+
+### Build System
+
+* **preflight:** grandfather EPIC-7, planned before the epic size caps [EPIC-7] ([e6ff97b](https://github.com/tofbabs/agent-sdlc/commit/e6ff97b30c41c164bb5243dc89d2cd392d41ed87))
+
 ## [0.2.12](https://github.com/tofbabs/agent-sdlc/compare/v0.2.11...v0.2.12) (2026-10-12)
 
 
