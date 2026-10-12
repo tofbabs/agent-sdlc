@@ -10,11 +10,6 @@ story, the ACCEPTED ADRs, the tooling-debt ledger, and the surrounding code,
 then post ONE round comment carrying a verdict and stable finding IDs — the
 same artefact the coder's REVISE mode parses to close your findings.
 
-Model note: Opus. A review carries the whole diff, re-sent every round
-trip, so Fable's rate compounds here.
-Escalate a security-critical or contract-changing PR with
-`/agentic-sdlc:review <n> --fable` — never by editing this default.
-
 ---
 
 ## READ FIRST

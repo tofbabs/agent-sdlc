@@ -368,6 +368,13 @@ else
   note "node not found — skipping export outcomes tests"
 fi
 
+# 6b. /review always states the reviewer's model rather than inheriting one.
+if "$ROOT/scripts/review-model.test.sh" >/dev/null 2>&1; then
+  ok "reviewer spawn always states a model"
+else
+  bad "review-model tests failed — run scripts/review-model.test.sh to see which check broke"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

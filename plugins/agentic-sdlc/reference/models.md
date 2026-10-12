@@ -1,8 +1,8 @@
 # MODELS — per-agent overrides
 
-Read by `/plan`, `/build` and `/review` **only when the human overrides a model**.
-Without an override every agent runs on its frontmatter model, and nothing here
-applies.
+Read by `/plan` and `/build` **only when the human overrides a model**; `/review`
+reads it on every run. Without an override those agents run on their frontmatter
+model.
 
 ## Where an override comes from
 
@@ -16,6 +16,7 @@ Highest first; the first one that names an agent wins for that agent:
    ```
    **Agent models:** architect=fable navigator=opus
    ```
+3. `/review` only: the code-reviewer fallback is `opus`, so its spawn always passes a model.
 
 `<agent>` is one of `planner`, `architect`, `coder`, `driver`, `navigator`,
 `code-reviewer`. `<m>` is `sonnet`, `opus`, `haiku` or `fable` — the aliases both
