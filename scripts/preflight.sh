@@ -126,11 +126,11 @@ else
   note "node not found — skipping round-state tests"
 fi
 
-# 6a1. config.mjs is the only reader of .claude/agentic-sdlc.json; a bad value
-#      must stop the command rather than fall back to a default.
+# 6a1. config.mjs is the one reader of the project config; check, consent and review
+#     lean on it, and a bad value must stop the command rather than fall back.
 if command -v node >/dev/null 2>&1; then
   if "$ROOT/scripts/config.test.sh" >/dev/null 2>&1; then
-    ok "pipeline config defaults and validation hold"
+    ok "config reader, writer and defaults hold"
   else
     bad "config tests failed — run scripts/config.test.sh to see which check broke"
   fi

@@ -210,11 +210,40 @@ dep EPIC-23 "none"
 chk EPIC-23 >/dev/null; [ $? -eq 0 ] && ok "check passes Depends on: none" || bad "none rejected"
 chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes an epic with no Depends-on header" || bad "no header rejected"
 
+# 9b. check reads its cap, weights and limits from .claude/agentic-sdlc.json; a bad
+#     config stops it with exit 2 instead of quietly applying the plugin's numbers.
+mkdir -p "$TMP/chk/.claude"
+cfg() { printf '%s' "$1" > "$TMP/chk/.claude/agentic-sdlc.json"; }
+cfg '{"plan":{"epic":{"cap":8,"points":{"S":2,"M":4,"L":8}}}}'
+epic EPIC-30 M M S; out=$(chk EPIC-30); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'cap of 8' && ok "check names the configured cap of 8" || bad "10 over cap 8: rc=$rc out=$out"
+epic EPIC-31 M M;   chk EPIC-31 >/dev/null; [ $? -eq 0 ] && ok "check passes exactly at the configured cap" || bad "2 M at cap 8 rejected"
+cfg '{"plan":{"epic":{"max_lines":20,"stories_by_line":5}}}'
+{ echo "# EPIC-32: t"; pad 5; echo "## Stories"; echo "### STORY-32-1: s"; echo "- estimate: S"; } > "$TMP/chk/backlog/EPIC-32.md"
+out=$(chk EPIC-32); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'line 5' && ok "check reports the configured stories-by-line" || bad "configured stories_by_line: rc=$rc out=$out"
+cfg '{"plan":{"epic":{"max_lines":4,"stories_by_line":3}}}'
+{ echo "# EPIC-33: t"; echo; echo "## Stories"; echo "### STORY-33-1: s"; echo "- estimate: S"; } > "$TMP/chk/backlog/EPIC-33.md"
+out=$(chk EPIC-33); rc=$?
+[ $rc -eq 1 ] && echo "$out" | grep -q 'limit of 4' && ok "check reports the configured max_lines" || bad "configured max_lines: rc=$rc out=$out"
+cfg '{"plan":{"epic":{"cap":"big"}}}'
+epic EPIC-34 S; out=$(chk EPIC-34); rc=$?
+[ $rc -eq 2 ] && echo "$out" | grep -q 'config: plan.epic.cap' && ! echo "$out" | grep -q 'points' && ok "check exits 2 on a bad config, no default fallback" || bad "bad config: rc=$rc out=$out"
+cfg '{ not json'
+chk EPIC-34 >/dev/null; [ $? -eq 2 ] && ok "check exits 2 on invalid JSON" || bad "invalid JSON did not exit 2"
+cfg '{"telemetry":{"consent":true}}'
+out=$(cd "$TMP/chk" && node "$PA" check EPIC-1 2>&1 >/dev/null); rc=$?
+[ $rc -eq 0 ] && [ -z "$out" ] && ok "telemetry-only config behaves as today, silent on stderr" || bad "telemetry-only: rc=$rc err=$out"
+rm -f "$TMP/chk/.claude/agentic-sdlc.json"
+
 # 10. The budget reference must state the constants plan-artifacts.mjs enforces.
 REF="$ROOT/plugins/agentic-sdlc/reference/epic-budget.md"
-const() { sed -n "s/^const $1 = \\(.*\\)$/\\1/p" "$PA"; }
-pts=$(const POINTS | tr -d '{}:,' | tr -s ' ' | sed 's/^ *//;s/ *$//')
-cap=$(const EPIC_CAP); ml=$(const MAX_LINES); sl=$(const STORIES_BY_LINE)
+CFG="$ROOT/plugins/agentic-sdlc/scripts/config.mjs"
+# Defaults are owned by config.mjs alone; read them the way /plan does.
+dflt=$(mkdir -p "$TMP/nocfg" && cd "$TMP/nocfg" && node "$CFG" get plan.epic)
+jq_() { node -e "const e=JSON.parse(process.argv[1]);console.log($1)" "$dflt"; }
+pts=$(jq_ "['S','M','L'].map(k=>k+' '+e.points[k]).join(' ')")
+cap=$(jq_ 'e.cap'); ml=$(jq_ 'e.max_lines'); sl=$(jq_ 'e.stories_by_line')
 want_rows=$(for k in S M L; do echo "| $k | $(echo "$pts" | sed -n "s/.*$k \\([0-9]*\\).*/\\1/p") |"; done)
 drift=""
 while IFS= read -r row; do grep -qF -- "$row" "$REF" || drift="$drift [$row]"; done <<< "$want_rows"
@@ -223,6 +252,39 @@ grep -qF -- "**$ml lines**" "$REF" || drift="$drift [max_lines $ml]"
 grep -qF -- "starts by line $sl" "$REF" || drift="$drift [stories_by_line $sl]"
 [ -z "$cap" ] || [ -z "$ml" ] || [ -z "$sl" ] && drift="$drift [constants not parsed]"
 [ -z "$drift" ] && ok "epic-budget.md matches the weights, cap and limits in plan-artifacts.mjs" || bad "epic-budget.md drifted:$drift"
+# 10a. The reference names the config file as the source, labels its numbers as
+#      defaults, and tells /plan to fetch the effective budget for the planner
+#      (which has no Bash); anchors in the table must match the defaults too.
+miss=""
+grep -qF '.claude/agentic-sdlc.json' "$REF" || miss="$miss [names the config file]"
+grep -qiE 'defaults' "$REF" || miss="$miss [labels numbers as defaults]"
+grep -qF 'config.mjs get plan.epic' "$REF" || miss="$miss [get plan.epic call]"
+grep -qiE 'before (spawning|running) the planner' "$REF" || miss="$miss [before spawning the planner]"
+grep -qiE 'paste' "$REF" || miss="$miss [paste JSON into prompt]"
+grep -qiE 'non-zero' "$REF" || miss="$miss [stop on non-zero exit]"
+grep -qF 'STEP 1' "$REF" || miss="$miss [STEP 1]"
+grep -qF 'FILL-IN' "$REF" || miss="$miss [FILL-IN]"
+[ -z "$miss" ] && ok "epic-budget.md names the config source and the /plan fetch-and-paste step" || bad "epic-budget.md missing:$miss"
+anchor_rows=$(node -e "const a=JSON.parse(process.argv[1]).anchors;for(const k of ['S','M','L'])console.log(k+' '+a[k].lines+' '+a[k].files)" "$dflt")
+drift=""
+while read -r k l f; do
+  grep -qE "^\| $k \| ≤ ~$l \| ≤ ~$f \|" "$REF" || drift="$drift [anchors $k $l/$f]"
+done <<< "$anchor_rows"
+[ -z "$drift" ] && ok "epic-budget.md anchors match the config.mjs defaults" || bad "anchor table drifted:$drift"
+# The setup guide is where a project owner learns the file exists, so it must say what the plan.epic block overrides.
+SETUP="$ROOT/docs/setup.md"
+sect=$(awk '/^## /{on=0} /^## Plugin settings|^## Settings/{on=1} on' "$SETUP")
+miss=""
+[ -n "$sect" ] || miss="$miss [settings section]"
+echo "$sect" | grep -qF '.claude/agentic-sdlc.json' || miss="$miss [file]"
+echo "$sect" | grep -qF 'plan.epic' || miss="$miss [plan.epic]"
+echo "$sect" | grep -qF 'config.mjs get plan.epic' || miss="$miss [get command]"
+[ -z "$miss" ] && ok "setup.md documents the plan.epic settings" || bad "setup.md missing:$miss"
+# 10a'. AC1: configured weights score 2 M + 1 S as 10 of 12 and pass.
+cfg '{"plan":{"epic":{"cap":12,"points":{"S":2,"M":4,"L":12}}}}'
+epic EPIC-35 M M S; out=$(chk EPIC-35); rc=$?
+[ $rc -eq 0 ] && echo "$out" | grep -q '10/12' && ok "check scores 2 M + 1 S as 10/12 and passes" || bad "10/12: rc=$rc out=$out"
+rm -f "$TMP/chk/.claude/agentic-sdlc.json"
 # 10b. The template is what the planner copies; without these header lines a split
 #      epic has nowhere to record its parent brief, position and predecessor.
 TPL="$ROOT/templates/backlog/EPIC-template.md"

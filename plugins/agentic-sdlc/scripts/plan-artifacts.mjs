@@ -28,17 +28,13 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, openSync, closeSync, rmSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { readConfig, ConfigError } from './config.mjs'
 
 const KINDS = ['EPIC', 'FAST']
 const CLAIM_RETRIES = 20
 const ARTIFACTS_RE = /^- Artifacts:\s*(.*)$/m
 const DEBT_RE = /^## Debt\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m
 const LEDGER = 'docs/TOOLING-DEBT.md'
-// Kept together so a later epic can swap them for project config in one place.
-const POINTS = { S: 3, M: 5, L: 15 }
-const EPIC_CAP = 15
-const MAX_LINES = 150
-const STORIES_BY_LINE = 40
 
 const [, , command, arg, ...rest] = process.argv
 const flags = {}
@@ -237,6 +233,16 @@ function carry(id, from) {
 function check(id) {
   if (!/^(EPIC|FAST)-\d+$/.test(id ?? '')) die(`check takes an ID like EPIC-7, got "${id}"`)
   if (id.startsWith('FAST-')) return
+
+  let epicCfg
+  try {
+    epicCfg = readConfig().plan.epic
+  } catch (e) {
+    if (!(e instanceof ConfigError)) throw e
+    process.stderr.write(`${e.message}\n`)
+    process.exit(2)
+  }
+  const { points: POINTS, cap: EPIC_CAP, max_lines: MAX_LINES, stories_by_line: STORIES_BY_LINE } = epicCfg
 
   const file = join(process.cwd(), 'backlog', `${id}.md`)
   if (!existsSync(file)) die(`${file} not found`)

@@ -193,17 +193,25 @@ cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
 
 ---
 
-## Pipeline settings
+## Plugin settings
 
-Per-repo settings live in the committed `.claude/agentic-sdlc.json`, read only
-through `scripts/config.mjs`. A missing file means every default applies.
+Optional. `.claude/agentic-sdlc.json` lets a project override plugin defaults,
+read only through `scripts/config.mjs`; without the file every default applies.
+The `plan.epic` block sets the epic budget, and each leaf (`points`, `cap`,
+`max_lines`, `stories_by_line`, `anchors`) overrides its default on its own.
+`anchors` are advisory sizing guidance, not enforced.
 
-    {"schema": 1, "review": {"round_cap": 3}}
+    {"schema": 1, "plan": {"epic": {"cap": 15}}, "review": {"round_cap": 3}, "telemetry": {"share": false}}
 
 `review.round_cap` (integer >= 1, default 3) is the number of review rounds
 before `/review` reports "needs a human" and stops. Invalid JSON, a wrong type
 or a `schema` other than 1 stops the command; an unknown key is warned about
 and ignored. The `telemetry` key below shares this file.
+
+```bash
+config.mjs get plan.epic        # prints the effective values, defaults merged in
+config.mjs get review.round_cap # prints 3 unless the file overrides it
+```
 
 ---
 
