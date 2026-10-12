@@ -239,7 +239,7 @@ only delegates to `/review`.
 
 ### STORY-7-5: Review only green heads
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L64 one_way_doors=0@brief:L64 existing_pattern=yes@AC2 modules_crossed=2@brief:L64 review_bounced=no@brief:L64 risk_kind=code@brief:L64

@@ -7,7 +7,7 @@ allowed-tools: Agent, Task, Read, Glob, Grep, Skill, Bash(git:*), Bash(gh:*), Ba
 Target: `$ARGUMENTS` minus flags.
 **Models:** `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first; it resolves the reviewer's model.
 
-Delegate the judgment; do the bookkeeping yourself.
+Delegate the judgment; do the bookkeeping.
 
 ---
 
@@ -15,14 +15,15 @@ Delegate the judgment; do the bookkeeping yourself.
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/<n>   # .head.sha is headRefOid
-gh api repos/{owner}/{repo}/commits/<headRefOid>/check-runs
+gh api repos/{owner}/{repo}/commits/<headRefOid>/check-runs?per_page=100 \
+  | node ${CLAUDE_PLUGIN_ROOT}/scripts/ci-state.mjs
 ```
 
 Also read `pulls/<n>/reviews`, `issues/<n>/comments` and `pulls/<n>/commits`.
 
 - **State must be OPEN.** Anything else → report and stop.
 - `Mode: FAST` = a line matching `^Mode: FAST\s*$` in the PR body.
-- CI summary: green, or red naming the job(s).
+- **CI gate** (`reference/review-rounds.md`): `pending` → "waiting on CI", `red` → "CI red: <jobs>"; **stop**.
 - **Story IDs** from `[STORY-…]` / `[T<n>-…]` tags in commit subjects, and
   from the branch name (`feat/STORY-<id>`, `feat/EPIC-<n>`, `feat/FAST-<n>`)
   → the backlog file that holds them. An epic PR has one squash commit per
@@ -111,7 +112,7 @@ Record a review event per story ID (`reference/outcomes.md`), then the next step
 - Never merge.
 - Never edit code.
 - Never `gh pr checkout` in the user's own tree.
-- Never spawn the reviewer when the guard in step 2 says nothing changed.
+- Never spawn the reviewer when step 2 says nothing changed.
 - Never leave the review worktree behind — remove it in step 5 even when the
   reviewer blocks or reports an escalation.
 - One fresh `Agent()` per invocation. Never `SendMessage` to continue one.

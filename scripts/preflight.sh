@@ -251,6 +251,18 @@ else
   note "node not found — skipping plan-artifacts tests"
 fi
 
+# 6b2. ci-state.mjs decides whether /review spends a round at all; a wrong
+#      classification either wastes rounds on red heads or starves green ones.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/ci-state.test.sh" >/dev/null 2>&1; then
+    ok "ci-state classification holds"
+  else
+    bad "ci-state tests failed — run scripts/ci-state.test.sh to see which case broke"
+  fi
+else
+  note "node not found — skipping ci-state tests"
+fi
+
 # 6c. mode-select-fields.mjs is the single source of truth for selection-field
 #     enums and evidence rules; mode-select.mjs (STORY-2-3+) and the planner
 #     both read it instead of hardcoding a value a second time. Same node
