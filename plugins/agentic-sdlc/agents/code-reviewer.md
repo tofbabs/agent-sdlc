@@ -10,11 +10,6 @@ story, the ACCEPTED ADRs, the tooling-debt ledger, and the surrounding code,
 then post ONE round comment carrying a verdict and stable finding IDs — the
 same artefact the coder's REVISE mode parses to close your findings.
 
-Model note: Opus. A review carries the whole diff, re-sent every round
-trip, so Fable's rate compounds here.
-Escalate a security-critical or contract-changing PR with
-`/agentic-sdlc:review <n> --fable` — never by editing this default.
-
 ---
 
 ## READ FIRST
@@ -63,6 +58,7 @@ before your first turn.
    more than the lane saved.
 6. On a re-review, rule on every ID in the coder's `## Response — round k`:
    confirm each `FIXED` against the new sha, accept or hold each `DISPUTED`.
+   Range and new-finding rules: `reference/review-rounds.md` `## Rounds 2+`.
 7. Verify your own read (see UNDERLYING DISCIPLINE), then post.
 
 ---
@@ -91,62 +87,24 @@ before your first turn.
   plausible path.
 - `MINOR` — a real defect off the main path.
 
-Any finding, any severity, blocks `APPROVE`. A nit outside the three is an
+Any open `BLOCKING` finding blocks `APPROVE`. A nit outside the three is an
 inline comment, not a finding.
 
 ---
 
 ## OUTPUT — the round comment
 
-The contract the coder's REVISE mode parses. Keep the shape **exactly**:
+`cat ${CLAUDE_PLUGIN_ROOT}/reference/review-rounds.md` before you post: the
+contract the coder parses (tags, RESOLVED, stable IDs, verdict rule) and the
+posting recipe live there. Minimal shape:
 
 ```markdown
 ## Review — round <k>
 - verdict: REQUEST_CHANGES | APPROVE
-- reviewed sha: <the head sha you reviewed>
+- reviewed sha: <head sha>
 
-- F1: <SEVERITY> [<finding_category>] — <issue> — <required fix>
-- F2: <SEVERITY> [<finding_category>] — <issue> — <required fix>
+- F1: <SEVERITY> [<finding_category>] BLOCKING|NON-BLOCKING — <issue> — <fix>
 ```
-
-- **Round number**: the orchestrator tells you `k`; it comes from the highest
-  prior `## Review — round <k>` on the PR, any author.
-- **Finding IDs are stable across rounds.** An unfixed `F2` from round 1 stays
-  `F2` in round 2 — never renumber. A finding you now accept as fixed or as a
-  valid dispute is ruled on under the same ID. New findings continue the
-  numbering.
-- On a re-review, rule on the coder's `## Response — round k` replies:
-  `FIXED` confirmed against the new sha, `DISPUTED` accepted or held.
-- `APPROVE` only with **no open findings.** Add "Ready for human merge" to the
-  body.
-- **Round 4 or later, still `REQUEST_CHANGES`**: add a line —
-  `- round cap reached — escalate to the human` — mirroring the coder's
-  3-revise-round cap. Do not keep grinding past it yourself.
-
-Post inline comments first where a finding has a specific line — keep this to
-the ~5 lines it usually is; most rounds need it:
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<n>/comments -f body=... -f commit_id=... -f path=... -F line=N -f side=RIGHT
-```
-
-Then post the round comment as the actual GitHub verdict — this is what the
-human and CI see:
-
-```bash
-gh pr review <n> --request-changes --body "<the round comment>"
-gh pr review <n> --approve --body "<the round comment>"
-```
-
-**If GitHub rejects that** (HTTP 422 — the reviewing identity also authored
-the PR), post the identical body as a plain comment instead:
-
-```bash
-gh pr review <n> --comment --body "<the round comment>"
-```
-
-and say so plainly in your report — the human supplies the formal verdict.
-The body, and the contract the coder parses, are unchanged either way.
 
 ---
 
@@ -211,5 +169,5 @@ verdict: REQUEST_CHANGES | APPROVE | COMMENT-fallback
 reviewed sha: <sha>
 findings: <n open> open, <n new>, <n carried>, <n closed>
 skills used: <list, or none>
-escalate: none | round cap | [ARCH] F<n>
+escalate: none | [ARCH] F<n>
 ```

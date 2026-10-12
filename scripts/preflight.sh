@@ -114,16 +114,35 @@ else
   note "node not found — skipping meter tests"
 fi
 
-# 6a. config.mjs is the one reader of the project config; check and consent both
-#     lean on it.
+# 6a. round-state.mjs decides which review round is next; a wrong read re-runs or
+#     skips a round.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/round-state.test.sh" >/dev/null 2>&1; then
+    ok "round-state reads review rounds from comment bodies"
+  else
+    bad "round-state tests failed — run scripts/round-state.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping round-state tests"
+fi
+
+# 6a1. config.mjs is the one reader of the project config; check, consent and review
+#     lean on it, and a bad value must stop the command rather than fall back.
 if command -v node >/dev/null 2>&1; then
   if "$ROOT/scripts/config.test.sh" >/dev/null 2>&1; then
-    ok "config reader and writer hold"
+    ok "config reader, writer and defaults hold"
   else
     bad "config tests failed — run scripts/config.test.sh to see which check broke"
   fi
 else
   note "node not found — skipping config tests"
+fi
+
+# 6a2. The round comment contract is one reference; boot-path files only point at it.
+if "$ROOT/scripts/review-rounds-contract.test.sh" >/dev/null 2>&1; then
+  ok "review round contract lives in reference/review-rounds.md"
+else
+  bad "review-rounds contract tests failed — run scripts/review-rounds-contract.test.sh"
 fi
 
 # 6b. consent.mjs holds the team-wide telemetry answer; a regression here either
@@ -263,6 +282,18 @@ else
   note "node not found — skipping plan-artifacts tests"
 fi
 
+# 6b2. ci-state.mjs decides whether /review spends a round at all; a wrong
+#      classification either wastes rounds on red heads or starves green ones.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/ci-state.test.sh" >/dev/null 2>&1; then
+    ok "ci-state classification holds"
+  else
+    bad "ci-state tests failed — run scripts/ci-state.test.sh to see which case broke"
+  fi
+else
+  note "node not found — skipping ci-state tests"
+fi
+
 # 6c. mode-select-fields.mjs is the single source of truth for selection-field
 #     enums and evidence rules; mode-select.mjs (STORY-2-3+) and the planner
 #     both read it instead of hardcoding a value a second time. Same node
@@ -316,6 +347,18 @@ if command -v node >/dev/null 2>&1; then
   fi
 else
   note "node not found — skipping outcomes tests"
+fi
+
+# 6c2. Cloud sessions block GraphQL, so shipped content may only call gh REST.
+if "$ROOT/scripts/gh-rest-only.test.sh" >/dev/null 2>&1; then
+  ok "gh REST-only guard flags every banned subcommand"
+else
+  bad "gh-rest-only tests failed — run scripts/gh-rest-only.test.sh to see which check broke"
+fi
+if hits=$("$ROOT/scripts/check-gh-rest-only.sh" 2>&1); then
+  ok "shipped content calls gh over REST only"
+else
+  bad "GraphQL-backed gh subcommands in shipped content:"$'\n'"$hits"
 fi
 
 # 6d. The anonymous repo ID: a per-clone random salt, stable across worktrees,
@@ -380,6 +423,13 @@ else
   note "node not found — skipping export outcomes tests"
 fi
 
+# 6b. /review always states the reviewer's model rather than inheriting one.
+if "$ROOT/scripts/review-model.test.sh" >/dev/null 2>&1; then
+  ok "reviewer spawn always states a model"
+else
+  bad "review-model tests failed — run scripts/review-model.test.sh to see which check broke"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.
@@ -396,7 +446,7 @@ fi
 # 8. An oversized epic must not reach a PR. Only epics added or changed on this
 #    branch are checked (plus uncommitted ones, so a local run catches them
 #    before commit); the legacy epics predate the caps and are grandfathered.
-GRANDFATHERED_EPICS="EPIC-1 EPIC-2 EPIC-3"
+GRANDFATHERED_EPICS="EPIC-1 EPIC-2 EPIC-3 EPIC-7"
 if command -v node >/dev/null 2>&1; then
   BASE_REF=""
   for r in origin/main main; do

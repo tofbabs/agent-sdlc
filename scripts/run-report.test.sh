@@ -288,7 +288,7 @@ got=$(node --input-type=module -e '
 
 echo "review section"
 RF="$F/review"
-export FAKE_GH_ARGS="$TMP/gh-args" FAKE_GH_OUT="$RF/gh-view.json"
+export FAKE_GH_ARGS="$TMP/gh-args" FAKE_GH_DIR="$RF"
 review_report() { RUN_REPORT_GH="$RF/fake-gh" report "$@"; }
 
 P=$(mkproj review-file)
@@ -301,8 +301,39 @@ got=$(q "$(OUT "$P")" 'r.review.findings.map(f=>[f.round,f.category,f.severity].
 [ "$got" = "1:correctness:BLOCKER 1:other:MINOR 1:other:MAJOR 2:clarity:MINOR" ] \
   && ok "one {round,category,severity} per finding; untagged/unknown tag → other; rulings and unknown severity skipped" \
   || bad "findings: $got"
-[ "$(q "$(OUT "$P")" 'r.review.verdict')" = "COMMENT" ] && ok "verdict is the latest round's GitHub state (COMMENT fallback)" \
+[ "$(q "$(OUT "$P")" 'r.review.verdict')" = "REQUEST_CHANGES" ] && ok "a COMMENTED review reads the verdict its body states" \
   || bad "verdict=$(q "$(OUT "$P")" 'r.review.verdict')"
+got=$(node --input-type=module -e '
+  import { buildReview, loadContext } from "'"$R"'"
+  const ctx = loadContext({ project: process.argv[1], now: new Date("'"$NOW"'") })
+  const v = (body, state) => buildReview({ ...ctx, prComments: [body], prReviewStates: [state] }).section.verdict
+  process.stdout.write([
+    v("## Review — round 1\n- verdict: APPROVE\n- reviewed sha: a", "COMMENTED"),
+    v("## Review — round 1\n- verdict: REQUEST_CHANGES\n- reviewed sha: a", "APPROVED"),
+    v("## Review — round 1\n- reviewed sha: a", "CHANGES_REQUESTED"),
+    v("## Review — round 1\n- reviewed sha: a", "COMMENTED"),
+  ].map(String).join(" "))
+' "$P")
+[ "$got" = "APPROVE REQUEST_CHANGES REQUEST_CHANGES COMMENT" ] \
+  && ok "body verdict beats review state; state is only the fallback when the body has no verdict" || bad "body-first verdict: $got"
+got=$(node --input-type=module -e '
+  import { buildReview, loadContext } from "'"$R"'"
+  const ctx = loadContext({ project: process.argv[1], now: new Date("'"$NOW"'") })
+  const body = [
+    "## Review — round 2",
+    "- verdict: REQUEST_CHANGES",
+    "- reviewed sha: a",
+    "- F1: BLOCKER [correctness] BLOCKING RESOLVED — fixed since round 1",
+    "- F2: MAJOR [clarity] BLOCKING — still open",
+    "- F3: MINOR [clarity] NON-BLOCKING — open nit",
+    "- F4: MINOR [clarity] NON-BLOCKING RESOLVED — nit fixed",
+    "- F5: MAJOR [correctness] — legacy untagged line",
+  ].join("\n")
+  const f = buildReview({ ...ctx, prComments: [body], prReviewStates: ["COMMENTED"] }).section.findings
+  process.stdout.write(f.map((x) => [x.category, x.severity].join(":")).join(" "))
+' "$P")
+[ "$got" = "clarity:MAJOR clarity:MINOR correctness:MAJOR" ] \
+  && ok "RESOLVED finding lines are skipped; tagged and untagged open lines still count" || bad "open findings only: $got"
 grep -q 'SECRET-FINDING-TEXT\|src/secret\|1111111' "$(OUT "$P")" && bad "finding text or sha leaked into the report" \
   || ok "finding text never reaches the report"
 [ "$(q "$(OUT "$P")" 'r.run.outcome')" = "completed" ] && ok "review run with a round comment → completed" \
@@ -312,7 +343,7 @@ P=$(mkproj review-gh)
 marker "$P" review deliberate "#42 --fable" 'null' '[]'
 rm -f "$FAKE_GH_ARGS"
 review_report --project "$P" >/dev/null
-[ "$(cat "$FAKE_GH_ARGS" 2>/dev/null)" = "pr view 42 --json comments,reviews" ] && ok "review run asks gh for the target PR" \
+[ "$(sort "$FAKE_GH_ARGS" 2>/dev/null)" = "$(printf '%s\n' 'api repos/{owner}/{repo}/issues/42/comments?per_page=100' 'api repos/{owner}/{repo}/pulls/42/reviews?per_page=100' | sort)" ] && ok "review run reads the target PR over REST, no pr subcommand" \
   || bad "gh args: $(cat "$FAKE_GH_ARGS" 2>/dev/null)"
 got=$(q "$(OUT "$P")" '[r.review.rounds,r.review.verdict,r.review.findings.length].join(" ")')
 [ "$got" = "2 APPROVE 1" ] && ok "gh comments and reviews merge oldest-first; issue-comment round → its verdict line" \
@@ -320,9 +351,12 @@ got=$(q "$(OUT "$P")" '[r.review.rounds,r.review.verdict,r.review.findings.lengt
 
 P=$(mkproj review-gh-build)
 marker "$P" build deliberate "EPIC-7" 'null' '[]'
+git -C "$P" init -q -b feat/EPIC-7
 rm -f "$FAKE_GH_ARGS"
 review_report --project "$P" >/dev/null
-[ "$(cat "$FAKE_GH_ARGS" 2>/dev/null)" = "pr view --json comments,reviews" ] && ok "build run asks gh for the current branch's PR" \
+grep -q '^api repos/{owner}/{repo}/pulls?.*head=.*feat/EPIC-7' "$FAKE_GH_ARGS" 2>/dev/null \
+  && grep -q 'issues/42/comments' "$FAKE_GH_ARGS" && grep -q 'pulls/42/reviews' "$FAKE_GH_ARGS" \
+  && ok "build run finds the current branch's PR via pulls?head= and reads it over REST" \
   || bad "gh args: $(cat "$FAKE_GH_ARGS" 2>/dev/null)"
 
 P=$(mkproj review-gh-fails)

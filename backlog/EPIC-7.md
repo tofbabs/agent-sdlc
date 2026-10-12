@@ -145,7 +145,9 @@ only delegates to `/review`.
 
 ### STORY-7-1: `plan --id <id>`
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L53 one_way_doors=0@brief:L53 existing_pattern=yes@brief:L107 modules_crossed=3@brief:L53 review_bounced=no@brief:L53 risk_kind=code@brief:L53
 - depends_on: []
@@ -167,7 +169,9 @@ only delegates to `/review`.
 
 ### STORY-7-2: `/build` resumes an existing `feat/<id>`
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 4 at or above 4 is PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L56 one_way_doors=0@brief:L56 existing_pattern=no@brief:L56 modules_crossed=2@brief:L56 review_bounced=no@brief:L56 risk_kind=code@brief:L56
 - depends_on: []
@@ -189,7 +193,8 @@ only delegates to `/review`.
 
 ### STORY-7-3: REST-only `gh`
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: M
 - select: risk_class=none@brief:L76 one_way_doors=0@brief:L76 existing_pattern=yes@AC2 modules_crossed=6@brief:L76 review_bounced=no@brief:L76 risk_kind=code@brief:L76
 - depends_on: []
@@ -211,7 +216,8 @@ only delegates to `/review`.
 
 ### STORY-7-4: Explicit reviewer model
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: S
 - select: risk_class=none@brief:L59 one_way_doors=0@brief:L59 existing_pattern=yes@AC2 modules_crossed=4@brief:L59 review_bounced=no@brief:L59 risk_kind=code@brief:L59
 - depends_on: []
@@ -233,7 +239,8 @@ only delegates to `/review`.
 
 ### STORY-7-5: Review only green heads
 
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L64 one_way_doors=0@brief:L64 existing_pattern=yes@AC2 modules_crossed=2@brief:L64 review_bounced=no@brief:L64 risk_kind=code@brief:L64
 - depends_on: [STORY-7-3]
@@ -255,7 +262,8 @@ only delegates to `/review`.
 
 ### STORY-7-6: Round 1 is complete: BLOCKING tags and body verdict
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: L
 - select: risk_class=none@brief:L66 one_way_doors=1@brief:L74 existing_pattern=no@brief:L66 modules_crossed=5@brief:L66 review_bounced=no@brief:L66 risk_kind=code@brief:L66
 - depends_on: [STORY-7-3]
@@ -277,7 +285,8 @@ only delegates to `/review`.
 
 ### STORY-7-7: Rounds 2+ only re-check
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: M
 - select: risk_class=none@brief:L69 one_way_doors=0@brief:L69 existing_pattern=no@brief:L69 modules_crossed=3@brief:L69 review_bounced=no@brief:L69 risk_kind=code@brief:L69
 - depends_on: [STORY-7-6]
@@ -298,7 +307,8 @@ only delegates to `/review`.
 
 ### STORY-7-8: Round cap from config, "needs a human"
 
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L71 one_way_doors=0@brief:L71 existing_pattern=yes@AC2 modules_crossed=2@brief:L71 review_bounced=no@brief:L71 risk_kind=code@brief:L71
 - depends_on: [STORY-7-6]
@@ -319,7 +329,8 @@ only delegates to `/review`.
 
 ### STORY-7-9: Consumers read the body verdict
 
-- status: TODO
+- status: DONE
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: M
 - select: risk_class=none@brief:L74 one_way_doors=0@brief:L74 existing_pattern=yes@AC1 modules_crossed=4@brief:L74 review_bounced=no@brief:L74 risk_kind=code@brief:L74
 - depends_on: [STORY-7-6]
@@ -340,23 +351,5 @@ only delegates to `/review`.
 
 ## Debt
 
-### Run report does not record BLOCKING vs NON-BLOCKING
-- Raised: 2026-10-09 by architect (ARCH-4)
-- Current: the blocking tag is parsed but not put in `review.findings`. ADR-0001 schema 1 is unchanged, so the signal routine can't tell an advisory finding from a blocking one.
-- Risk: LOW
-- Category: observability
-- Address when: the signal routine (EPIC-5 / brief 03) needs to group on it, or the round-count metric misses its target.
+Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 
-### `--id` uniqueness is per machine only
-- Raised: 2026-10-09 by architect (ARCH-1)
-- Current: `claim --id` relies on an exclusive file create and a ref scan after fetch. Two sessions on different machines with the same `--id` can both succeed until the second push.
-- Risk: LOW
-- Category: robustness
-- Address when: ids come from anything other than GitHub Issue numbers in parallel cloud sessions, or a collision is observed.
-
-### Config is not validated against a published schema
-- Raised: 2026-10-09 by architect (ARCH-3)
-- Current: `config.mjs` hand-checks types for known keys and only warns on unknown keys, so a typo in a key name falls back to the default with only a stderr warning.
-- Risk: MEDIUM
-- Category: robustness
-- Address when: the config holds more than about five keys, or a consuming project reports a misspelled key that was silently defaulted.

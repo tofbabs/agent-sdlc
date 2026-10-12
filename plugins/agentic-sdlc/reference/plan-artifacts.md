@@ -30,7 +30,11 @@ planner:
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim FAST   # or EPIC
 # → backlog/FAST-12.md   (created exclusively; the number is yours)
+node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim EPIC --id EPIC-9   # parallel planners name theirs
 ```
+
+With `--id` the given id is claimed as-is, never renumbered. It is an error if
+`backlog/<id>.md` exists on the base or on `feat/<id>`, local or remote; nothing is written.
 
 It takes the highest number across every worktree's `backlog/` and every local
 and remote branch, adds one, and creates the file with an exclusive open. Two
@@ -55,6 +59,21 @@ Write `none` if there are none. Never list `docs/TOOLING-DEBT.md` — `carry`
 refuses it.
 
 ---
+
+## `/build` — resume or create the branch
+
+`plan-artifacts.mjs resume <ID> --base <base>` replaces a literal `worktree add -b`:
+
+- `origin/feat/<ID>` exists: `worktree add ../wt-<ID> feat/<ID>` (tracking, no `-b`),
+  then `git merge --no-edit origin/<base>`. Merge, never rebase: pushed history is
+  never rewritten. On conflict it runs `git merge --abort`, leaves the branch as
+  pushed, exits non-zero naming the conflicting paths and both shas, and `/build` stops.
+- Only a local `feat/<ID>`: that branch is reused; no second branch is made.
+- No branch: `worktree add -b feat/<ID> origin/<base>`, as before.
+
+On a resumed branch `carry` returns without changes when `backlog/<ID>.md` is already
+tracked there and the planning checkout holds no copy. A copy that exists and differs
+still hits the refusal below.
 
 ## `/build` — carry the plan as the branch's first commit
 

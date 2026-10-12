@@ -24,8 +24,8 @@ cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
 
 ## STEP 1 — Decompose
 
-`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md` and `reference/epic-budget.md`, then `claim EPIC` per
-epic — the planner never picks a number.
+`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md` and `reference/epic-budget.md`, then `claim EPIC [--id EPIC-<n>]` per
+epic (given id is kept, taken fails) — the planner never picks a number.
 
 ```
 Agent(subagent_type: "agentic-sdlc:planner", prompt: "Decompose this into epics and stories with
@@ -45,7 +45,6 @@ Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n>. Read t
 consistency beats cleverness. DECIDE. ADR only for one-way doors; else resolve inline in the epic file. Shortcuts go under ## Debt there.")
 ```
 
-Batch related handoffs.
 
 ---
 
@@ -53,8 +52,8 @@ Batch related handoffs.
 
 Add `- Artifacts:` (new ADRs, brief). Record the lane (Part 1 only):
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen deliberate`.
-Last, `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>` per epic. Fail → re-split once; again → "still over".
-Show epics, stories, decisions and reasoning, ADRs, debt. Silence lets `/build` proceed.
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>`. Fail → re-split once; again → "still over".
+Show epics, stories, decisions, ADRs, debt. Silence lets `/build` proceed.
 
 ---
 

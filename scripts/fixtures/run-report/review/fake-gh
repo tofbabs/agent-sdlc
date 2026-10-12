@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
-# Stands in for gh: records its argv and prints a canned `--json comments,reviews` payload.
-printf '%s\n' "$*" > "$FAKE_GH_ARGS"
-cat "$FAKE_GH_OUT"
+# Stands in for a gh whose GraphQL is blocked: every argv is logged, `pr` and
+# graphql refuse, and each REST endpoint answers with its own canned payload.
+printf '%s\n' "$*" >> "$FAKE_GH_ARGS"
+[ "$1" = "api" ] || exit 1
+case "$*" in
+  *graphql*) exit 1 ;;
+  *"repos/{owner}/{repo}/issues/42/comments"*) cat "$FAKE_GH_DIR/rest-issue-comments.json" ;;
+  *"repos/{owner}/{repo}/pulls/42/reviews"*) cat "$FAKE_GH_DIR/rest-reviews.json" ;;
+  *"repos/{owner}/{repo}/pulls?"*head=*) cat "$FAKE_GH_DIR/rest-pulls-by-head.json" ;;
+  *) exit 1 ;;
+esac

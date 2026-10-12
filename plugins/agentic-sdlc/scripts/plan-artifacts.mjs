@@ -81,13 +81,41 @@ function highestTaken(kind) {
   return seen.length ? Math.max(...seen) : 0
 }
 
+// Same scan as highestTaken, but answers "where is this exact id" so a refusal can
+// name the place the caller has to go look.
+function firstHolder(id) {
+  const file = `${id}.md`
+  const porcelain = git(['worktree', 'list', '--porcelain'])
+  for (const line of porcelain.split('\n')) {
+    if (!line.startsWith('worktree ')) continue
+    const wt = line.slice('worktree '.length)
+    if (existsSync(join(wt, 'backlog', file))) return `worktree ${wt}`
+  }
+  const refs = git(['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes']).split('\n').filter(Boolean)
+  for (const ref of refs) {
+    const tree = tryGit(['ls-tree', '--name-only', `${ref}:backlog`])
+    if (tree && tree.split('\n').includes(file)) return `ref ${ref}`
+  }
+  return null
+}
+
 function claim(kind) {
   if (!KINDS.includes(kind)) die(`claim takes one of ${KINDS.join('|')}, got "${kind}"`)
+  // Checked before any fetch or write: the id becomes a file path and a plan kind.
+  if (flags.id !== undefined && (!/^(EPIC|FAST)-\d+$/.test(flags.id) || !flags.id.startsWith(`${kind}-`))) {
+    die(`claim ${kind} --id takes an ID like ${kind}-7, got "${flags.id}"`)
+  }
   tryGit(['fetch', '--quiet', 'origin'])
   const root = git(['rev-parse', '--show-toplevel']).trim()
   mkdirSync(join(root, 'backlog'), { recursive: true })
-  let n = highestTaken(kind) + 1
-  for (let attempt = 0; attempt < CLAIM_RETRIES; attempt++, n++) {
+  // A named id is claimed once and never bumped: the caller reserved that number.
+  const named = flags.id !== undefined
+  if (named) {
+    const holder = firstHolder(flags.id)
+    if (holder) die(`${flags.id} is already taken in ${holder}`)
+  }
+  let n = named ? Number(flags.id.slice(kind.length + 1)) : highestTaken(kind) + 1
+  for (let attempt = 0; attempt < (named ? 1 : CLAIM_RETRIES); attempt++, n++) {
     const rel = `backlog/${kind}-${n}.md`
     try {
       // 'wx' fails if the file exists: two sessions racing on the same n cannot
@@ -99,6 +127,8 @@ function claim(kind) {
       return
     } catch (e) {
       if (e.code !== 'EEXIST') throw e
+      // Lost the race for the reserved number; there is no next one to try.
+      if (named) die(`${flags.id} is already taken`)
     }
   }
   die(`no free ${kind} number after ${CLAIM_RETRIES} attempts from ${n - CLAIM_RETRIES}`)
@@ -127,6 +157,9 @@ function carry(id, from) {
 
   const planRel = `backlog/${id}.md`
   const planSrc = join(there, planRel)
+  // A resumed branch already carries its plan; the planning checkout may never
+  // have had it. An untracked copy still goes through the refusal check below.
+  if (!existsSync(planSrc) && !sameCheckout && tryGit(['cat-file', '-e', `HEAD:${planRel}`], here) !== null) return
   if (!existsSync(planSrc)) die(`${planSrc} not found — nothing to carry`)
   let plan = readFileSync(planSrc, 'utf8')
 
@@ -304,10 +337,42 @@ function ready(id) {
   }
 }
 
+// ---------------------------------------------------------------- resume
+
+// A branch pushed by an earlier session already holds the committed plan, so it is
+// checked out (tracking, no -b) rather than recreated.
+function resume(id, base) {
+  const top = git(['rev-parse', '--show-toplevel']).trim()
+  const wt = resolve(top, '..', `wt-${id}`)
+  if (tryGit(['fetch', 'origin', `feat/${id}`], top) === null) {
+    // Unpushed work from an earlier session: a second branch would orphan it.
+    if (tryGit(['rev-parse', '--verify', '--quiet', `refs/heads/feat/${id}`], top) !== null) {
+      git(['worktree', 'add', wt, `feat/${id}`], top)
+      return
+    }
+    // No branch anywhere: a first session, so start from the base as claim would.
+    git(['fetch', 'origin', base], top)
+    git(['worktree', 'add', wt, '-b', `feat/${id}`, `origin/${base}`], top)
+    return
+  }
+  git(['worktree', 'add', wt, `feat/${id}`], top)
+  // Merge, never rebase: the branch is already pushed and a force push is denied.
+  git(['fetch', 'origin', base], wt)
+  const mine = git(['rev-parse', 'HEAD'], wt).trim()
+  const theirs = git(['rev-parse', `origin/${base}`], wt).trim()
+  if (tryGit(['merge', '--no-edit', `origin/${base}`], wt) === null) {
+    // Listed before the abort, which clears the unmerged state.
+    const paths = (tryGit(['diff', '--name-only', '--diff-filter=U'], wt) ?? '').trim().split('\n').join(', ')
+    tryGit(['merge', '--abort'], wt)
+    die(`merge of origin/${base} conflicts in: ${paths}; branch ${mine}, base ${theirs}; resolve by hand`)
+  }
+}
+
 // ---------------------------------------------------------------- dispatch
 
 if (command === 'claim') claim(arg)
+else if (command === 'resume') resume(arg, flags.base)
 else if (command === 'carry') carry(arg, flags.from)
 else if (command === 'check') check(arg)
 else if (command === 'ready') ready(arg)
-else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | carry <ID> --from <planning checkout> | check <ID> | ready <EPIC-n> --base <base> [--deps-only]')
+else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | resume <ID> --base <base> | carry <ID> --from <planning checkout> | check <ID> | ready <EPIC-n> --base <base> [--deps-only]')

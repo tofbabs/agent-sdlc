@@ -556,11 +556,11 @@ export function buildBuild(ctx) {
 //                   review body, null for an issue comment.
 //
 // Both kinds are read because the code-reviewer posts its round comment as a
-// review (`gh pr review`), while review.md counts rounds across all bodies.
+// review (a PR review), while review.md counts rounds across all bodies.
 //
 // Sources, in order: --pr-comments <file.json> (a JSON array whose elements are
-// a body string or { "body", "state" }); else one `gh pr view [<n>] --json
-// comments,reviews` in the project — <n> from a review run's target, none for a
+// a body string or { "body", "state" }); else one REST read of issue comments and
+// reviews in the project — <n> from a review run's target, none for a
 // build run so gh picks the current branch's PR. A plan run, or a run with no
 // marker, never calls gh. RUN_REPORT_GH overrides the gh binary (tests).
 
@@ -583,15 +583,8 @@ function readPrCommentsFile(file) {
   return { bodies, states }
 }
 
-function readPrCommentsGh(root, marker) {
-  const args = ['pr', 'view']
-  if (marker.command === 'review') {
-    // `#42`, `42 --fable` and a PR URL all name PR 42.
-    const n = /(\d+)\/?$/.exec((marker.target ?? '').trim().split(/\s+/)[0] ?? '')?.[1]
-    if (!n) return null
-    args.push(n)
-  }
-  args.push('--json', 'comments,reviews')
+// REST only: some environments block gh's GraphQL, which the pr subcommands needs.
+function ghJson(root, args) {
   const r = spawnSync(process.env.RUN_REPORT_GH || 'gh', args, {
     cwd: root,
     encoding: 'utf8',
@@ -600,24 +593,44 @@ function readPrCommentsGh(root, marker) {
     stdio: ['ignore', 'pipe', 'ignore'],
   })
   if (r.error || r.status !== 0) return null
-  let data
   try {
-    data = JSON.parse(r.stdout)
+    return JSON.parse(r.stdout)
   } catch {
     return null
   }
-  if (!isPlainObject(data)) return null
+}
+
+function currentPrNumber(root) {
+  const b = spawnSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  const branch = b.status === 0 ? b.stdout.trim() : ''
+  if (!branch) return null
+  const prs = ghJson(root, ['api', `repos/{owner}/{repo}/pulls?state=open&head={owner}:${branch}`])
+  const n = Array.isArray(prs) ? prs[0]?.number : null
+  return Number.isInteger(n) ? String(n) : null
+}
+
+function readPrCommentsGh(root, marker) {
+  let n
+  if (marker.command === 'review') {
+    // `#42`, `42 --fable` and a PR URL all name PR 42.
+    n = /(\d+)\/?$/.exec((marker.target ?? '').trim().split(/\s+/)[0] ?? '')?.[1]
+  } else {
+    n = currentPrNumber(root)
+  }
+  if (!n) return null
+  const comments = ghJson(root, ['api', `repos/{owner}/{repo}/issues/${n}/comments?per_page=100`])
+  const reviews = ghJson(root, ['api', `repos/{owner}/{repo}/pulls/${n}/reviews?per_page=100`])
+  if (!Array.isArray(comments) || !Array.isArray(reviews)) return null
   const entries = []
   const add = (list, timeKey, isReview) => {
-    if (!Array.isArray(list)) return
     for (const c of list) {
       if (!isPlainObject(c) || typeof c.body !== 'string') continue
       const t = Date.parse(c[timeKey] ?? '')
       entries.push({ body: c.body, state: isReview && typeof c.state === 'string' ? c.state : null, t: Number.isFinite(t) ? t : 0 })
     }
   }
-  add(data.comments, 'createdAt', false)
-  add(data.reviews, 'submittedAt', true)
+  add(comments, 'created_at', false)
+  add(reviews, 'submitted_at', true)
   entries.sort((a, b) => a.t - b.t)
   return { bodies: entries.map((e) => e.body), states: entries.map((e) => e.state) }
 }
@@ -632,7 +645,7 @@ function loadPrComments(root, marker, file) {
 const ROUND_HEADING = /^##\s+Review\s+[—–-]\s+round\s+(\d+)\b/m
 
 // round k → index of its body. A round posted twice (a retry after a failed
-// `gh pr review`) keeps the later copy, so it is counted once.
+// a PR review) keeps the later copy, so it is counted once.
 function reviewRounds(bodies) {
   const rounds = new Map()
   bodies.forEach((body, i) => {
@@ -642,15 +655,16 @@ function reviewRounds(bodies) {
   return rounds
 }
 
-// The GitHub review state is the verdict as posted, so a COMMENT fallback reads
-// COMMENT even though its body says REQUEST_CHANGES. A body with no usable state
-// (an issue comment, a dismissed review) falls back to its own verdict line.
+// The body's own verdict line is authoritative: a round posted as a COMMENT
+// (the fallback when GitHub refuses a self-review) carries state COMMENTED even
+// though its body says REQUEST_CHANGES. State is only the fallback for a body
+// with no verdict line.
 const STATE_TO_VERDICT = { APPROVED: 'APPROVE', CHANGES_REQUESTED: 'REQUEST_CHANGES', COMMENTED: 'COMMENT' }
 
 function roundVerdict(body, state) {
-  if (state && STATE_TO_VERDICT[state]) return STATE_TO_VERDICT[state]
   const line = /^-\s*verdict:\s*`?([A-Z_]+)/m.exec(body)?.[1]
-  return isMember('verdict', line) && line !== 'NONE' ? line : null
+  if (isMember('verdict', line) && line !== 'NONE') return line
+  return (state && STATE_TO_VERDICT[state]) || null
 }
 
 // Severity is closed with no `other`, so a line whose severity is not BLOCKER,
@@ -658,12 +672,16 @@ function roundVerdict(body, state) {
 // re-review's rulings on earlier IDs (`F1: FIXED — …`).
 const FINDING_LINE = /^\s*(?:-\s*)?F\d+:\s*([A-Za-z]+)\b\s*(?:\[([^\]\n]*)\])?/
 
+// A re-review keeps fixed findings in its list marked RESOLVED; the report
+// counts only what is still open.
+const RESOLVED_TAG = /\]\s*(?:NON-)?BLOCKING\s+RESOLVED\b/
+
 function roundFindings(body, round) {
   const findings = []
   const lines = body.slice(ROUND_HEADING.exec(body).index).split('\n')
   for (const line of lines) {
     const m = FINDING_LINE.exec(line)
-    if (!m) continue
+    if (!m || RESOLVED_TAG.test(line)) continue
     const severity = m[1].toUpperCase()
     if (!isMember('severity', severity)) continue
     const category = toCategory('finding_category', m[2]?.trim().toLowerCase())

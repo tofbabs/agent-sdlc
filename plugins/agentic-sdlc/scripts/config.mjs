@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// The one reader of .claude/agentic-sdlc.json. Defaults live only here so a
-// consuming project's file needs to say nothing it does not want to change.
+// The one reader of .claude/agentic-sdlc.json (docs/adr/0006). Defaults live
+// only here so a consuming project's file needs to say nothing it does not want
+// to change. Bad input throws rather than falling back: a mistyped cap that
+// quietly became the default would change review behaviour with no signal.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const DEFAULTS = {
+  review: { round_cap: 3 },
   plan: {
     epic: {
       points: { S: 3, M: 5, L: 15 },
@@ -39,8 +42,17 @@ const SIZES = ['S', 'M', 'L'];
 const ANCHOR_DIMS = ['lines', 'files'];
 const LIMITS = ['cap', 'max_lines', 'stories_by_line'];
 
+function validateReview(review) {
+  if (review === undefined) return;
+  if (!isObj(review)) throw new ConfigError('review', 'must be an object');
+  if (review.round_cap !== undefined && !isInt(review.round_cap)) {
+    throw new ConfigError('review.round_cap', 'must be an integer >= 1');
+  }
+}
+
 function validateShape(raw) {
   if (raw.schema !== undefined && raw.schema !== 1) throw new ConfigError('schema', 'must be 1');
+  validateReview(raw.review);
   if (raw.plan === undefined) return;
   if (!isObj(raw.plan)) throw new ConfigError('plan', 'must be an object');
   const epic = raw.plan.epic;
@@ -103,6 +115,7 @@ function validateOrder(epic, rawEpic) {
 const KNOWN = {
   schema: true,
   telemetry: true,
+  review: { round_cap: true },
   plan: { epic: { points: { S: true, M: true, L: true }, cap: true, max_lines: true, stories_by_line: true, anchors: { S: { lines: true, files: true }, M: { lines: true, files: true }, L: { lines: true, files: true } } } },
 };
 
@@ -176,6 +189,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e;
     console.error(e.message);
+    process.exit(2);
+  }
+  // telemetry and schema are consent.mjs's and the file's own; the CLI serves only pipeline settings.
+  if (['telemetry', 'schema'].includes(key.split('.')[0])) {
+    console.error(`config: ${key}: unknown key`);
     process.exit(2);
   }
   const val = key.split('.').reduce((o, k) => (isObj(o) ? o[k] : undefined), cfg);

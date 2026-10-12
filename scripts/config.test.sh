@@ -89,6 +89,48 @@ config: plan.epic.baz: unknown key, ignored"
 P=$(proj unkget); echo '{"foo":1}' > "$(cfg "$P")"
 check "unknown key under get: effective plan.epic unpolluted" "$(get "$P" plan.epic.cap)" "15"
 
+echo "review.round_cap (ADR-0006)"
+P=$(proj nofile)
+check "no file: round_cap defaults to 3" "$(get "$P" review.round_cap)" "3"
+P=$(proj schemaonly); printf '%s' '{"schema":1}' > "$(cfg "$P")"
+check "schema-only file: round_cap defaults to 3" "$(get "$P" review.round_cap)" "3"
+P=$(proj cap2); printf '%s' '{"schema":1,"review":{"round_cap":2}}' > "$(cfg "$P")"
+check "configured round_cap wins" "$(get "$P" review.round_cap)" "2"
+check "--cwd reads the named project" "$(node "$S/config.mjs" get review.round_cap --cwd "$P" 2>"$TMP/err")" "2"
+for v in '"3"' 0 -1 2.5 null; do
+  bogus "cap$v" "{\"schema\":1,\"review\":{\"round_cap\":$v}}" review.round_cap 'config: review.round_cap: must be an integer >= 1'
+done
+bogus reviewarr '{"review":[]}' review.round_cap 'config: review: must be an object'
+bogus reviewfirst '{"review":{"round_cap":0},"plan":{"epic":null}}' review.round_cap 'config: review.round_cap: must be an integer >= 1'
+P=$(proj revunk); printf '%s' '{"schema":1,"review":{"round_cap":2,"mystery":1}}' > "$(cfg "$P")"
+out=$(get "$P" review.round_cap); rc=$?
+check "unknown review key: cap still served" "$out" "2"
+check "unknown review key: exits 0" "$rc" "0"
+check "unknown review key: warns" "$(cat "$TMP/err")" "config: review.mystery: unknown key, ignored"
+P=$(proj nope)
+out=$(get "$P" review.nope); rc=$?
+check "get of an unknown key exits 2" "$rc" "2"
+check "get of an unknown key: message" "$(cat "$TMP/err")" "config: review.nope: unknown key"
+P=$(proj tele); printf '%s' '{"schema":1,"telemetry":{"share":true,"terms":1}}' > "$(cfg "$P")"
+for k in telemetry telemetry.share schema; do
+  out=$(get "$P" "$k"); rc=$?
+  check "get $k exits 2" "$rc" "2"
+  check "get $k prints nothing" "$out" ""
+  check "get $k message" "$(cat "$TMP/err")" "config: $k: unknown key"
+done
+
+echo "coexistence with consent.mjs"
+P=$(proj consent)
+node "$S/consent.mjs" set true --cwd "$P" >/dev/null
+check "consent-written file reads cap 3" "$(get "$P" review.round_cap)" "3"
+check "consent-written file: stderr empty" "$(cat "$TMP/err")" ""
+P=$(proj both); printf '%s' '{"schema":1,"review":{"round_cap":4},"telemetry":{"share":false}}' > "$(cfg "$P")"
+check "telemetry beside review: cap read" "$(get "$P" review.round_cap)" "4"
+check "telemetry beside review: silent" "$(cat "$TMP/err")" ""
+node "$S/consent.mjs" set true --cwd "$P" >/dev/null
+check "consent set keeps the cap" "$(get "$P" review.round_cap)" "4"
+check "consent get still prints share=true" "$(node "$S/consent.mjs" get --cwd "$P")" "share=true"
+
 echo "readRaw and updateConfig (AC5, ADR-0007)"
 raw() { node --input-type=module -e "import { readRaw } from '$S/config.mjs'; try { process.stdout.write(JSON.stringify(readRaw(process.argv[1]))) } catch (e) { process.stdout.write('threw') }" "$1"; }
 upd() { node --input-type=module -e "import { updateConfig } from '$S/config.mjs'; try { updateConfig(process.argv[1], (c) => { c.telemetry = { share: true }; return c }); process.stdout.write('ok') } catch (e) { process.stdout.write('threw:' + e.message) }" "$1" 2>/dev/null; }

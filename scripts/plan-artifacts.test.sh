@@ -411,5 +411,182 @@ printf '%s' "$fi" | grep -qiE 'only (that part|the part)|that part.s stories' ||
 printf '%s' "$fi" | grep -qiE 'over the cap.*(report|stop)|(report|stop).*over the cap' || miss="$miss [over cap reports and stops]"
 [ -z "$miss" ] && ok "epic-budget.md has a FILL-IN protocol" || bad "FILL-IN protocol missing:$miss"
 
+# 14. claim --id takes the named id, not the next free number: parallel planners
+#     name their own id so they never race for the same one.
+cd "$TMP/main"
+before=$(ls backlog | wc -l)
+out=$(node "$PA" claim EPIC --id EPIC-9 2>/dev/null); rc=$?
+[ $rc -eq 0 ] && [ "$out" = "backlog/EPIC-9.md" ] \
+  && ok "claim --id prints the named path" || bad "claim --id: rc=$rc out='$out'"
+[ "$(head -1 backlog/EPIC-9.md 2>/dev/null)" = "# EPIC-9: (claimed — planner writes this file)" ] \
+  && ok "claim --id writes the same stub line as auto-numbering" || bad "stub line wrong or file missing"
+[ "$(ls backlog | wc -l)" -eq $((before + 1)) ] \
+  && ok "claim --id creates exactly one file" || bad "claim --id created extra files"
+
+# 15. A named id that already exists anywhere is an error naming where, never a bump to
+#     the next number and never a write: the caller reserved it, so a silent change
+#     would hand two planners different ids for one plan.
+blob=$(echo "# EPIC-20" | g hash-object -w --stdin)
+tree=$(printf '100644 blob %s\tEPIC-20.md\n' "$blob" | g mktree)
+subtree=$(printf '040000 tree %s\tbacklog\n' "$tree" | g mktree)
+commit=$(echo ref-only | g commit-tree "$subtree")
+g update-ref refs/heads/ghost "$commit"
+g update-ref refs/remotes/origin/far "$commit"
+g branch -q -D ghost
+g update-ref refs/heads/ghost-local "$commit"
+before=$(ls backlog | wc -l)
+
+err=$(node "$PA" claim FAST --id FAST-5 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && printf '%s' "$err" | grep -qF "wt" \
+  && ok "claim --id refuses an id held by another worktree and names it" || bad "other worktree: rc=$rc err='$err'"
+
+err=$(node "$PA" claim EPIC --id EPIC-9 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && ok "claim --id refuses an id already in this worktree" || bad "own worktree: rc=$rc"
+
+err=$(node "$PA" claim EPIC --id EPIC-20 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && printf '%s' "$err" | grep -qE "ghost-local|origin/far" \
+  && ok "claim --id refuses an id on a ref and names the ref" || bad "ref: rc=$rc err='$err'"
+
+g update-ref -d refs/heads/ghost-local
+err=$(node "$PA" claim EPIC --id EPIC-20 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && printf '%s' "$err" | grep -qF "origin/far" \
+  && ok "claim --id refuses an id on a remote ref and names it" || bad "remote ref: rc=$rc err='$err'"
+
+[ "$(ls backlog | wc -l)" -eq "$before" ] && [ ! -e backlog/EPIC-21.md ] \
+  && ok "a refused claim --id writes nothing" || bad "refused claim wrote a file"
+
+# 16. A malformed id or one whose prefix is another kind is rejected up front: it would
+#     otherwise become a path outside the numbered scheme or a plan of the wrong kind.
+before=$(ls backlog | wc -l)
+for bad_id in "FAST-77" "EPIC-x" "EPIC-" "epic-77" "EPIC-77.md" "EPIC-7/../x" "77"; do
+  node "$PA" claim EPIC --id "$bad_id" >/dev/null 2>&1; rc=$?
+  [ $rc -ne 0 ] && ok "claim EPIC --id '$bad_id' is rejected" || bad "claim EPIC --id '$bad_id' accepted"
+done
+[ "$(ls backlog | wc -l)" -eq "$before" ] && [ ! -e backlog/EPIC-77.md ] && [ ! -e backlog/FAST-77.md ] \
+  && ok "a rejected id writes nothing" || bad "rejected id wrote a file"
+
+tmp_race=$(mktemp -u)
+# 17. Two planners racing on the same named id: the loser must fail, naming the id as
+#     taken, not report an exhausted numbering search that never happened.
+rm -f backlog/EPIC-31.md
+for i in 1 2 3 4 5 6; do
+  rm -f backlog/EPIC-31.md
+  node "$PA" claim EPIC --id EPIC-31 >/dev/null 2>"$tmp_race.a" & pa=$!
+  node "$PA" claim EPIC --id EPIC-31 >/dev/null 2>"$tmp_race.b" & pb=$!
+  wait $pa; ra=$?; wait $pb; rb=$?
+  wins=0; [ $ra -eq 0 ] && wins=$((wins+1)); [ $rb -eq 0 ] && wins=$((wins+1))
+  [ $wins -eq 1 ] || break
+done
+[ $wins -eq 1 ] && ok "concurrent claim --id: exactly one wins" || bad "concurrent claim --id: $wins winners"
+loser_err=$(cat "$tmp_race.a" "$tmp_race.b")
+printf '%s' "$loser_err" | grep -qF "EPIC-31" && ! printf '%s' "$loser_err" | grep -qi "no free" \
+  && ok "the losing claim --id says the id is taken" || bad "loser message: '$loser_err'"
+[ ! -e backlog/EPIC-32.md ] && ok "the loser does not fall through to another number" || bad "loser took EPIC-32"
+rm -f "$tmp_race.a" "$tmp_race.b"
+
+# 18. The flag is only useful if the instructions a planner follows pass it through.
+PLUG="$ROOT/plugins/agentic-sdlc"
+for doc in commands/plan.md reference/plan-artifacts.md reference/fast-mode.md; do
+  grep -qE -- "claim (EPIC|FAST).*--id" "$PLUG/$doc" && ok "$doc documents --id" || bad "$doc does not mention --id"
+done
+[ "$(wc -c < "$PLUG/commands/plan.md")" -le 2493 ] \
+  && ok "commands/plan.md stays within its boot-size cap" || bad "commands/plan.md exceeds its 2493 B cap"
+# 19. resume: an earlier session pushed feat/<id>; /build must check that branch out (tracking,
+#     no -b) so the committed plan is the plan built, instead of dying on `worktree add -b`.
+RS="$TMP/resume"; mkdir -p "$RS"
+g init -q --bare "$RS/origin.git"
+g clone -q "$RS/origin.git" "$RS/seed" 2>/dev/null
+( cd "$RS/seed" && g checkout -qb main && echo base > base.txt && g add . && g commit -qm base && g push -q origin main \
+  && g checkout -qb feat/EPIC-5 && mkdir backlog && echo '# EPIC-5: committed plan' > backlog/EPIC-5.md \
+  && g add . && g commit -qm 'docs: add EPIC-5 plan' && g push -q origin feat/EPIC-5 )
+g clone -q "$RS/origin.git" "$RS/plan" 2>/dev/null
+( cd "$RS/plan" && g checkout -q main && node "$PA" resume EPIC-5 --base main >/dev/null 2>&1 ); rc=$?
+br=$(g -C "$RS/wt-EPIC-5" rev-parse --abbrev-ref HEAD 2>/dev/null)
+up=$(g -C "$RS/wt-EPIC-5" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+planned=$(cat "$RS/wt-EPIC-5/backlog/EPIC-5.md" 2>/dev/null)
+[ $rc -eq 0 ] && [ "$br" = "feat/EPIC-5" ] && [ "$up" = "origin/feat/EPIC-5" ] && [ "$planned" = "# EPIC-5: committed plan" ] \
+  && ok "resume checks out the pushed branch tracking origin, with its committed plan" \
+  || bad "resume: rc=$rc branch='$br' upstream='$up' plan='$planned'"
+
+# 20. resume: base moved on after the branch was pushed; merging (never rebasing) brings it in
+#     while the pushed commits stay ancestors, since rewriting them needs a denied force push.
+MG="$TMP/merge"; mkdir -p "$MG"
+g init -q --bare "$MG/origin.git"
+g clone -q "$MG/origin.git" "$MG/seed" 2>/dev/null
+( cd "$MG/seed" && g checkout -qb main && echo base > base.txt && g add . && g commit -qm base && g push -q origin main \
+  && g checkout -qb feat/EPIC-6 && mkdir backlog && echo '# EPIC-6: plan' > backlog/EPIC-6.md \
+  && g add . && g commit -qm 'docs: add EPIC-6 plan' && g push -q origin feat/EPIC-6 \
+  && g checkout -q main && echo later > later.txt && g add . && g commit -qm 'feat: later' && g push -q origin main )
+g clone -q "$MG/origin.git" "$MG/plan" 2>/dev/null
+pushed=$(g -C "$MG/seed" rev-parse origin/feat/EPIC-6)
+( cd "$MG/plan" && g checkout -q main && node "$PA" resume EPIC-6 --base main >/dev/null 2>&1 ); rc=$?
+merged=$(cat "$MG/wt-EPIC-6/later.txt" 2>/dev/null)
+parents=$(g -C "$MG/wt-EPIC-6" rev-list --parents -n1 HEAD 2>/dev/null | wc -w)
+g -C "$MG/wt-EPIC-6" merge-base --is-ancestor "$pushed" HEAD 2>/dev/null; anc=$?
+[ $rc -eq 0 ] && [ "$merged" = later ] && [ "$parents" -eq 3 ] && [ $anc -eq 0 ] \
+  && ok "resume merges origin/<base> into the branch and keeps pushed history" \
+  || bad "resume merge: rc=$rc later='$merged' parents=$parents ancestor=$anc"
+
+# 21. resume: a conflicting base is never resolved for the user; the merge is aborted so the
+#     branch stays exactly as pushed, and the report names the paths and both shas.
+CF="$TMP/conflict"; mkdir -p "$CF"
+g init -q --bare "$CF/origin.git"
+g clone -q "$CF/origin.git" "$CF/seed" 2>/dev/null
+( cd "$CF/seed" && g checkout -qb main && echo base > shared.txt && g add . && g commit -qm base && g push -q origin main \
+  && g checkout -qb feat/EPIC-8 && echo branch-side > shared.txt && g add . && g commit -qm 'docs: branch edit' && g push -q origin feat/EPIC-8 \
+  && g checkout -q main && echo main-side > shared.txt && g add . && g commit -qm 'feat: main edit' && g push -q origin main )
+g clone -q "$CF/origin.git" "$CF/plan" 2>/dev/null
+cpushed=$(g -C "$CF/seed" rev-parse origin/feat/EPIC-8)
+cbase=$(g -C "$CF/seed" rev-parse origin/main)
+cerr=$( cd "$CF/plan" && g checkout -q main && node "$PA" resume EPIC-8 --base main 2>&1 >/dev/null ); rc=$?
+chead=$(g -C "$CF/wt-EPIC-8" rev-parse HEAD 2>/dev/null)
+cstat=$(g -C "$CF/wt-EPIC-8" status --porcelain 2>/dev/null)
+cfile=$(cat "$CF/wt-EPIC-8/shared.txt" 2>/dev/null)
+[ $rc -ne 0 ] && [ "$chead" = "$cpushed" ] && [ -z "$cstat" ] && [ "$cfile" = branch-side ] \
+  && printf '%s' "$cerr" | grep -qF shared.txt && printf '%s' "$cerr" | grep -qF "$cpushed" && printf '%s' "$cerr" | grep -qF "$cbase" \
+  && ok "resume aborts a conflicting merge, leaves the branch as pushed, reports paths and shas" \
+  || bad "resume conflict: rc=$rc head=$chead status='$cstat' file='$cfile' err='$cerr'"
+
+# 22. resume: with no branch anywhere, behaviour is today's `worktree add -b` off origin/<base>,
+#     so /build can call resume unconditionally.
+NB="$TMP/nobranch"; mkdir -p "$NB"
+g init -q --bare "$NB/origin.git"
+g clone -q "$NB/origin.git" "$NB/seed" 2>/dev/null
+( cd "$NB/seed" && g checkout -qb main && echo base > base.txt && g add . && g commit -qm base && g push -q origin main )
+g clone -q "$NB/origin.git" "$NB/plan" 2>/dev/null
+nbase=$(g -C "$NB/seed" rev-parse origin/main)
+( cd "$NB/plan" && g checkout -q main && node "$PA" resume EPIC-9 --base main >/dev/null 2>&1 ); rc=$?
+nbr=$(g -C "$NB/wt-EPIC-9" rev-parse --abbrev-ref HEAD 2>/dev/null)
+nhead=$(g -C "$NB/wt-EPIC-9" rev-parse HEAD 2>/dev/null)
+[ $rc -eq 0 ] && [ "$nbr" = "feat/EPIC-9" ] && [ "$nhead" = "$nbase" ] \
+  && ok "resume with no existing branch creates feat/<id> off origin/<base>" \
+  || bad "resume fresh: rc=$rc branch='$nbr' head='$nhead' base='$nbase'"
+
+# 23. resume: a local-only feat/<id> is the plan an earlier session committed; reuse it rather
+#     than failing on `-b` or minting a second branch.
+LB="$TMP/localbranch"; mkdir -p "$LB"
+g init -q --bare "$LB/origin.git"
+g clone -q "$LB/origin.git" "$LB/plan" 2>/dev/null
+( cd "$LB/plan" && g checkout -qb main && echo base > base.txt && g add . && g commit -qm base && g push -q origin main \
+  && g checkout -qb feat/EPIC-10 && echo plan > plan.txt && g add . && g commit -qm 'docs: plan' && g checkout -q main )
+lcommit=$(g -C "$LB/plan" rev-parse feat/EPIC-10)
+( cd "$LB/plan" && node "$PA" resume EPIC-10 --base main >/dev/null 2>&1 ); rc=$?
+lbr=$(g -C "$LB/wt-EPIC-10" rev-parse --abbrev-ref HEAD 2>/dev/null)
+lhead=$(g -C "$LB/wt-EPIC-10" rev-parse HEAD 2>/dev/null)
+lcount=$(g -C "$LB/plan" branch --list 'feat/EPIC-10*' | wc -l | tr -d ' ')
+[ $rc -eq 0 ] && [ "$lbr" = "feat/EPIC-10" ] && [ "$lhead" = "$lcommit" ] && [ "$lcount" = 1 ] \
+  && ok "resume reuses a local feat/<id> that was never pushed" \
+  || bad "resume local: rc=$rc branch='$lbr' head='$lhead' want='$lcommit' branches=$lcount"
+
+# 24. carry on a resumed branch: the plan is already tracked there and the planning checkout never
+#     had it, so carry must be a no-op rather than die on the missing source.
+before=$(g -C "$RS/wt-EPIC-5" rev-parse HEAD)
+( cd "$RS/wt-EPIC-5" && node "$PA" carry EPIC-5 --from "$RS/plan" >/dev/null 2>&1 ); rc=$?
+after=$(g -C "$RS/wt-EPIC-5" rev-parse HEAD)
+dirty=$(g -C "$RS/wt-EPIC-5" status --porcelain)
+[ $rc -eq 0 ] && [ "$before" = "$after" ] && [ -z "$dirty" ] \
+  && ok "carry skips when the plan is already tracked on a resumed branch" \
+  || bad "carry resumed: rc=$rc head $before -> $after dirty='$dirty'"
+
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'
