@@ -114,10 +114,12 @@ function isUntracked(file, cwd) {
   return tryGit(['ls-files', '--error-unmatch', '--', file], cwd) === null
 }
 
-// A stub is a placeholder awaiting its fill-in; matching the status line and the
-// own-ID heading (not a substring) keeps someone else's real work from qualifying.
+// A stub is a placeholder awaiting its fill-in. Only the header (title line up to
+// the first "## ") counts: a finished epic may quote "- Status: STUB" in its body,
+// and an ID prefix like EPIC-41-old is a different epic.
 function isOwnStub(text, id) {
-  return new RegExp(`^# ${id}\\b`, 'm').test(text) && /^[-*\s]*Status:\s*STUB\s*$/m.test(text)
+  const header = text.split(/^## /m)[0]
+  return new RegExp(`^# ${id}(:|[ \\t]*$)`).test(header.split('\n')[0]) && /^[-*][ \t]+Status:[ \t]*STUB[ \t]*$/m.test(header)
 }
 
 function carry(id, from) {
@@ -277,6 +279,9 @@ function ready(id) {
   const file = join(process.cwd(), 'backlog', `${id}.md`)
   if (!existsSync(file)) die(`${file} not found`)
   const text = readFileSync(file, 'utf8')
+  // A stale origin/<base> would report a just-merged part as unmerged; offline,
+  // the existing ref is the best answer available.
+  tryGit(['fetch', '--quiet', 'origin', base])
 
   if (!flags['deps-only']) {
     if (/^- Status:[ \t]*STUB\b/m.test(text)) {

@@ -117,6 +117,20 @@ mkdir -p ../build44/backlog && printf '# EPIC-44: built\n- Status: DONE\n\nNotes
 ( cd ../build44 && node "$PA" carry EPIC-44 --from "$TMP/main" >/dev/null 2>&1 )
 [ $? -eq 2 ] && grep -q 'DONE' ../build44/backlog/EPIC-44.md \
   && ok "carry refuses a non-STUB copy that mentions STUB" || bad "non-stub overwritten"
+# 5d. STUB counts only in the header, and only under this exact ID: a finished epic quoting
+#     "- Status: STUB" in its body, or a heading like EPIC-45-old, is not replaceable.
+printf '# EPIC-45: fill\n- Status: TODO\n' > backlog/EPIC-45.md
+g worktree add -q ../build45 -b feat/EPIC-45 main
+mkdir -p ../build45/backlog && printf '# EPIC-45: built\n- Status: DONE\n\n## Notes\n\n- Status: STUB\n' > ../build45/backlog/EPIC-45.md
+( cd ../build45 && node "$PA" carry EPIC-45 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'DONE' ../build45/backlog/EPIC-45.md \
+  && ok "carry refuses a body-only STUB line" || bad "body STUB overwritten"
+printf '# EPIC-46: fill\n- Status: TODO\n' > backlog/EPIC-46.md
+g worktree add -q ../build46 -b feat/EPIC-46 main
+mkdir -p ../build46/backlog && printf '# EPIC-46-old: other\n- Status: STUB\n' > ../build46/backlog/EPIC-46.md
+( cd ../build46 && node "$PA" carry EPIC-46 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'EPIC-46-old' ../build46/backlog/EPIC-46.md \
+  && ok "carry refuses a STUB under a prefixed ID" || bad "prefixed-ID stub overwritten"
 
 # 6. The shared ledger is never an Artifact — whole-file copy would clobber it.
 printf '# FAST-8\n- Artifacts: docs/TOOLING-DEBT.md\n' > backlog/FAST-8.md
@@ -240,6 +254,10 @@ for s in 'plan-artifacts.mjs check' 're-split' 'still over' 'SPLIT'; do
   grep -qF -- "$s" "$PLANMD" || miss="$miss [$s]"
 done
 [ -z "$miss" ] && ok "plan.md runs check, re-splits once, and stops on still over" || bad "plan.md missing:$miss"
+s3=$(sed -n '/^## STEP 3/,/^## /p' "$PLANMD")
+ln() { printf '%s\n' "$s3" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
+[ "$(ln 'plan-artifacts.mjs check')" -gt "$(ln 'mode-select.mjs record')" ] && [ "$(ln 'plan-artifacts.mjs check')" -gt "$(ln 'Artifacts:')" ] \
+  && ok "plan.md checks the epic after its last write" || bad "check runs before Artifacts/record writes"
 [ "$(wc -c < "$PLANMD")" -le 2493 ] && ok "plan.md within its byte cap" || bad "plan.md over 2493 bytes"
 # 10f. The REPORT must show build order with points and dependencies, so a split
 #      brief reads as a sequence of reviewable PRs.
@@ -296,6 +314,13 @@ g clone -q --depth 1 "file://$TMP/rorigin.git" "$TMP/rshallow" && mkdir -p "$TMP
 cp "$TMP/rw/backlog/EPIC-32.md" "$TMP/rshallow/backlog/"
 out=$(cd "$TMP/rshallow" && node "$PA" ready EPIC-32 --base main 2>&1); rc=$?
 [ $rc -eq 3 ] && echo "$out" | grep -q 'git fetch --unshallow origin main' && ok "ready fails closed in a shallow checkout" || bad "shallow: rc=$rc out=$out"
+# A stale origin/<base>: the dependency merged after the last fetch. ready fetches first.
+g clone -q "file://$TMP/rorigin.git" "$TMP/rstale" && mkdir -p "$TMP/rstale/backlog"
+printf '# EPIC-38\n- Depends on: EPIC-2 (merged)\n\n## Stories\n\n### STORY-38-1: s\n- estimate: S\n' > "$TMP/rstale/backlog/EPIC-38.md"
+printf '# EPIC-2\n\n## Stories\n\n### STORY-2-1: a\n- estimate: S\n' > backlog/EPIC-2.md
+g add backlog/EPIC-2.md && g commit -qm "feat: two [STORY-2-1]" && g push -q origin main
+out=$(cd "$TMP/rstale" && node "$PA" ready EPIC-38 --base main 2>&1); rc=$?
+[ $rc -eq 0 ] && ok "ready fetches origin/<base> before judging a dependency" || bad "stale: rc=$rc out=$out"
 
 # 12. Fill-in: a stub whose merged dependency is unmerged must stop before the planner
 #     touches it, and /plan must route EPIC-<n> there without growing past its cap.
@@ -310,6 +335,7 @@ for s in 'EPIC-<n>' '--deps-only' 'STUB' 'epic-budget.md'; do
   printf '%s' "$fill" | grep -qF -- "$s" || miss="$miss [$s]"
 done
 printf '%s' "$fill" | grep -qiE 'refus|not a stub' || miss="$miss [refusal of a non-STUB]"
+printf '%s' "$fill" | grep -qF -- 'ready EPIC-<n> --base <base> --deps-only' || miss="$miss [ready needs --base]"
 [ -z "$miss" ] && ok "plan.md has a FILL-IN section: deps-only gate, STUB only, protocol in the reference" || bad "FILL-IN missing:$miss"
 
 # 13. The fill-in protocol lives in the reference; without each rule the planner may claim a

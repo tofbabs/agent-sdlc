@@ -75,8 +75,10 @@ what Part 1 actually merged.
 
 Planning a stub's detail once the parts it depends on have merged.
 
-- Run `ready EPIC-n --base <base> --deps-only` first. `/plan` omits `--base`, so
-  pass it here. Not ready: stop.
+- Resolve `<base>` exactly as `/build`'s BASE BRANCH does (the
+  `**Integration branch:**` line in `CLAUDE.md`, else `main`), then run
+  `ready EPIC-n --base <base> --deps-only` first. `ready` fetches `origin/<base>`
+  itself, so a stale ref cannot report a merged part as unmerged. Not ready: stop.
 - Re-read the brief at the stub's `Brief:`, limited to that part's stories and
   nothing else in it.
 - Read the merged code, so the detail matches what the earlier parts built

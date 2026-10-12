@@ -51,16 +51,16 @@ Batch related handoffs.
 
 ## STEP 3 — Review (non-blocking)
 
-Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>` on each epic. Fail → one re-split with the error; again → "still over", stop.
 Add `- Artifacts:` (new ADRs, brief). Record the lane (Part 1 only):
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen deliberate`.
+Last, `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>` per epic. Fail → re-split once; again → "still over".
 Show epics, stories, decisions and reasoning, ADRs, debt. Silence lets `/build` proceed.
 
 ---
 
 ## FILL-IN
 
-Input `EPIC-<n>`: run `plan-artifacts.mjs ready EPIC-<n> --deps-only`; non-zero → stop. Not a STUB → refuse, change nothing. Else follow `reference/epic-budget.md`.
+Input `EPIC-<n>`: `plan-artifacts.mjs ready EPIC-<n> --base <base> --deps-only` (`<base>` as `/build`); non-zero → stop. Not a STUB → refuse, change nothing. Else follow `reference/epic-budget.md`.
 
 ---
 
