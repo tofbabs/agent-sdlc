@@ -340,23 +340,5 @@ only delegates to `/review`.
 
 ## Debt
 
-### Run report does not record BLOCKING vs NON-BLOCKING
-- Raised: 2026-10-09 by architect (ARCH-4)
-- Current: the blocking tag is parsed but not put in `review.findings`. ADR-0001 schema 1 is unchanged, so the signal routine can't tell an advisory finding from a blocking one.
-- Risk: LOW
-- Category: observability
-- Address when: the signal routine (EPIC-5 / brief 03) needs to group on it, or the round-count metric misses its target.
+Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 
-### `--id` uniqueness is per machine only
-- Raised: 2026-10-09 by architect (ARCH-1)
-- Current: `claim --id` relies on an exclusive file create and a ref scan after fetch. Two sessions on different machines with the same `--id` can both succeed until the second push.
-- Risk: LOW
-- Category: robustness
-- Address when: ids come from anything other than GitHub Issue numbers in parallel cloud sessions, or a collision is observed.
-
-### Config is not validated against a published schema
-- Raised: 2026-10-09 by architect (ARCH-3)
-- Current: `config.mjs` hand-checks types for known keys and only warns on unknown keys, so a typo in a key name falls back to the default with only a stderr warning.
-- Risk: MEDIUM
-- Category: robustness
-- Address when: the config holds more than about five keys, or a consuming project reports a misspelled key that was silently defaulted.
