@@ -72,9 +72,9 @@ Agent(subagent_type: "agentic-sdlc:code-reviewer",
       model: <resolved code-reviewer model>,
       prompt: "Review PR <n>, round <k+1>. Worktree: <abs path>. Head sha:
       <sha>. Base: origin/<base>. Story IDs: <ids> in <backlog file> — read
-      only those sections. Mode: FAST — yes|no. CI: <summary>. Previous
-      round: <k> at <sha>, verdict <v>; coder response present: yes|no. Post
-      one `## Review — round <k+1>` review and the verdict per your OUTPUT
+      only those sections. Mode: FAST — yes|no. CI: <summary>. Round k≥1:
+      re-check <last sha>..<head>; earlier findings: <findings>;
+      `## Response — round <k>`: <responseBody>; see Rounds 2+. Post one `## Review — round <k+1>` review and the verdict per your OUTPUT
       section. Report in your REPORT shape.")
 ```
 

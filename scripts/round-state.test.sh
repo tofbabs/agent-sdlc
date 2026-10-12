@@ -68,4 +68,18 @@ mk "$TMP/resp2.json" "$(body 1 REQUEST_CHANGES $SHA1)" "$(printf '## Response �
 out=$(node "$S" --reviews "$TMP/none.json" --comments "$TMP/resp2.json")
 check "response to an older round does not count" "$(field "$out" response)" false
 
+# --- round k+1 spawn material: earlier findings and the response body --------
+two() { printf '## Review — round 1\n- verdict: REQUEST_CHANGES\n- reviewed sha: %s\n\n- F1: MAJOR [security] BLOCKING — leak — redact\n- F2: MINOR [style] NON-BLOCKING — nit\n' "$SHA1"; }
+mk "$TMP/mat.json" "$(two)" "$(printf '## Response — round 1\n- F1: FIXED in abc\n- F2: DISPUTED because x\n')"
+out=$(node "$S" --reviews "$TMP/none.json" --comments "$TMP/mat.json")
+check "earlier finding lines listed one per entry" "$(node -e 'console.log(JSON.parse(process.argv[1]).findings.join("|"))' "$out")" \
+  "- F1: MAJOR [security] BLOCKING — leak — redact|- F2: MINOR [style] NON-BLOCKING — nit"
+check "response body carried whole" "$(node -e 'console.log(JSON.parse(process.argv[1]).responseBody)' "$out")" \
+  "$(printf '## Response — round 1\n- F1: FIXED in abc\n- F2: DISPUTED because x')"
+
+mk "$TMP/mat2.json" "$(two)" "$(printf '## Response — round 1\n- F1: old\n')" "$(body 2 REQUEST_CHANGES $SHA2)"
+out=$(node "$S" --reviews "$TMP/none.json" --comments "$TMP/mat2.json")
+check "stale response body is not carried" "$(node -e 'console.log(JSON.parse(process.argv[1]).responseBody)' "$out")" ""
+check "findings come from the newest round only" "$(node -e 'console.log(JSON.parse(process.argv[1]).findings.length)' "$out")" 1
+
 exit $fail

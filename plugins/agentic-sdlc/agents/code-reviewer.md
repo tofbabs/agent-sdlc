@@ -58,6 +58,7 @@ before your first turn.
    more than the lane saved.
 6. On a re-review, rule on every ID in the coder's `## Response — round k`:
    confirm each `FIXED` against the new sha, accept or hold each `DISPUTED`.
+   Range and new-finding rules: `reference/review-rounds.md` `## Rounds 2+`.
 7. Verify your own read (see UNDERLYING DISCIPLINE), then post.
 
 ---

@@ -25,10 +25,11 @@ for (const x of items) {
 }
 
 // A response to an older round does not answer the newest findings.
-const response = items.some((x) => {
+const answer = items.find((x) => {
   const m = /^## Response — round (\d+)/m.exec(x.body || '');
   return m && Number(m[1]) === round;
 });
+const response = Boolean(answer);
 
 // Only a fallback: COMMENTED carries no verdict.
 const fromState = { CHANGES_REQUESTED: 'REQUEST_CHANGES', APPROVED: 'APPROVE' };
@@ -38,4 +39,6 @@ console.log(JSON.stringify({
   verdict: field(/^- verdict: *(\S+)/m) || fromState[lastState] || '',
   sha: field(/^- reviewed sha: *(\S+)/m),
   response,
+  findings: last.split('\n').filter((l) => /^- F\d+:/.test(l)),
+  responseBody: answer ? answer.body.trim() : '',
 }));

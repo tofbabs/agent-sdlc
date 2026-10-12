@@ -285,7 +285,7 @@ only delegates to `/review`.
 
 ### STORY-7-7: Rounds 2+ only re-check
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: M
 - select: risk_class=none@brief:L69 one_way_doors=0@brief:L69 existing_pattern=no@brief:L69 modules_crossed=3@brief:L69 review_bounced=no@brief:L69 risk_kind=code@brief:L69

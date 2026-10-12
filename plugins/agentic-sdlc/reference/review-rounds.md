@@ -57,3 +57,11 @@ If the head sha moved or the reviewer hit a blocker and "needs a human", it post
 ## Round cap
 
 The cap is `review.round_cap` (default 3). When the rounds posted equal the cap and the last verdict is `REQUEST_CHANGES`, `/review` reports "needs a human" and posts nothing; it refuses before the reviewer is spawned, so the comment carries no cap token. A cap of 2 refuses the third round. `/build` REVISE stops at the same cap.
+
+## Rounds 2+
+
+Review only the range `<last reviewed sha>..<head>`, so a fix is judged on what changed and not re-litigated from scratch. Inputs are the earlier findings and the author's `## Response — round k`.
+
+- A finding the Response resolved is re-listed as RESOLVED; the response is the evidence, so the reviewer does not re-derive it.
+- Any finding not resolved by the Response stays open and is carried forward.
+- A new finding outside the earlier set is kept only if it is BLOCKING and about security, data loss or a broken contract; anything else is dropped, so the loop converges instead of growing a fresh list each round.

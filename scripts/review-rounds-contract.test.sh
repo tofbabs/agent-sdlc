@@ -28,6 +28,12 @@ has "$REF" 'NON-BLOCKING.*(advisory|never revised)' "NON-BLOCKING findings are a
 has "$REF" '(body|comment).*authoritative|authoritative.*(body|comment)' "body verdict and sha are authoritative"
 has "$REF" 'needs a human.*(posts? nothing|no comment)|posts? nothing.*needs a human' "needs a human posts nothing"
 
+has "$REF" '^## Rounds 2\+' "rounds 2+ section heading"
+has "$REF" '<last reviewed sha>\.\.<head>' "rounds 2+ review only the range since the last reviewed sha"
+has "$REF" 'resolved.*Response|Response.*resolved' "a finding the response resolved is ruled on from the response"
+has "$REF" '(otherwise|unresolved|not resolved).*(stays|remain|left) open|stays open' "an unresolved finding stays open"
+has "$REF" '(new|outside).*finding.*BLOCKING.*(security).*(data loss).*(broken contract)' "new findings kept only if BLOCKING and security, data loss or broken contract"
+
 has "$REVIEWER" 'reference/review-rounds\.md' "code-reviewer points at the contract"
 lacks "$REVIEWER" 'gh api repos/\{owner\}/\{repo\}/pulls/<n>/reviews -f event' "code-reviewer no longer carries the posting recipe"
 has "$REVIEWER" '^- verdict: ' "code-reviewer keeps a minimal template with verdict"
@@ -36,6 +42,10 @@ has "$REVIEWER" 'BLOCKING' "code-reviewer template tags findings"
 
 has "$CMD" 'round-state\.mjs' "/review reads the previous round via round-state"
 lacks "$CMD" 'Note its reviewed sha' "/review no longer re-derives the verdict in prose"
+has "$CMD" '[0-9a-z>]\.\.<?head' "round k+1 spawn prompt carries the range since the last reviewed sha"
+has "$CMD" '(earlier|previous|prior) findings' "round k+1 spawn prompt carries the earlier findings"
+has "$CMD" 'Response — round' "round k+1 spawn prompt carries the author's response"
+has "$REVIEWER" 'Rounds 2\+' "code-reviewer points rounds 2+ behaviour at the reference section"
 
 [ "$(wc -c < "$CMD")" -le 4477 ] && ok "review.md within cap" || bad "review.md over 4477 B cap"
 [ "$(wc -c < "$REVIEWER")" -le 8552 ] && ok "code-reviewer.md within cap" || bad "code-reviewer.md over 8552 B cap"
