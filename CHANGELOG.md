@@ -2,6 +2,27 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.11](https://github.com/tofbabs/agent-sdlc/compare/v0.2.10...v0.2.11) (2026-10-12)
+
+
+### Features
+
+* **plan-artifacts:** check rejects over-cap and unsized epics [STORY-8-1] ([5fd815a](https://github.com/tofbabs/agent-sdlc/commit/5fd815ace776de5a01b6de431274ec16393aead3))
+* **plan-artifacts:** enforce epic line budget and Depends-on links [STORY-8-2] ([993a4f0](https://github.com/tofbabs/agent-sdlc/commit/993a4f022fa0b62ddf5a72f2d3c0c2e4b92da9bb))
+* **plan-artifacts:** epic size budget check, part 1 of 3 [EPIC-8] ([33b2079](https://github.com/tofbabs/agent-sdlc/commit/33b2079826a945ea590aec02e5dee40128db6866))
+
+
+### Documentation
+
+* add EPIC-6 and EPIC-7 plans, ADR-0005/0006 and open briefs ([356588f](https://github.com/tofbabs/agent-sdlc/commit/356588fcfe6226768a232729dc132819b3a6c025))
+* add EPIC-6 and EPIC-7 plans, ADR-0005/0006 and open briefs ([edd2760](https://github.com/tofbabs/agent-sdlc/commit/edd27602e43cfffeef462f04f612a2d5ba0ecde8))
+* add EPIC-8 plan ([97bd6ca](https://github.com/tofbabs/agent-sdlc/commit/97bd6ca76b787f2869ac9617c3cdffc49aa590f1))
+
+
+### Build System
+
+* **preflight:** run plan-artifacts check on epics changed on the branch [STORY-8-3] ([89d85fc](https://github.com/tofbabs/agent-sdlc/commit/89d85fc345db9a2569b66cb55b348c669368ecda))
+
 ## [0.2.10](https://github.com/tofbabs/agent-sdlc/compare/v0.2.9...v0.2.10) (2026-10-11)
 
 
