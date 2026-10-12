@@ -19,6 +19,7 @@
 ## Stories
 ### STORY-9-1: `reference/epic-budget.md`, anchors, and pointer-only prose in planner/plan
 - status: TODO
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L142 one_way_doors=0@brief:L142 existing_pattern=yes@brief:L142 modules_crossed=2@brief:L142 review_bounced=no@brief:L142 risk_kind=code@brief:L142
 - depends_on: []
@@ -34,7 +35,8 @@
 **Out of scope:** split rules and stub shape (STORY-9-3), `check` changes, config.
 
 ### STORY-9-2: `/build` stops when a `merged` dependency is not merged
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L104 one_way_doors=0@brief:L104 existing_pattern=yes@brief:L186 modules_crossed=2@brief:L104 review_bounced=no@brief:L104 risk_kind=code@brief:L104
 - depends_on: []
@@ -53,6 +55,7 @@
 
 ### STORY-9-3: Planner splits a brief into linked epics; `/plan` runs `check`
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: M
 - select: risk_class=none@brief:L92 one_way_doors=0@brief:L92 existing_pattern=no@brief:L121 modules_crossed=3@brief:L92 review_bounced=no@brief:L92 risk_kind=code@brief:L92
 - depends_on: [STORY-9-1]
@@ -71,6 +74,7 @@
 
 ### STORY-9-4: `/plan EPIC-n` fills in a stub; `carry` replaces a stub
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: S
 - select: risk_class=none@brief:L104 one_way_doors=0@brief:L104 existing_pattern=no@brief:L121 modules_crossed=3@brief:L104 review_bounced=no@brief:L104 risk_kind=code@brief:L104
 - depends_on: [STORY-9-3, STORY-9-2]

@@ -166,5 +166,45 @@ dep EPIC-23 "none"
 chk EPIC-23 >/dev/null; [ $? -eq 0 ] && ok "check passes Depends on: none" || bad "none rejected"
 chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes an epic with no Depends-on header" || bad "no header rejected"
 
+# 10. ready: stub refusal and merged-dependency anchoring against origin/<base>.
+rdy() { (cd "$TMP/rw" && node "$PA" ready "$@" 2>&1); }
+g init -q --bare "$TMP/rorigin.git"
+g init -q "$TMP/rw" && cd "$TMP/rw"
+mkdir backlog
+printf '# EPIC-1\n\n## Stories\n\n### STORY-1-1: a\n- estimate: S\n\n### STORY-1-2: b\n- estimate: S\n' > backlog/EPIC-1.md
+g add . && g commit -qm "feat: one [STORY-1-1]"
+g remote add origin "$TMP/rorigin.git" && g push -q origin main && g fetch -q origin main
+rdep() { printf '# %s\n- Depends on: %s\n\n## Stories\n\n### STORY-9-1: s\n- estimate: S\n' "$1" "$2" > "$TMP/rw/backlog/$1.md"; }
+printf '# EPIC-30\n- Status: STUB\n\n## Stories\n\n### STORY-30-1: s\n- estimate: S\n' > backlog/EPIC-30.md
+out=$(rdy EPIC-30 --base main); rc=$?
+[ $rc -ne 0 ] && [ "$out" = "EPIC-30 is a stub: run /plan EPIC-30 first" ] && ok "ready refuses a stub epic" || bad "stub: rc=$rc out=$out"
+out=$(rdy EPIC-30 --base main --deps-only); rc=$?
+[ $rc -eq 0 ] && ok "ready --deps-only skips the stub rule" || bad "deps-only stub: rc=$rc out=$out"
+rdep EPIC-31 "EPIC-77 (merged)"
+out=$(rdy EPIC-31 --base main); rc=$?
+[ $rc -eq 3 ] && [ "$(echo "$out" | wc -l)" -eq 1 ] && echo "$out" | grep -q 'EPIC-77' && ok "ready exits 3 naming a dependency absent from origin/main" || bad "absent dep: rc=$rc out=$out"
+rdep EPIC-32 "EPIC-1 (merged)"
+out=$(rdy EPIC-32 --base main); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q 'EPIC-1 ' && echo "$out" | grep -q 'STORY-1-2' && ! echo "$out" | grep -q 'STORY-1-1' \
+  && ok "ready names the first story with no [STORY-id] commit" || bad "missing story: rc=$rc out=$out"
+g commit -q --allow-empty -m "feat: two [STORY-1-2]" && g push -q origin main && g fetch -q origin main
+out=$(rdy EPIC-32 --base main); rc=$?
+[ $rc -eq 0 ] && ok "ready passes once every story is on origin/main" || bad "merged dep: rc=$rc out=$out"
+rdep EPIC-33 "EPIC-5 (released), EPIC-6 (released)"
+out=$(rdy EPIC-33 --base main); [ $? -eq 0 ] && ok "ready passes released dependencies" || bad "released: $out"
+rdep EPIC-34 "none"
+out=$(rdy EPIC-34 --base main); [ $? -eq 0 ] && ok "ready passes Depends on: none" || bad "none: $out"
+printf '# EPIC-35\n\n## Stories\n\n### STORY-35-1: s\n- estimate: S\n' > backlog/EPIC-35.md
+out=$(rdy EPIC-35 --base main); [ $? -eq 0 ] && ok "ready passes an epic with no Depends-on header" || bad "no header: $out"
+out=$(rdy EPIC-99 --base main); [ $? -ne 0 ] && ok "ready fails when the epic file is missing" || bad "missing epic passed"
+printf '# EPIC-36\n\n## Stories\n' > backlog/EPIC-36.md
+out=$(rdy EPIC-36 --base main); [ $? -ne 0 ] && ok "ready fails an epic with no STORY blocks" || bad "no stories passed"
+# Shallow clone: a story outside the fetched history must fail closed with the unshallow hint.
+g commit -q --allow-empty -m "chore: pad" && g push -q origin main
+g clone -q --depth 1 "file://$TMP/rorigin.git" "$TMP/rshallow" && mkdir -p "$TMP/rshallow/backlog"
+cp "$TMP/rw/backlog/EPIC-32.md" "$TMP/rshallow/backlog/"
+out=$(cd "$TMP/rshallow" && node "$PA" ready EPIC-32 --base main 2>&1); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q 'git fetch --unshallow origin main' && ok "ready fails closed in a shallow checkout" || bad "shallow: rc=$rc out=$out"
+
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'
