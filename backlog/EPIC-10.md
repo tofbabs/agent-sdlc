@@ -4,7 +4,7 @@
 - Part: 3 of 3
 - Depends on: EPIC-9 (merged)
 - Outcome: `.claude/agentic-sdlc.json` tunes the epic budget (cap, weights, line budget, anchors) through a validated `config.mjs`, and the planner and `check` read the same numbers. A missing file means the defaults.
-- Status: TODO
+- Status: DONE
 - Artifacts: docs/adr/0007-config-file-shared-with-consent.md
 - Lane: deliberate — recommended deliberate (rubric 1): 2 stories are PAIR, lane is deliberate
 - Points: 8 against cap 15
@@ -20,7 +20,7 @@
 
 ### STORY-10-1: `config.mjs` reader with the `plan` key; `check` and `consent` use it
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
@@ -47,7 +47,7 @@
 
 ### STORY-10-2: Config covers anchors and the planner's numbers end to end
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: S
 - select: risk_class=none@brief:L125 one_way_doors=0@brief:L125 existing_pattern=yes@brief:L190 modules_crossed=3@brief:L125 review_bounced=no@brief:L125 risk_kind=code@brief:L125
