@@ -22,6 +22,7 @@
 
 - status: TODO
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L125 one_way_doors=0@brief:L125 existing_pattern=yes@brief:L190 modules_crossed=3@brief:L125 review_bounced=no@brief:L125 risk_kind=code@brief:L125
 - depends_on: []
