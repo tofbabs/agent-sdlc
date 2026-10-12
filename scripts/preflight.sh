@@ -306,6 +306,18 @@ else
   note "node not found — skipping outcomes tests"
 fi
 
+# 6c2. Cloud sessions block GraphQL, so shipped content may only call gh REST.
+if "$ROOT/scripts/gh-rest-only.test.sh" >/dev/null 2>&1; then
+  ok "gh REST-only guard flags every banned subcommand"
+else
+  bad "gh-rest-only tests failed — run scripts/gh-rest-only.test.sh to see which check broke"
+fi
+if hits=$("$ROOT/scripts/check-gh-rest-only.sh" 2>&1); then
+  ok "shipped content calls gh over REST only"
+else
+  bad "GraphQL-backed gh subcommands in shipped content:"$'\n'"$hits"
+fi
+
 # 6d. The anonymous repo ID: a per-clone random salt, stable across worktrees,
 #     with nothing identifying the repo, user or machine anywhere in it.
 if command -v node >/dev/null 2>&1; then

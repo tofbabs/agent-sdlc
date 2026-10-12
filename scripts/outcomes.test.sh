@@ -193,17 +193,23 @@ GHD="$TMP/gh"; mkdir -p "$GHD"
 cat > "$GHD/gh" <<STUB
 #!/usr/bin/env bash
 [ -e "$GHD/fail" ] && exit 1
-if [ "\$1" = pr ]; then cat "$GHD/prs.json"; else cat "$GHD/commits.json"; fi
+case "\$*" in *graphql*) exit 1;; esac
+[ "\$1" = api ] || exit 1
+case "\$2" in
+  repos/{owner}/{repo}/pulls|repos/{owner}/{repo}/pulls\?*) cat "$GHD/prs.json";;
+  repos/{owner}/{repo}/commits\?*) cat "$GHD/commits.json";;
+  *) exit 1;;
+esac
 STUB
 chmod +x "$GHD/gh"
 cat > "$GHD/prs.json" <<'JSON'
 [
- {"number":10,"title":"feat(x): the epic [EPIC-2]","body":"","state":"MERGED","createdAt":"2026-02-01T00:00:00Z","mergedAt":"2026-02-04T00:00:00Z","closedAt":"2026-02-04T00:00:00Z","mergeCommit":{"oid":"aaa111"}},
- {"number":11,"title":"fix(x): repair the thing","body":"Fixes a regression from [STORY-2-9]","state":"MERGED","createdAt":"2026-02-05T00:00:00Z","mergedAt":"2026-02-06T00:00:00Z","closedAt":"2026-02-06T00:00:00Z","mergeCommit":{"oid":"bbb222"}},
- {"number":12,"title":"fix(x): unnamed fix to the same files","body":"no tag here","state":"MERGED","createdAt":"2026-02-05T00:00:00Z","mergedAt":"2026-02-07T00:00:00Z","closedAt":"2026-02-07T00:00:00Z","mergeCommit":{"oid":"ccc333"}},
- {"number":13,"title":"fix(x): too late [STORY-2-9]","body":"","state":"MERGED","createdAt":"2026-02-19T00:00:00Z","mergedAt":"2026-02-25T00:00:00Z","closedAt":"2026-02-25T00:00:00Z","mergeCommit":{"oid":"ddd444"}},
- {"number":14,"title":"feat(y): other work [STORY-3-1]","body":"","state":"CLOSED","createdAt":"2026-02-01T00:00:00Z","mergedAt":null,"closedAt":"2026-02-02T00:00:00Z","mergeCommit":null},
- {"number":15,"title":"fix(z): epic-level fix [EPIC-2]","body":"","state":"MERGED","createdAt":"2026-02-08T00:00:00Z","mergedAt":"2026-02-09T00:00:00Z","closedAt":"2026-02-09T00:00:00Z","mergeCommit":{"oid":"eee555"}}
+ {"number":10,"title":"feat(x): the epic [EPIC-2]","body":"","state":"closed","created_at":"2026-02-01T00:00:00Z","merged_at":"2026-02-04T00:00:00Z","closed_at":"2026-02-04T00:00:00Z","merge_commit_sha":"aaa111"},
+ {"number":11,"title":"fix(x): repair the thing","body":"Fixes a regression from [STORY-2-9]","state":"closed","created_at":"2026-02-05T00:00:00Z","merged_at":"2026-02-06T00:00:00Z","closed_at":"2026-02-06T00:00:00Z","merge_commit_sha":"bbb222"},
+ {"number":12,"title":"fix(x): unnamed fix to the same files","body":"no tag here","state":"closed","created_at":"2026-02-05T00:00:00Z","merged_at":"2026-02-07T00:00:00Z","closed_at":"2026-02-07T00:00:00Z","merge_commit_sha":"ccc333"},
+ {"number":13,"title":"fix(x): too late [STORY-2-9]","body":"","state":"closed","created_at":"2026-02-19T00:00:00Z","merged_at":"2026-02-25T00:00:00Z","closed_at":"2026-02-25T00:00:00Z","merge_commit_sha":"ddd444"},
+ {"number":14,"title":"feat(y): other work [STORY-3-1]","body":"","state":"closed","created_at":"2026-02-01T00:00:00Z","merged_at":null,"closed_at":"2026-02-02T00:00:00Z","merge_commit_sha":null},
+ {"number":15,"title":"fix(z): epic-level fix [EPIC-2]","body":"","state":"closed","created_at":"2026-02-08T00:00:00Z","merged_at":"2026-02-09T00:00:00Z","closed_at":"2026-02-09T00:00:00Z","merge_commit_sha":"eee555"}
 ]
 JSON
 cat > "$GHD/commits.json" <<'JSON'
@@ -244,15 +250,19 @@ R=$(new_repo rerun)
 GH2="$TMP/gh2"; mkdir -p "$GH2"
 cat > "$GH2/gh" <<STUB
 #!/usr/bin/env bash
-if [ "\$1" = pr ]; then cat "$GH2/prs.json"; exit 0; fi
+case "\$*" in *graphql*) exit 1;; esac
+[ "\$1" = api ] || exit 1
+case "\$2" in
+  repos/{owner}/{repo}/pulls|repos/{owner}/{repo}/pulls\?*) cat "$GH2/prs.json"; exit 0;;
+esac
 [ -e "$GH2/fail-api" ] && exit 1
 echo '[]'
 STUB
 chmod +x "$GH2/gh"
 cat > "$GH2/prs.json" <<'JSON'
 [
- {"number":20,"title":"feat(x): first attempt [EPIC-5]","body":"","state":"MERGED","createdAt":"2026-01-02T00:00:00Z","mergedAt":"2026-01-05T00:00:00Z","closedAt":"2026-01-05T00:00:00Z","mergeCommit":{"oid":"a20"}},
- {"number":21,"title":"fix(x): rebuild the story [STORY-5-1]","body":"","state":"MERGED","createdAt":"2026-02-11T00:00:00Z","mergedAt":"2026-02-12T00:00:00Z","closedAt":"2026-02-12T00:00:00Z","mergeCommit":{"oid":"a21"}}
+ {"number":20,"title":"feat(x): first attempt [EPIC-5]","body":"","state":"closed","created_at":"2026-01-02T00:00:00Z","merged_at":"2026-01-05T00:00:00Z","closed_at":"2026-01-05T00:00:00Z","merge_commit_sha":"a20"},
+ {"number":21,"title":"fix(x): rebuild the story [STORY-5-1]","body":"","state":"closed","created_at":"2026-02-11T00:00:00Z","merged_at":"2026-02-12T00:00:00Z","closed_at":"2026-02-12T00:00:00Z","merge_commit_sha":"a21"}
 ]
 JSON
 node --input-type=module -e "

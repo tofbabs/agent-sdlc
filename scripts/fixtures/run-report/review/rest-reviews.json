@@ -1,0 +1,3 @@
+[
+  { "body": "## Review — round 1\n- verdict: REQUEST_CHANGES\n- reviewed sha: 1111111\n\n- F1: MAJOR [security] — x — y", "state": "CHANGES_REQUESTED", "submitted_at": "2020-01-01T00:01:00Z" }
+]

@@ -30,7 +30,7 @@ in the worktree; you make **one call per story**:
          --worktree <worktree> --base <feat/EPIC-n | origin/<base>>
 2. On exit — the JSON on stdout carries session, alternation, agent turns,
    measured cost, and the navigator's closing report (title + scopes):
-     0  complete → LAND (epic), or push + `gh pr create --base <base> --fill`
+     0  complete → LAND (epic), or push + `gh api repos/{owner}/{repo}/pulls -f head=… -f base=<base> -f title=…`
                    noting "pair-built" (hotfix).
      10 blocked  → architect resolves the ARCH → re-run the same command.
      6  deescalate → the navigator rejected nothing in N alternations: PAIR→SOLO
@@ -107,7 +107,7 @@ twice and letting the more expensive copy be the one that grows.
                          final state and reported title + scopes. No further
                          agent. Epic wave → story done, back to the wave (LAND).
                          Hotfix path → push feat/<STORY-ID> and
-                         `gh pr create --base <base> --fill`, noting "pair-built".
+                         `gh api repos/{owner}/{repo}/pulls -f head=… -f base=<base> -f title=…`, noting "pair-built".
      session=blocked   → Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve
                          ARCH-<n> — a pair is blocked and waiting.") → back to 1.
      otherwise         → continue.

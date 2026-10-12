@@ -129,18 +129,11 @@ Then post the round comment as the actual GitHub verdict — this is what the
 human and CI see:
 
 ```bash
-gh pr review <n> --request-changes --body "<the round comment>"
-gh pr review <n> --approve --body "<the round comment>"
+gh api repos/{owner}/{repo}/pulls/<n>/reviews -f event=<REQUEST_CHANGES|APPROVE> -f body="<the round comment>"
 ```
 
 **If GitHub rejects that** (HTTP 422 — the reviewing identity also authored
-the PR), post the identical body as a plain comment instead:
-
-```bash
-gh pr review <n> --comment --body "<the round comment>"
-```
-
-and say so plainly in your report — the human supplies the formal verdict.
+the PR), post the identical body with `event=COMMENT` instead, and say so plainly in your report — the human supplies the formal verdict.
 The body, and the contract the coder parses, are unchanged either way.
 
 ---

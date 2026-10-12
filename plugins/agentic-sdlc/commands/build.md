@@ -252,7 +252,7 @@ the PR comment; the coder owns only the judgment.** When the latest round says
 
 ```
 0. Set up — the round gets its own branch, exactly like a story:
-       gh pr view <n> --json headRefName,baseRefName   → feat/EPIC-<n>, <base>
+       gh api repos/{owner}/{repo}/pulls/<n>   → .head.ref feat/EPIC-<n>, .base.ref
        git fetch origin feat/EPIC-<n>
        ../wt-EPIC-<n> missing (a new session)?  run `resume EPIC-<n>` again
        git worktree add ../wt-REVISE-<n>-<k> -b fix/EPIC-<n>-round-<k> feat/EPIC-<n>
@@ -272,12 +272,11 @@ the PR comment; the coder owns only the judgment.** When the latest round says
        git push
 
 3. Post the response yourself, from the coder's rulings:
-       gh pr comment <n> --body '## Response — round <k>
+       gh api repos/{owner}/{repo}/issues/<n>/comments -f body='## Response — round <k>
        - F1: FIXED — <one line>
        - F2: DISPUTED — <why the finding is mistaken>'
    **Push BEFORE commenting** — `/agentic-sdlc:review`'s guard keys on
-   "new sha AND a response exists"; commenting first can let a re-review fire
-   against the old head.
+   "new sha AND a response exists"; commenting first re-reviews the old head.
 
 4. Clean up:
        git worktree remove ../wt-REVISE-<n>-<k>

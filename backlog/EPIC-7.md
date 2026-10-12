@@ -193,7 +193,7 @@ only delegates to `/review`.
 
 ### STORY-7-3: REST-only `gh`
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: M
 - select: risk_class=none@brief:L76 one_way_doors=0@brief:L76 existing_pattern=yes@AC2 modules_crossed=6@brief:L76 review_bounced=no@brief:L76 risk_kind=code@brief:L76

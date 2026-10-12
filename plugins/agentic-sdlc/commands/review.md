@@ -14,22 +14,23 @@ Delegate the judgment; do the bookkeeping yourself.
 ## 1. GATHER
 
 ```bash
-gh pr view <n> --json state,headRefName,baseRefName,headRefOid,body,reviews,comments,commits
-gh pr checks <n>
+gh api repos/{owner}/{repo}/pulls/<n>   # .head.sha is headRefOid
+gh api repos/{owner}/{repo}/commits/<headRefOid>/check-runs
 ```
+
+Also read `pulls/<n>/reviews`, `issues/<n>/comments` and `pulls/<n>/commits`.
 
 - **State must be OPEN.** Anything else → report and stop.
 - `Mode: FAST` = a line matching `^Mode: FAST\s*$` in the PR body.
 - CI summary: green, or red naming the job(s).
 - **Story IDs** from `[STORY-…]` / `[T<n>-…]` tags in commit subjects, and
   from the branch name (`feat/STORY-<id>`, `feat/EPIC-<n>`, `feat/FAST-<n>`)
-  → the backlog file that holds them. On an epic PR that is one commit per
-  story — `/build` lands each story as a single squash commit — so the tags
-  are one per story, not one per increment. `feat/STORY-<id>` appears as a PR
+  → the backlog file that holds them. An epic PR has one squash commit per
+  story, so one tag per story. `feat/STORY-<id>` appears as a PR
   head only on the hotfix path; inside an epic it is local and already landed.
   `fix/EPIC-<n>-round-<k>` is **never** a PR head at all — a revise round only
   ever exists locally, landing as one `fix(...)` commit on the epic branch —
-  so there is nothing here to do for it.
+  so skip it.
 - **Previous round `k`** = the highest `## Review — round <k>` heading across
   **all** review and comment bodies, any author — the human, the routine, and
   this command may all post under one `gh` identity. Note its reviewed sha

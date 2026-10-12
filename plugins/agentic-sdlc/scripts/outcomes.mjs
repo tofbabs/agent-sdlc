@@ -150,11 +150,21 @@ function sweep(flags) {
   const targets = subjects.map((s) => activeDecision(records, s)).filter(Boolean)
   if (targets.length === 0) return { swept: true, appended: [] }
 
-  const prs = gh(cwd, [
-    'pr', 'list', '--state', 'all', '--limit', '200',
-    '--json', 'number,title,body,state,createdAt,mergedAt,closedAt,mergeCommit',
-  ])
-  if (prs === null) return { swept: false, reason: 'gh_unavailable' }
+  // REST rather than `pr list`: that subcommand goes through GraphQL, which
+  // has its own rate limit and is unavailable to some tokens. Fields are
+  // renamed here so nothing downstream sees the REST shape.
+  const rawPrs = gh(cwd, ['api', 'repos/{owner}/{repo}/pulls?state=all&per_page=100'])
+  if (rawPrs === null) return { swept: false, reason: 'gh_unavailable' }
+  const prs = rawPrs.map((p) => ({
+    number: p.number,
+    title: p.title,
+    body: p.body,
+    state: p.state === 'open' ? 'OPEN' : p.merged_at ? 'MERGED' : 'CLOSED',
+    createdAt: p.created_at,
+    mergedAt: p.merged_at,
+    closedAt: p.closed_at,
+    mergeCommit: p.merge_commit_sha ? { oid: p.merge_commit_sha } : null,
+  }))
 
   // Stamped on every event, as `event` does: the report exports only the
   // events its own run appended, so an unstamped sweep event reaches no report.

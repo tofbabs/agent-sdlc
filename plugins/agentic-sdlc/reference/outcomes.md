@@ -37,7 +37,7 @@ After a correction, events belong to the correction's own record.
 
 ## Sweep
 
-One `gh pr list` plus one `gh api .../commits` (override the binary with
+One `gh api repos/{owner}/{repo}/pulls` plus one `gh api .../commits` (override the binary with
 `OUTCOMES_GH`). A PR naming `[STORY-x-y]` or `[EPIC-x]` in its title or body,
 merged or closed after the decision was made, is the story's merge or
 abandonment; one from before it delivered an earlier run's attempt. A later merged `fix:`/`Revert` naming one of

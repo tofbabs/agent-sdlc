@@ -19,7 +19,7 @@ one `fix(...)` commit, pushes that, and posts the response comment itself. So
 orchestrator's push makes `/agentic-sdlc:review`'s guard ("new sha AND a response
 exists") fire a re-review against the old head.
 
-1. `gh pr view <n> --comments` — find the latest `## Review — round <k>` comment.
+1. `gh api repos/{owner}/{repo}/issues/<n>/comments` and `.../pulls/<n>/reviews` — find the latest `## Review — round <k>` comment.
 2. **If APPROVE:** nothing to do — report the story ready for human merge.
 3. **If REQUEST_CHANGES:** address **EVERY** finding. Fix it, or dispute it —
    **never silently ignore one.**

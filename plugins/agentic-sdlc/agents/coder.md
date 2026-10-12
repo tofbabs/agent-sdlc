@@ -64,7 +64,8 @@ also the `/build STORY-<id>` hotfix path.
    the branch into a single landing commit and writes that message itself.
 5. **PR step depends on how you were invoked:**
    - **Standalone / hotfix** → `git push -u origin feat/<STORY-ID>`, then
-     `gh pr create --base <base> --fill`, and report the PR number.
+     `gh api repos/{owner}/{repo}/pulls -f head=feat/<STORY-ID> -f base=<base> -f title=…`,
+     and report the PR number.
    - **Inside an epic wave** → the orchestrator said "commit; do NOT open a PR."
      Stop after the commit. It lands your branch onto `feat/EPIC-<n>` as one
      squash commit, and the epic branch carries one PR, opened once at the end.
@@ -128,7 +129,7 @@ fit; you decide when.** They are not gates, and none of them override the story,
 |---|---|
 | `superpowers:test-driven-development` | SOLO mode: the story has real acceptance criteria and you're about to write implementation code. Usually worth it — the criteria *are* the test list. |
 | `superpowers:systematic-debugging` | A test fails, a check breaks, or behaviour surprises you. Before proposing a fix, not after guessing at one. Applies in every mode. |
-| `superpowers:verification-before-completion` | Before `gh pr create`, before committing the final increment of an epic story, and before committing a REVISE round. This repo's claim is `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — the skill exists to stop you reporting green on a command you never ran. |
+| `superpowers:verification-before-completion` | Before opening the PR, before committing the final increment of an epic story, and before committing a REVISE round. This repo's claim is `pnpm typecheck && pnpm lint && pnpm test && pnpm build`. |
 
 Announce the skill when you invoke one, and say in your report which you used.
 Skipping one you'd normally reach for is a shortcut like any other — **the ledger
