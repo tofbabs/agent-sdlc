@@ -86,55 +86,24 @@ before your first turn.
   plausible path.
 - `MINOR` — a real defect off the main path.
 
-Any finding, any severity, blocks `APPROVE`. A nit outside the three is an
+Any open `BLOCKING` finding blocks `APPROVE`. A nit outside the three is an
 inline comment, not a finding.
 
 ---
 
 ## OUTPUT — the round comment
 
-The contract the coder's REVISE mode parses. Keep the shape **exactly**:
+`cat ${CLAUDE_PLUGIN_ROOT}/reference/review-rounds.md` before you post: the
+contract the coder parses (tags, RESOLVED, stable IDs, verdict rule) and the
+posting recipe live there. Minimal shape:
 
 ```markdown
 ## Review — round <k>
 - verdict: REQUEST_CHANGES | APPROVE
-- reviewed sha: <the head sha you reviewed>
+- reviewed sha: <head sha>
 
-- F1: <SEVERITY> [<finding_category>] — <issue> — <required fix>
-- F2: <SEVERITY> [<finding_category>] — <issue> — <required fix>
+- F1: <SEVERITY> [<finding_category>] BLOCKING|NON-BLOCKING — <issue> — <fix>
 ```
-
-- **Round number**: the orchestrator tells you `k`; it comes from the highest
-  prior `## Review — round <k>` on the PR, any author.
-- **Finding IDs are stable across rounds.** An unfixed `F2` from round 1 stays
-  `F2` in round 2 — never renumber. A finding you now accept as fixed or as a
-  valid dispute is ruled on under the same ID. New findings continue the
-  numbering.
-- On a re-review, rule on the coder's `## Response — round k` replies:
-  `FIXED` confirmed against the new sha, `DISPUTED` accepted or held.
-- `APPROVE` only with **no open findings.** Add "Ready for human merge" to the
-  body.
-- **Round 4 or later, still `REQUEST_CHANGES`**: add a line —
-  `- round cap reached — escalate to the human` — mirroring the coder's
-  3-revise-round cap. Do not keep grinding past it yourself.
-
-Post inline comments first where a finding has a specific line — keep this to
-the ~5 lines it usually is; most rounds need it:
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<n>/comments -f body=... -f commit_id=... -f path=... -F line=N -f side=RIGHT
-```
-
-Then post the round comment as the actual GitHub verdict — this is what the
-human and CI see:
-
-```bash
-gh api repos/{owner}/{repo}/pulls/<n>/reviews -f event=<REQUEST_CHANGES|APPROVE> -f body="<the round comment>"
-```
-
-**If GitHub rejects that** (HTTP 422 — the reviewing identity also authored
-the PR), post the identical body with `event=COMMENT` instead, and say so plainly in your report — the human supplies the formal verdict.
-The body, and the contract the coder parses, are unchanged either way.
 
 ---
 

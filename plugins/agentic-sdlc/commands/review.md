@@ -32,17 +32,15 @@ Also read `pulls/<n>/reviews`, `issues/<n>/comments` and `pulls/<n>/commits`.
   `fix/EPIC-<n>-round-<k>` is **never** a PR head at all — a revise round only
   ever exists locally, landing as one `fix(...)` commit on the epic branch —
   so skip it.
-- **Previous round `k`** = the highest `## Review — round <k>` heading across
-  **all** review and comment bodies, any author — the human, the routine, and
-  this command may all post under one `gh` identity. Note its reviewed sha
-  and verdict, and whether a `## Response — round k` from the coder exists.
+- **Previous round**: save the reviews and comments JSON to files, then
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/round-state.mjs --reviews f --comments f`
+  → `round` (`k`), `verdict`, `sha`, `response`.
 
 ---
 
 ## 2. GUARD — nothing new, no spawn
 
-- If `k ≥ 1`, the current head sha equals round `k`'s reviewed sha, **and**
-  no `## Response — round k` exists: report `"already reviewed at <sha>, no
+- If `k ≥ 1`, the head sha equals `sha` and `response` is false: report `"already reviewed at <sha>, no
   response yet"` and **stop**. This is what makes an hourly routine call
   cheap — nothing changed, nothing spawns.
 - If `k ≥ 4` and the last verdict was `REQUEST_CHANGES`: report `"round cap

@@ -262,7 +262,7 @@ only delegates to `/review`.
 
 ### STORY-7-6: Round 1 is complete: BLOCKING tags and body verdict
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): hard floor one_way_door forces PAIR
 - estimate: L
 - select: risk_class=none@brief:L66 one_way_doors=1@brief:L74 existing_pattern=no@brief:L66 modules_crossed=5@brief:L66 review_bounced=no@brief:L66 risk_kind=code@brief:L66

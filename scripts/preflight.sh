@@ -114,6 +114,25 @@ else
   note "node not found — skipping meter tests"
 fi
 
+# 6a. round-state.mjs decides which review round is next; a wrong read re-runs or
+#     skips a round.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/round-state.test.sh" >/dev/null 2>&1; then
+    ok "round-state reads review rounds from comment bodies"
+  else
+    bad "round-state tests failed — run scripts/round-state.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping round-state tests"
+fi
+
+# 6a2. The round comment contract is one reference; boot-path files only point at it.
+if "$ROOT/scripts/review-rounds-contract.test.sh" >/dev/null 2>&1; then
+  ok "review round contract lives in reference/review-rounds.md"
+else
+  bad "review-rounds contract tests failed — run scripts/review-rounds-contract.test.sh"
+fi
+
 # 6b. consent.mjs holds the team-wide telemetry answer; a regression here either
 #     nags users or exports without their say-so.
 if command -v node >/dev/null 2>&1; then
