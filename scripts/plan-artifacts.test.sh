@@ -349,5 +349,86 @@ printf '%s' "$fi" | grep -qiE 'only (that part|the part)|that part.s stories' ||
 printf '%s' "$fi" | grep -qiE 'over the cap.*(report|stop)|(report|stop).*over the cap' || miss="$miss [over cap reports and stops]"
 [ -z "$miss" ] && ok "epic-budget.md has a FILL-IN protocol" || bad "FILL-IN protocol missing:$miss"
 
+# 14. claim --id takes the named id, not the next free number: parallel planners
+#     name their own id so they never race for the same one.
+cd "$TMP/main"
+before=$(ls backlog | wc -l)
+out=$(node "$PA" claim EPIC --id EPIC-9 2>/dev/null); rc=$?
+[ $rc -eq 0 ] && [ "$out" = "backlog/EPIC-9.md" ] \
+  && ok "claim --id prints the named path" || bad "claim --id: rc=$rc out='$out'"
+[ "$(head -1 backlog/EPIC-9.md 2>/dev/null)" = "# EPIC-9: (claimed — planner writes this file)" ] \
+  && ok "claim --id writes the same stub line as auto-numbering" || bad "stub line wrong or file missing"
+[ "$(ls backlog | wc -l)" -eq $((before + 1)) ] \
+  && ok "claim --id creates exactly one file" || bad "claim --id created extra files"
+
+# 15. A named id that already exists anywhere is an error naming where, never a bump to
+#     the next number and never a write: the caller reserved it, so a silent change
+#     would hand two planners different ids for one plan.
+blob=$(echo "# EPIC-20" | g hash-object -w --stdin)
+tree=$(printf '100644 blob %s\tEPIC-20.md\n' "$blob" | g mktree)
+subtree=$(printf '040000 tree %s\tbacklog\n' "$tree" | g mktree)
+commit=$(echo ref-only | g commit-tree "$subtree")
+g update-ref refs/heads/ghost "$commit"
+g update-ref refs/remotes/origin/far "$commit"
+g branch -q -D ghost
+g update-ref refs/heads/ghost-local "$commit"
+before=$(ls backlog | wc -l)
+
+err=$(node "$PA" claim FAST --id FAST-5 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && printf '%s' "$err" | grep -qF "wt" \
+  && ok "claim --id refuses an id held by another worktree and names it" || bad "other worktree: rc=$rc err='$err'"
+
+err=$(node "$PA" claim EPIC --id EPIC-9 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && ok "claim --id refuses an id already in this worktree" || bad "own worktree: rc=$rc"
+
+err=$(node "$PA" claim EPIC --id EPIC-20 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && printf '%s' "$err" | grep -qE "ghost-local|origin/far" \
+  && ok "claim --id refuses an id on a ref and names the ref" || bad "ref: rc=$rc err='$err'"
+
+g update-ref -d refs/heads/ghost-local
+err=$(node "$PA" claim EPIC --id EPIC-20 2>&1 >/dev/null); rc=$?
+[ $rc -ne 0 ] && printf '%s' "$err" | grep -qF "origin/far" \
+  && ok "claim --id refuses an id on a remote ref and names it" || bad "remote ref: rc=$rc err='$err'"
+
+[ "$(ls backlog | wc -l)" -eq "$before" ] && [ ! -e backlog/EPIC-21.md ] \
+  && ok "a refused claim --id writes nothing" || bad "refused claim wrote a file"
+
+# 16. A malformed id or one whose prefix is another kind is rejected up front: it would
+#     otherwise become a path outside the numbered scheme or a plan of the wrong kind.
+before=$(ls backlog | wc -l)
+for bad_id in "FAST-77" "EPIC-x" "EPIC-" "epic-77" "EPIC-77.md" "EPIC-7/../x" "77"; do
+  node "$PA" claim EPIC --id "$bad_id" >/dev/null 2>&1; rc=$?
+  [ $rc -ne 0 ] && ok "claim EPIC --id '$bad_id' is rejected" || bad "claim EPIC --id '$bad_id' accepted"
+done
+[ "$(ls backlog | wc -l)" -eq "$before" ] && [ ! -e backlog/EPIC-77.md ] && [ ! -e backlog/FAST-77.md ] \
+  && ok "a rejected id writes nothing" || bad "rejected id wrote a file"
+
+tmp_race=$(mktemp -u)
+# 17. Two planners racing on the same named id: the loser must fail, naming the id as
+#     taken, not report an exhausted numbering search that never happened.
+rm -f backlog/EPIC-31.md
+for i in 1 2 3 4 5 6; do
+  rm -f backlog/EPIC-31.md
+  node "$PA" claim EPIC --id EPIC-31 >/dev/null 2>"$tmp_race.a" & pa=$!
+  node "$PA" claim EPIC --id EPIC-31 >/dev/null 2>"$tmp_race.b" & pb=$!
+  wait $pa; ra=$?; wait $pb; rb=$?
+  wins=0; [ $ra -eq 0 ] && wins=$((wins+1)); [ $rb -eq 0 ] && wins=$((wins+1))
+  [ $wins -eq 1 ] || break
+done
+[ $wins -eq 1 ] && ok "concurrent claim --id: exactly one wins" || bad "concurrent claim --id: $wins winners"
+loser_err=$(cat "$tmp_race.a" "$tmp_race.b")
+printf '%s' "$loser_err" | grep -qF "EPIC-31" && ! printf '%s' "$loser_err" | grep -qi "no free" \
+  && ok "the losing claim --id says the id is taken" || bad "loser message: '$loser_err'"
+[ ! -e backlog/EPIC-32.md ] && ok "the loser does not fall through to another number" || bad "loser took EPIC-32"
+rm -f "$tmp_race.a" "$tmp_race.b"
+
+# 18. The flag is only useful if the instructions a planner follows pass it through.
+PLUG="$ROOT/plugins/agentic-sdlc"
+for doc in commands/plan.md reference/plan-artifacts.md reference/fast-mode.md; do
+  grep -qE -- "claim (EPIC|FAST).*--id" "$PLUG/$doc" && ok "$doc documents --id" || bad "$doc does not mention --id"
+done
+[ "$(wc -c < "$PLUG/commands/plan.md")" -le 2493 ] \
+  && ok "commands/plan.md stays within its boot-size cap" || bad "commands/plan.md exceeds its 2493 B cap"
+
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'

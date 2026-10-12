@@ -30,7 +30,11 @@ planner:
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim FAST   # or EPIC
 # → backlog/FAST-12.md   (created exclusively; the number is yours)
+node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim EPIC --id EPIC-9   # parallel planners name theirs
 ```
+
+With `--id` the given id is claimed as-is, never renumbered. It is an error if
+`backlog/<id>.md` exists on the base or on `feat/<id>`, local or remote; nothing is written.
 
 It takes the highest number across every worktree's `backlog/` and every local
 and remote branch, adds one, and creates the file with an exclusive open. Two

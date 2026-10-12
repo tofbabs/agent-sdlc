@@ -85,13 +85,41 @@ function highestTaken(kind) {
   return seen.length ? Math.max(...seen) : 0
 }
 
+// Same scan as highestTaken, but answers "where is this exact id" so a refusal can
+// name the place the caller has to go look.
+function firstHolder(id) {
+  const file = `${id}.md`
+  const porcelain = git(['worktree', 'list', '--porcelain'])
+  for (const line of porcelain.split('\n')) {
+    if (!line.startsWith('worktree ')) continue
+    const wt = line.slice('worktree '.length)
+    if (existsSync(join(wt, 'backlog', file))) return `worktree ${wt}`
+  }
+  const refs = git(['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes']).split('\n').filter(Boolean)
+  for (const ref of refs) {
+    const tree = tryGit(['ls-tree', '--name-only', `${ref}:backlog`])
+    if (tree && tree.split('\n').includes(file)) return `ref ${ref}`
+  }
+  return null
+}
+
 function claim(kind) {
   if (!KINDS.includes(kind)) die(`claim takes one of ${KINDS.join('|')}, got "${kind}"`)
+  // Checked before any fetch or write: the id becomes a file path and a plan kind.
+  if (flags.id !== undefined && (!/^(EPIC|FAST)-\d+$/.test(flags.id) || !flags.id.startsWith(`${kind}-`))) {
+    die(`claim ${kind} --id takes an ID like ${kind}-7, got "${flags.id}"`)
+  }
   tryGit(['fetch', '--quiet', 'origin'])
   const root = git(['rev-parse', '--show-toplevel']).trim()
   mkdirSync(join(root, 'backlog'), { recursive: true })
-  let n = highestTaken(kind) + 1
-  for (let attempt = 0; attempt < CLAIM_RETRIES; attempt++, n++) {
+  // A named id is claimed once and never bumped: the caller reserved that number.
+  const named = flags.id !== undefined
+  if (named) {
+    const holder = firstHolder(flags.id)
+    if (holder) die(`${flags.id} is already taken in ${holder}`)
+  }
+  let n = named ? Number(flags.id.slice(kind.length + 1)) : highestTaken(kind) + 1
+  for (let attempt = 0; attempt < (named ? 1 : CLAIM_RETRIES); attempt++, n++) {
     const rel = `backlog/${kind}-${n}.md`
     try {
       // 'wx' fails if the file exists: two sessions racing on the same n cannot
@@ -103,6 +131,8 @@ function claim(kind) {
       return
     } catch (e) {
       if (e.code !== 'EEXIST') throw e
+      // Lost the race for the reserved number; there is no next one to try.
+      if (named) die(`${flags.id} is already taken`)
     }
   }
   die(`no free ${kind} number after ${CLAIM_RETRIES} attempts from ${n - CLAIM_RETRIES}`)

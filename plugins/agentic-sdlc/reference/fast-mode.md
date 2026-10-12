@@ -41,8 +41,10 @@ sessions each see only their own checkout, and two of them picked the same
 `FAST-<n>` before this step existed (see `reference/plan-artifacts.md`):
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim FAST   # → backlog/FAST-<n>.md
+node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs claim FAST [--id FAST-<n>]   # → backlog/FAST-<n>.md
 ```
+
+A given `--id` is claimed as-is, never renumbered; a taken one fails.
 
 ```
 Agent(subagent_type: "agentic-sdlc:planner", prompt: "MODE: FAST. Decompose this

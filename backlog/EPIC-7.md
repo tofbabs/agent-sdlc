@@ -145,7 +145,7 @@ only delegates to `/review`.
 
 ### STORY-7-1: `plan --id <id>`
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
