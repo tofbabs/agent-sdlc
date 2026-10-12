@@ -329,7 +329,7 @@ only delegates to `/review`.
 
 ### STORY-7-9: Consumers read the body verdict
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: M
 - select: risk_class=none@brief:L74 one_way_doors=0@brief:L74 existing_pattern=yes@AC1 modules_crossed=4@brief:L74 review_bounced=no@brief:L74 risk_kind=code@brief:L74

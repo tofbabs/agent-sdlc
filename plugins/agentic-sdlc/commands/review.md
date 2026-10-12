@@ -97,7 +97,7 @@ Note the removal in your report in one line.
 | PR | Round | Verdict | Reviewed sha | Findings | Escalate |
 |----|-------|---------|--------------|----------|----------|
 
-Record a review event per story ID (`reference/outcomes.md`), then the next step:
+Record a review event per story ID (`reference/outcomes.md`), `--findings` = open findings (unresolved), then the next step:
 
 - `REQUEST_CHANGES` → `/agentic-sdlc:build` REVISE on PR `<n>`.
 - `APPROVE` → "Ready for human merge — the human owns the merge."

@@ -24,4 +24,6 @@ not spawn a reviewer when a PR hasn't moved since its last round, so running
 it against a quiet PR costs nothing.
 
 Report one line per PR: number, verdict (or "nothing new"), and any
-escalation. Never edit code. Never merge.
+escalation. The verdict is the one in the review comment body
+(`reference/review-rounds.md`), not the GitHub review state, which stays
+COMMENTED on a self-authored PR. Rounds stop at `review.round_cap`. Never edit code. Never merge.

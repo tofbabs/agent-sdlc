@@ -655,15 +655,16 @@ function reviewRounds(bodies) {
   return rounds
 }
 
-// The GitHub review state is the verdict as posted, so a COMMENT fallback reads
-// COMMENT even though its body says REQUEST_CHANGES. A body with no usable state
-// (an issue comment, a dismissed review) falls back to its own verdict line.
+// The body's own verdict line is authoritative: a round posted as a COMMENT
+// (the fallback when GitHub refuses a self-review) carries state COMMENTED even
+// though its body says REQUEST_CHANGES. State is only the fallback for a body
+// with no verdict line.
 const STATE_TO_VERDICT = { APPROVED: 'APPROVE', CHANGES_REQUESTED: 'REQUEST_CHANGES', COMMENTED: 'COMMENT' }
 
 function roundVerdict(body, state) {
-  if (state && STATE_TO_VERDICT[state]) return STATE_TO_VERDICT[state]
   const line = /^-\s*verdict:\s*`?([A-Z_]+)/m.exec(body)?.[1]
-  return isMember('verdict', line) && line !== 'NONE' ? line : null
+  if (isMember('verdict', line) && line !== 'NONE') return line
+  return (state && STATE_TO_VERDICT[state]) || null
 }
 
 // Severity is closed with no `other`, so a line whose severity is not BLOCKER,
@@ -671,12 +672,16 @@ function roundVerdict(body, state) {
 // re-review's rulings on earlier IDs (`F1: FIXED — …`).
 const FINDING_LINE = /^\s*(?:-\s*)?F\d+:\s*([A-Za-z]+)\b\s*(?:\[([^\]\n]*)\])?/
 
+// A re-review keeps fixed findings in its list marked RESOLVED; the report
+// counts only what is still open.
+const RESOLVED_TAG = /\]\s*(?:NON-)?BLOCKING\s+RESOLVED\b/
+
 function roundFindings(body, round) {
   const findings = []
   const lines = body.slice(ROUND_HEADING.exec(body).index).split('\n')
   for (const line of lines) {
     const m = FINDING_LINE.exec(line)
-    if (!m) continue
+    if (!m || RESOLVED_TAG.test(line)) continue
     const severity = m[1].toUpperCase()
     if (!isMember('severity', severity)) continue
     const category = toCategory('finding_category', m[2]?.trim().toLowerCase())

@@ -10,6 +10,8 @@ P="$ROOT/plugins/agentic-sdlc"
 REF="$P/reference/review-rounds.md"
 REVIEWER="$P/agents/code-reviewer.md"
 CMD="$P/commands/review.md"
+REVISE="$P/reference/coder-revise-mode.md"
+ROUTINE="$ROOT/templates/routines/review-prompt.md"
 
 fail=0
 ok()  { printf '  \xe2\x9c\x93 %s\n' "$*"; }
@@ -46,6 +48,19 @@ has "$CMD" '[0-9a-z>]\.\.<?head' "round k+1 spawn prompt carries the range since
 has "$CMD" '(earlier|previous|prior) findings' "round k+1 spawn prompt carries the earlier findings"
 has "$CMD" 'Response — round' "round k+1 spawn prompt carries the author's response"
 has "$REVIEWER" 'Rounds 2\+' "code-reviewer points rounds 2+ behaviour at the reference section"
+
+has "$CMD" 'open findings' "/review records only open findings as the outcomes count"
+
+has "$REVISE" 'review-rounds\.md' "REVISE points at the round contract"
+has "$REVISE" 'BLOCKING' "REVISE tells the coder which findings to close"
+has "$REVISE" 'NON-BLOCKING.*(advisory|never|not)' "REVISE leaves NON-BLOCKING findings alone"
+has "$REVISE" 'RESOLVED' "REVISE knows resolved findings are closed"
+has "$REVISE" 'review\.round_cap' "REVISE cap comes from review.round_cap"
+lacks "$REVISE" 'Max 3 revise rounds' "REVISE no longer hardcodes the cap"
+has "$REVISE" '(body|comment).*authoritative|authoritative.*(body|comment)|COMMENTED' "REVISE reads the verdict from the body"
+
+has "$ROUTINE" 'review-rounds\.md|round-state\.mjs|body' "routine prompt reads the body verdict"
+has "$ROUTINE" 'review\.round_cap' "routine prompt names the round cap"
 
 [ "$(wc -c < "$CMD")" -le 4477 ] && ok "review.md within cap" || bad "review.md over 4477 B cap"
 [ "$(wc -c < "$REVIEWER")" -le 8552 ] && ok "code-reviewer.md within cap" || bad "code-reviewer.md over 8552 B cap"

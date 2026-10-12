@@ -20,9 +20,12 @@ orchestrator's push makes `/agentic-sdlc:review`'s guard ("new sha AND a respons
 exists") fire a re-review against the old head.
 
 1. `gh api repos/{owner}/{repo}/issues/<n>/comments` and `.../pulls/<n>/reviews` — find the latest `## Review — round <k>` comment.
-2. **If APPROVE:** nothing to do — report the story ready for human merge.
-3. **If REQUEST_CHANGES:** address **EVERY** finding. Fix it, or dispute it —
-   **never silently ignore one.**
+2. Read the verdict from the comment body, which is authoritative
+   (`reference/review-rounds.md`): a self-authored PR's GitHub review is only
+   COMMENTED. **If APPROVE:** nothing to do — report the story ready for human merge.
+3. **If REQUEST_CHANGES:** address **EVERY open BLOCKING** finding. Fix it, or
+   dispute it — **never silently ignore one.** NON-BLOCKING findings are advisory: do not revise them.
+   RESOLVED findings are closed; skip them.
 4. Run the full checks, then commit in your worktree. Your increments are
    free-form but conventional — the orchestrator writes the landing message, so
    nothing downstream reads them. **Do not push.**
@@ -40,7 +43,8 @@ exists") fire a re-review against the old head.
    diff.
 6. The orchestrator lands, pushes and comments; the next `/agentic-sdlc:review`
    pass then re-reviews the new head and rules on disputes.
-7. Max 3 revise rounds. Still REQUEST_CHANGES after that → the story or a
-   contract is probably wrong; stop and escalate to the human.
+7. Cap: `review.round_cap` rounds (`node ${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs get review.round_cap`),
+   the same cap `/review` uses. Still open BLOCKING findings after that → the
+   story or a contract is probably wrong; stop and escalate to the human.
 
 ---
