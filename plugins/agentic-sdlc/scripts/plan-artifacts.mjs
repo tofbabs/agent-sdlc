@@ -43,7 +43,8 @@ const STORIES_BY_LINE = 40
 const [, , command, arg, ...rest] = process.argv
 const flags = {}
 for (let i = 0; i < rest.length; i++) {
-  if (rest[i].startsWith('--')) flags[rest[i].slice(2)] = rest[++i]
+  if (rest[i] === '--deps-only') flags['deps-only'] = true
+  else if (rest[i].startsWith('--')) flags[rest[i].slice(2)] = rest[++i]
 }
 
 function die(msg) {
@@ -113,6 +114,14 @@ function isUntracked(file, cwd) {
   return tryGit(['ls-files', '--error-unmatch', '--', file], cwd) === null
 }
 
+// A stub is a placeholder awaiting its fill-in. Only the header (title line up to
+// the first "## ") counts: a finished epic may quote "- Status: STUB" in its body,
+// and an ID prefix like EPIC-41-old is a different epic.
+function isOwnStub(text, id) {
+  const header = text.split(/^## /m)[0]
+  return new RegExp(`^# ${id}(:|[ \\t]*$)`).test(header.split('\n')[0]) && /^[-*][ \t]+Status:[ \t]*STUB[ \t]*$/m.test(header)
+}
+
 function carry(id, from) {
   if (!/^(EPIC|FAST)-\d+$/.test(id ?? '')) die(`carry takes an ID like FAST-7, got "${id}"`)
   if (!from) die('carry needs --from <the checkout /plan ran in>')
@@ -136,7 +145,8 @@ function carry(id, from) {
     const src = join(there, rel)
     if (!existsSync(src)) die(`${rel} is listed in ${planRel} but missing from ${there}`)
     const dst = join(here, rel)
-    if (!sameCheckout && existsSync(dst) && readFileSync(dst, 'utf8') !== readFileSync(src, 'utf8')) {
+    if (!sameCheckout && existsSync(dst) && readFileSync(dst, 'utf8') !== readFileSync(src, 'utf8') &&
+        !(rel === planRel && isOwnStub(readFileSync(dst, 'utf8'), id))) {
       die(`${rel} already exists on this branch with different content — refusing to overwrite`)
     }
   }
@@ -233,9 +243,65 @@ function check(id) {
   process.stdout.write(`${id}: ${total}/${EPIC_CAP} points\n`)
 }
 
+// ---------------------------------------------------------------- ready
+
+// Only (merged) dependencies are anchored; "released" and "none" yield nothing.
+function mergedDeps(text) {
+  const header = /^- Depends on:[ \t]*(.*)$/m.exec(text)?.[1] ?? ''
+  return [...new Set([...header.matchAll(/(EPIC-\d+)\s*\(merged\)/g)].map((m) => m[1]))]
+}
+
+// A merged epic's file is on origin/<base> only via a merge; its stories land as
+// squash commits tagged [STORY-<id>], so that tag is the only per-story anchor.
+// Returns an error line, or null when every merged dependency is on origin/<base>.
+function unmergedDependency(text, base, cwd = process.cwd()) {
+  const ref = `origin/${base}`
+  for (const dep of mergedDeps(text)) {
+    const copy = tryGit(['show', `${ref}:backlog/${dep}.md`], cwd)
+    if (copy === null) return `${dep} is not merged: backlog/${dep}.md is not on ${ref}`
+    const ids = [...copy.matchAll(/^### (STORY-[^:\s]+)/gm)].map((m) => m[1])
+    for (const id of ids) {
+      const hit = tryGit(['log', ref, '-F', `--grep=[${id}]`, '-n1', '--format=%H'], cwd)
+      if (hit?.trim()) continue
+      const shallow = tryGit(['rev-parse', '--is-shallow-repository'], cwd)?.trim() === 'true'
+      return shallow
+        ? `${dep} may be unmerged: ${id} not found in a shallow checkout; run git fetch --unshallow origin ${base}`
+        : `${dep} is not merged: ${id} has no [${id}] commit on ${ref}`
+    }
+  }
+  return null
+}
+
+function ready(id) {
+  if (!/^EPIC-\d+$/.test(id ?? '')) die(`ready takes an ID like EPIC-7, got "${id}"`)
+  const base = flags.base
+  if (!base) die('ready needs --base <base>')
+  const file = join(process.cwd(), 'backlog', `${id}.md`)
+  if (!existsSync(file)) die(`${file} not found`)
+  const text = readFileSync(file, 'utf8')
+  // A stale origin/<base> would report a just-merged part as unmerged; offline,
+  // the existing ref is the best answer available.
+  tryGit(['fetch', '--quiet', 'origin', base])
+
+  if (!flags['deps-only']) {
+    if (/^- Status:[ \t]*STUB\b/m.test(text)) {
+      process.stderr.write(`${id} is a stub: run /plan ${id} first\n`)
+      process.exit(1)
+    }
+    if (!/^### STORY-/m.test(text)) die(`${id} has no "### STORY-" blocks`)
+  }
+
+  const problem = unmergedDependency(text, base)
+  if (problem) {
+    process.stderr.write(`${problem}\n`)
+    process.exit(3)
+  }
+}
+
 // ---------------------------------------------------------------- dispatch
 
 if (command === 'claim') claim(arg)
 else if (command === 'carry') carry(arg, flags.from)
 else if (command === 'check') check(arg)
-else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | carry <ID> --from <planning checkout> | check <ID>')
+else if (command === 'ready') ready(arg)
+else die('usage: plan-artifacts.mjs claim <EPIC|FAST> | carry <ID> --from <planning checkout> | check <ID> | ready <EPIC-n> --base <base> [--deps-only]')

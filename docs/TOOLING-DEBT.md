@@ -370,3 +370,24 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: MEDIUM
 - Category: observability
 - Address when: after 3 epics planned under the budget
+
+### Stubs are visible only in the checkout that planned them
+- Raised: 2026-10-11 by architect (ARCH-1)
+- Current: stubs are written untracked where `/plan` ran, like any plan. `claim` reserves their numbers across worktrees, but another machine or a cloud session can't see a stub unless a human commits it.
+- Risk: LOW
+- Category: robustness
+- Address when: the waves briefs need a cloud session to fill in or build a stub
+
+### Merged-dependency detection relies on `[STORY-<id>]` tags reaching `<base>`
+- Raised: 2026-10-11 by architect (ARCH-3)
+- Current: `ready` treats a dependency as merged only when every story tag appears in `origin/<base>`'s history. A repo that squash-merges epic PRs with a custom message drops the tags, and `ready` then reports "not merged". It fails closed and is never silently wrong.
+- Risk: LOW
+- Category: robustness
+- Address when: the first false "not merged" report, or when the github-backlog store moves epic status off the file
+
+### Fill-in over the cap stops instead of re-splitting
+- Raised: 2026-10-11 by architect (ARCH-1)
+- Current: `/plan EPIC-m` on a stub that grows past the cap reports and stops, and a human re-scopes it.
+- Risk: LOW
+- Category: other
+- Address when: the first fill-in that comes out over the cap

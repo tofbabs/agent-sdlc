@@ -4,75 +4,71 @@ argument-hint: <path-to-brief.md-or-epic-description> [--fast] [--model <agent>=
 allowed-tools: Agent, Task, Read, Write, Glob, Grep, LSP, Skill, Bash(cat:*)
 ---
 
-Input: `$ARGUMENTS` minus flags.
-**Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md` first.
+Input: `$ARGUMENTS` sans flags.
+**Models:** `--model` or `**Agent models:**` in `CLAUDE.md` → `cat ${CLAUDE_PLUGIN_ROOT}/reference/models.md`.
 **Consent:** `cat ${CLAUDE_PLUGIN_ROOT}/reference/consent.md` first.
 
-Build a backlog. **Delegate — you write no stories.**
+**Delegate — you write no stories.**
 
 ---
 
 ## FAST LANE
 
-`--fast` in the arguments replaces everything below: one planner invocation, a
-~40-line task list, and no architect pass unless a one-way door was tagged.
+`--fast` replaces everything below: one planner call, a ~40-line list, no architect pass unless a one-way door is tagged.
 
 ```bash
 cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
 ```
 
-**Read it before STEP 1** — that file is the protocol, this is not.
-
 ---
 
 ## STEP 1 — Decompose
 
-`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md`, then `claim EPIC` once
-per epic — never let the planner pick a number.
+`cat ${CLAUDE_PLUGIN_ROOT}/reference/plan-artifacts.md` and `reference/epic-budget.md`, then `claim EPIC` per
+epic — the planner never picks a number.
 
 ```
 Agent(subagent_type: "agentic-sdlc:planner", prompt: "Decompose this into epics and stories with
-acceptance criteria. Raise ARCH-<n> handoffs for genuine architecture or tooling
-decisions — do NOT decide those yourself. Overwrite <claimed path>.")
+acceptance criteria. Raise ARCH-<n> for architecture or tooling decisions; do NOT decide them. Overwrite <claimed path>.")
 ```
 
-Several epics in the brief → run them in parallel.
+Over the cap: planner returns later parts' outline (SPLIT in epic-budget.md); claim one EPIC per part, Part 1 in full, later parts stubs.
 
 ---
 
 ## STEP 2 — Resolve handoffs
 
-For every `ARCH-<n>` with status `OPEN`:
+Each `OPEN` `ARCH-<n>`:
 
 ```
-Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n>. Read the codebase first
-— consistency with what exists beats cleverness. WebFetch for anything version- or
-maturity-dependent. DECIDE. Write an ADR only for genuine one-way doors; otherwise
-resolve inline in the epic file. Shortcuts go under ## Debt in the epic file.")
+Agent(subagent_type: "agentic-sdlc:architect", prompt: "Resolve ARCH-<n>. Read the codebase first;
+consistency beats cleverness. DECIDE. ADR only for one-way doors; else resolve inline in the epic file. Shortcuts go under ## Debt there.")
 ```
 
-Batch related handoffs into one architect invocation.
+Batch related handoffs.
 
 ---
 
 ## STEP 3 — Review (non-blocking)
 
-Add the `- Artifacts:` line (new ADRs, uncommitted brief). Record the lane:
+Add `- Artifacts:` (new ADRs, brief). Record the lane (Part 1 only):
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select.mjs record --file <claimed path> --chosen deliberate`.
-Present:
-- Epics and story count
-- Architecture decisions made, and the reasoning
-- Any ADR written
-- New tooling debt logged
+Last, `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs check EPIC-<n>` per epic. Fail → re-split once; again → "still over".
+Show epics, stories, decisions and reasoning, ADRs, debt. Silence lets `/build` proceed.
 
-**Skim it. Correct anything wrong.** But this doesn't block — if you say nothing,
-`/build` proceeds.
+---
+
+## FILL-IN
+
+Input `EPIC-<n>`: `plan-artifacts.mjs ready EPIC-<n> --base <base> --deps-only` (`<base>` as `/build`); non-zero → stop. Not a STUB → refuse, change nothing. Else follow `reference/epic-budget.md`.
 
 ---
 
 ## REPORT
 
-| Epic | Stories | ARCH handoffs | Status |
-|------|---------|---------------|--------|
+Rows in build order.
 
-Then: `/build EPIC-<n>`
+| Epic | Stories | Points | Depends on | ARCH | Status |
+|--|--|--|--|--|--|
+
+Then `/build EPIC-<n>`

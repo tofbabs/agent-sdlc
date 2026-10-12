@@ -117,11 +117,7 @@ behaviour change.
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/mode-select-fields.mjs`.
 - **2–5 acceptance criteria, each testable.** A criterion no test could falsify
   is a wish, not a criterion.
-- **The epic file has a budget: ~150 lines, with `## Stories` starting inside the
-  first 40.** Every coder in the epic reads this file, so anything above the
-  stories is paid for once per story. Measured epics have run 600–900 lines with
-  `## Stories` at line ~430 — a coder then reads ~430 lines of planning prose to
-  reach the ~90 that concern it, and does it again for the next story.
+- **The epic file has a budget** (points, lines, anchors): `reference/epic-budget.md`.
 - **Do not add sections the format below does not have.** Evidence you gathered
   while planning, alternatives you rejected, and figures you could not verify are
   *context for the human*: put them in the PR description, or in an `ARCH-<n>`

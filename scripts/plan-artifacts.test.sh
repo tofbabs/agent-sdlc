@@ -88,6 +88,50 @@ grep -q "someone else" ../build7/backlog/FAST-7.md \
   && ok "branch copy left intact" || bad "branch copy clobbered"
 [ -e backlog/FAST-7.md ] && ok "planning copy kept when carry refuses" || bad "planning copy lost"
 
+# 5b. A committed STUB of the same ID is the one differing copy carry may replace:
+#     the filled-in plan supersedes it, and the result must be committed.
+printf '# EPIC-41: later part\n- Status: STUB\n' > "$TMP/stubcopy"
+printf '# EPIC-41: later part\n- Status: TODO\n\n## Stories\n\n### STORY-41-1: filled\n- estimate: S\n' > backlog/EPIC-41.md
+g worktree add -q ../build41 -b feat/EPIC-41 main
+mkdir -p ../build41/backlog && cp "$TMP/stubcopy" ../build41/backlog/EPIC-41.md
+g -C ../build41 add backlog/EPIC-41.md && g -C ../build41 commit -qm "docs: stub EPIC-41"
+( cd ../build41 && node "$PA" carry EPIC-41 --from "$TMP/main" >/dev/null 2>&1 )
+rc=$?
+[ $rc -eq 0 ] && ok "carry replaces a STUB copy of the same ID" || bad "stub replace: rc=$rc"
+g -C ../build41 show HEAD:backlog/EPIC-41.md 2>/dev/null | grep -q 'STORY-41-1: filled' \
+  && ok "filled-in plan is what the branch commits" || bad "stub still committed"
+subj=$(g -C ../build41 log -1 --format=%s)
+[ "$subj" = "docs: add EPIC-41 plan" ] && ok "stub replacement is committed" || bad "last commit is '$subj'"
+
+# 5c. Only a STUB of that ID is replaceable: a STUB heading another ID, or a non-STUB
+#     body that merely mentions STUB, is somebody else's work.
+printf '# EPIC-42: fill\n- Status: TODO\n' > backlog/EPIC-42.md
+g worktree add -q ../build42 -b feat/EPIC-42 main
+mkdir -p ../build42/backlog && printf '# EPIC-43: other\n- Status: STUB\n' > ../build42/backlog/EPIC-42.md
+( cd ../build42 && node "$PA" carry EPIC-42 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'EPIC-43' ../build42/backlog/EPIC-42.md \
+  && ok "carry refuses a STUB that belongs to another ID" || bad "foreign stub overwritten"
+printf '# EPIC-44: fill\n- Status: TODO\n' > backlog/EPIC-44.md
+g worktree add -q ../build44 -b feat/EPIC-44 main
+mkdir -p ../build44/backlog && printf '# EPIC-44: built\n- Status: DONE\n\nNotes: was Status: STUB once\n' > ../build44/backlog/EPIC-44.md
+( cd ../build44 && node "$PA" carry EPIC-44 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'DONE' ../build44/backlog/EPIC-44.md \
+  && ok "carry refuses a non-STUB copy that mentions STUB" || bad "non-stub overwritten"
+# 5d. STUB counts only in the header, and only under this exact ID: a finished epic quoting
+#     "- Status: STUB" in its body, or a heading like EPIC-45-old, is not replaceable.
+printf '# EPIC-45: fill\n- Status: TODO\n' > backlog/EPIC-45.md
+g worktree add -q ../build45 -b feat/EPIC-45 main
+mkdir -p ../build45/backlog && printf '# EPIC-45: built\n- Status: DONE\n\n## Notes\n\n- Status: STUB\n' > ../build45/backlog/EPIC-45.md
+( cd ../build45 && node "$PA" carry EPIC-45 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'DONE' ../build45/backlog/EPIC-45.md \
+  && ok "carry refuses a body-only STUB line" || bad "body STUB overwritten"
+printf '# EPIC-46: fill\n- Status: TODO\n' > backlog/EPIC-46.md
+g worktree add -q ../build46 -b feat/EPIC-46 main
+mkdir -p ../build46/backlog && printf '# EPIC-46-old: other\n- Status: STUB\n' > ../build46/backlog/EPIC-46.md
+( cd ../build46 && node "$PA" carry EPIC-46 --from "$TMP/main" >/dev/null 2>&1 )
+[ $? -eq 2 ] && grep -q 'EPIC-46-old' ../build46/backlog/EPIC-46.md \
+  && ok "carry refuses a STUB under a prefixed ID" || bad "prefixed-ID stub overwritten"
+
 # 6. The shared ledger is never an Artifact — whole-file copy would clobber it.
 printf '# FAST-8\n- Artifacts: docs/TOOLING-DEBT.md\n' > backlog/FAST-8.md
 ( node "$PA" carry FAST-8 --from "$TMP/main" >/dev/null 2>&1 )
@@ -165,6 +209,145 @@ chk EPIC-22 >/dev/null; [ $? -eq 0 ] && ok "check passes when the Depends-on tar
 dep EPIC-23 "none"
 chk EPIC-23 >/dev/null; [ $? -eq 0 ] && ok "check passes Depends on: none" || bad "none rejected"
 chk EPIC-1 >/dev/null; [ $? -eq 0 ] && ok "check passes an epic with no Depends-on header" || bad "no header rejected"
+
+# 10. The budget reference must state the constants plan-artifacts.mjs enforces.
+REF="$ROOT/plugins/agentic-sdlc/reference/epic-budget.md"
+const() { sed -n "s/^const $1 = \\(.*\\)$/\\1/p" "$PA"; }
+pts=$(const POINTS | tr -d '{}:,' | tr -s ' ' | sed 's/^ *//;s/ *$//')
+cap=$(const EPIC_CAP); ml=$(const MAX_LINES); sl=$(const STORIES_BY_LINE)
+want_rows=$(for k in S M L; do echo "| $k | $(echo "$pts" | sed -n "s/.*$k \\([0-9]*\\).*/\\1/p") |"; done)
+drift=""
+while IFS= read -r row; do grep -qF -- "$row" "$REF" || drift="$drift [$row]"; done <<< "$want_rows"
+grep -qF -- "**Cap: $cap points" "$REF" || drift="$drift [cap $cap]"
+grep -qF -- "**$ml lines**" "$REF" || drift="$drift [max_lines $ml]"
+grep -qF -- "starts by line $sl" "$REF" || drift="$drift [stories_by_line $sl]"
+[ -z "$cap" ] || [ -z "$ml" ] || [ -z "$sl" ] && drift="$drift [constants not parsed]"
+[ -z "$drift" ] && ok "epic-budget.md matches the weights, cap and limits in plan-artifacts.mjs" || bad "epic-budget.md drifted:$drift"
+# 10b. The template is what the planner copies; without these header lines a split
+#      epic has nowhere to record its parent brief, position and predecessor.
+TPL="$ROOT/templates/backlog/EPIC-template.md"
+hdr=$(sed '/^## /,$d' "$TPL")
+miss=""
+for h in 'Brief:' 'Part: ' 'Depends on:'; do
+  printf '%s\n' "$hdr" | grep -qE "^- $h" || miss="$miss [$h]"
+done
+[ -z "$miss" ] && ok "EPIC template header carries Brief, Part and Depends on" || bad "EPIC template header missing:$miss"
+# 10c. The split rules and stub shape live in the reference so plan.md and the planner
+#      stay pointer-only; a missing rule leaves the planner to cut mid-story.
+miss=""
+for s in 'release-signal' 'contract seam' 'never mid-story' 'Status: STUB' 'Part: k of N' 'Depends on:' 'estimate' 'depends_on' 'RESOLVED' 'OPEN ARCH' 'Artifacts'; do
+  grep -qF -- "$s" "$REF" || miss="$miss [$s]"
+done
+grep -qE '^## SPLIT' "$REF" || miss="$miss [## SPLIT heading]"
+grep -qE '^## STUB' "$REF" || miss="$miss [## STUB heading]"
+[ -z "$miss" ] && ok "epic-budget.md states the split rules and stub shape" || bad "epic-budget.md missing:$miss"
+# 10d. A stub is checked like any epic; a stub-only rule in check would force the
+#      fill-in step to delete content just to pass.
+printf '# EPIC-40: stub part\n\n- Brief: docs/briefs/x.md\n- Part: 2 of 2\n- Depends on: EPIC-1\n- Outcome: later half\n- Status: STUB\n\n## Stories\n\n### STORY-40-1: a\n- estimate: M\n- depends_on: []\n\n### STORY-40-2: b\n- estimate: M\n- depends_on: [STORY-40-1]\n' > "$TMP/chk/backlog/EPIC-40.md"
+out=$(chk EPIC-40); rc=$?
+[ $rc -eq 0 ] && ok "check passes a stub in the template shape" || bad "stub rejected: rc=$rc out=$out"
+# 10e. /plan must run check on what it wrote, allow one re-split, and stop on a
+#      second failure; the protocol stays in the reference to fit plan.md's byte cap.
+PLANMD="$ROOT/plugins/agentic-sdlc/commands/plan.md"
+miss=""
+for s in 'plan-artifacts.mjs check' 're-split' 'still over' 'SPLIT'; do
+  grep -qF -- "$s" "$PLANMD" || miss="$miss [$s]"
+done
+[ -z "$miss" ] && ok "plan.md runs check, re-splits once, and stops on still over" || bad "plan.md missing:$miss"
+s3=$(sed -n '/^## STEP 3/,/^## /p' "$PLANMD")
+ln() { printf '%s\n' "$s3" | grep -nF -- "$1" | head -1 | cut -d: -f1; }
+[ "$(ln 'plan-artifacts.mjs check')" -gt "$(ln 'mode-select.mjs record')" ] && [ "$(ln 'plan-artifacts.mjs check')" -gt "$(ln 'Artifacts:')" ] \
+  && ok "plan.md checks the epic after its last write" || bad "check runs before Artifacts/record writes"
+[ "$(wc -c < "$PLANMD")" -le 2493 ] && ok "plan.md within its byte cap" || bad "plan.md over 2493 bytes"
+# 10f. The REPORT must show build order with points and dependencies, so a split
+#      brief reads as a sequence of reviewable PRs.
+rpt=$(sed -n '/^## REPORT/,$p' "$PLANMD")
+miss=""
+for s in 'Points' 'Depends on' 'build order'; do
+  printf '%s' "$rpt" | grep -qiF -- "$s" || miss="$miss [$s]"
+done
+[ -z "$miss" ] && ok "plan.md REPORT lists epics in build order with points and Depends on" || bad "REPORT missing:$miss"
+# 10g. A brief within the cap must stay one epic; without a stated default the planner
+#      may split needlessly or leave the new header lines blank.
+sec=$(sed -n '/^## SPLIT/,/^## STUB/p' "$REF")
+miss=""
+for s in 'within the cap' 'Part: 1 of 1' 'Depends on: none'; do
+  printf '%s' "$sec" | grep -qF -- "$s" || miss="$miss [$s]"
+done
+[ -z "$miss" ] && ok "epic-budget.md keeps a within-cap brief as one epic, Part 1 of 1" || bad "SPLIT missing:$miss"
+# 11. ready: stub refusal and merged-dependency anchoring against origin/<base>.
+rdy() { (cd "$TMP/rw" && node "$PA" ready "$@" 2>&1); }
+g init -q --bare "$TMP/rorigin.git"
+g init -q "$TMP/rw" && cd "$TMP/rw"
+mkdir backlog
+printf '# EPIC-1\n\n## Stories\n\n### STORY-1-1: a\n- estimate: S\n\n### STORY-1-2: b\n- estimate: S\n' > backlog/EPIC-1.md
+g add . && g commit -qm "feat: one [STORY-1-1]"
+g remote add origin "$TMP/rorigin.git" && g push -q origin main && g fetch -q origin main
+rdep() { printf '# %s\n- Depends on: %s\n\n## Stories\n\n### STORY-9-1: s\n- estimate: S\n' "$1" "$2" > "$TMP/rw/backlog/$1.md"; }
+printf '# EPIC-30\n- Status: STUB\n\n## Stories\n\n### STORY-30-1: s\n- estimate: S\n' > backlog/EPIC-30.md
+out=$(rdy EPIC-30 --base main); rc=$?
+[ $rc -ne 0 ] && [ "$out" = "EPIC-30 is a stub: run /plan EPIC-30 first" ] && ok "ready refuses a stub epic" || bad "stub: rc=$rc out=$out"
+out=$(rdy EPIC-30 --base main --deps-only); rc=$?
+[ $rc -eq 0 ] && ok "ready --deps-only skips the stub rule" || bad "deps-only stub: rc=$rc out=$out"
+rdep EPIC-31 "EPIC-77 (merged)"
+out=$(rdy EPIC-31 --base main); rc=$?
+[ $rc -eq 3 ] && [ "$(echo "$out" | wc -l)" -eq 1 ] && echo "$out" | grep -q 'EPIC-77' && ok "ready exits 3 naming a dependency absent from origin/main" || bad "absent dep: rc=$rc out=$out"
+rdep EPIC-32 "EPIC-1 (merged)"
+out=$(rdy EPIC-32 --base main); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q 'EPIC-1 ' && echo "$out" | grep -q 'STORY-1-2' && ! echo "$out" | grep -q 'STORY-1-1' \
+  && ok "ready names the first story with no [STORY-id] commit" || bad "missing story: rc=$rc out=$out"
+g commit -q --allow-empty -m "feat: two [STORY-1-2]" && g push -q origin main && g fetch -q origin main
+out=$(rdy EPIC-32 --base main); rc=$?
+[ $rc -eq 0 ] && ok "ready passes once every story is on origin/main" || bad "merged dep: rc=$rc out=$out"
+rdep EPIC-33 "EPIC-5 (released), EPIC-6 (released)"
+out=$(rdy EPIC-33 --base main); [ $? -eq 0 ] && ok "ready passes released dependencies" || bad "released: $out"
+rdep EPIC-34 "none"
+out=$(rdy EPIC-34 --base main); [ $? -eq 0 ] && ok "ready passes Depends on: none" || bad "none: $out"
+printf '# EPIC-35\n\n## Stories\n\n### STORY-35-1: s\n- estimate: S\n' > backlog/EPIC-35.md
+out=$(rdy EPIC-35 --base main); [ $? -eq 0 ] && ok "ready passes an epic with no Depends-on header" || bad "no header: $out"
+out=$(rdy EPIC-99 --base main); [ $? -ne 0 ] && ok "ready fails when the epic file is missing" || bad "missing epic passed"
+printf '# EPIC-36\n\n## Stories\n' > backlog/EPIC-36.md
+out=$(rdy EPIC-36 --base main); [ $? -ne 0 ] && ok "ready fails an epic with no STORY blocks" || bad "no stories passed"
+# Shallow clone: a story outside the fetched history must fail closed with the unshallow hint.
+g commit -q --allow-empty -m "chore: pad" && g push -q origin main
+g clone -q --depth 1 "file://$TMP/rorigin.git" "$TMP/rshallow" && mkdir -p "$TMP/rshallow/backlog"
+cp "$TMP/rw/backlog/EPIC-32.md" "$TMP/rshallow/backlog/"
+out=$(cd "$TMP/rshallow" && node "$PA" ready EPIC-32 --base main 2>&1); rc=$?
+[ $rc -eq 3 ] && echo "$out" | grep -q 'git fetch --unshallow origin main' && ok "ready fails closed in a shallow checkout" || bad "shallow: rc=$rc out=$out"
+# A stale origin/<base>: the dependency merged after the last fetch. ready fetches first.
+g clone -q "file://$TMP/rorigin.git" "$TMP/rstale" && mkdir -p "$TMP/rstale/backlog"
+printf '# EPIC-38\n- Depends on: EPIC-2 (merged)\n\n## Stories\n\n### STORY-38-1: s\n- estimate: S\n' > "$TMP/rstale/backlog/EPIC-38.md"
+printf '# EPIC-2\n\n## Stories\n\n### STORY-2-1: a\n- estimate: S\n' > backlog/EPIC-2.md
+g add backlog/EPIC-2.md && g commit -qm "feat: two [STORY-2-1]" && g push -q origin main
+out=$(cd "$TMP/rstale" && node "$PA" ready EPIC-38 --base main 2>&1); rc=$?
+[ $rc -eq 0 ] && ok "ready fetches origin/<base> before judging a dependency" || bad "stale: rc=$rc out=$out"
+
+# 12. Fill-in: a stub whose merged dependency is unmerged must stop before the planner
+#     touches it, and /plan must route EPIC-<n> there without growing past its cap.
+printf '# EPIC-37\n- Depends on: EPIC-77 (merged)\n- Status: STUB\n\n## Stories\n\n### STORY-37-1: s\n- estimate: S\n' > backlog/EPIC-37.md
+before=$(cksum < backlog/EPIC-37.md)
+out=$(rdy EPIC-37 --base main --deps-only); rc=$?
+[ $rc -eq 3 ] && [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 1 ] && [ "$before" = "$(cksum < backlog/EPIC-37.md)" ] \
+  && ok "deps-only stops an unmerged stub with one line and leaves it unchanged" || bad "stub deps: rc=$rc out=$out"
+fill=$(sed -n '/^## FILL-IN/,/^## /p' "$PLANMD")
+miss=""
+for s in 'EPIC-<n>' '--deps-only' 'STUB' 'epic-budget.md'; do
+  printf '%s' "$fill" | grep -qF -- "$s" || miss="$miss [$s]"
+done
+printf '%s' "$fill" | grep -qiE 'refus|not a stub' || miss="$miss [refusal of a non-STUB]"
+printf '%s' "$fill" | grep -qF -- 'ready EPIC-<n> --base <base> --deps-only' || miss="$miss [ready needs --base]"
+[ -z "$miss" ] && ok "plan.md has a FILL-IN section: deps-only gate, STUB only, protocol in the reference" || bad "FILL-IN missing:$miss"
+
+# 13. The fill-in protocol lives in the reference; without each rule the planner may claim a
+#     new number, re-split an over-cap result, or leave the stub's Status unchanged.
+fi=$(sed -n '/^## FILL-IN/,$p' "$REF")
+miss=""
+for s in 'Brief:' 'no new claim' 'merged code' 'architect' 'check' 'Status: TODO' 're-split'; do
+  printf '%s' "$fi" | grep -qF -- "$s" || miss="$miss [$s]"
+done
+printf '%s' "$fi" | grep -qiE 'only (that part|the part)|that part.s stories' || miss="$miss [limited to the part's stories]"
+printf '%s' "$fi" | grep -qiE 'over the cap.*(report|stop)|(report|stop).*over the cap' || miss="$miss [over cap reports and stops]"
+[ -z "$miss" ] && ok "epic-budget.md has a FILL-IN protocol" || bad "FILL-IN protocol missing:$miss"
 
 [ "$fail" -eq 0 ] || { printf '\nplan-artifacts tests failed\n' >&2; exit 1; }
 printf '\nplan-artifacts tests passed\n'

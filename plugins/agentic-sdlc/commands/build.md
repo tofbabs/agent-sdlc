@@ -25,22 +25,13 @@ cat ${CLAUDE_PLUGIN_ROOT}/reference/fast-mode.md
 
 ---
 
-## PRECONDITIONS
-
-- [ ] `backlog/EPIC-<n>.md` exists with stories
-- [ ] No `ARCH` blocking a target story is still `OPEN`
-
-Any `OPEN` handoff on a target story → run the architect first.
-
----
-
 ## BASE BRANCH
 
 Everything below branches from, merges in, and opens its PR against **`<base>`** —
-the project's integration branch. Resolve it once, before anything else:
+the project's integration branch. Resolve it once, first:
 
 - A literal line `**Integration branch:** <name>` in the project's `CLAUDE.md`
-  names it (e.g. `**Integration branch:** staging`).
+  names it.
 - No such line → `<base>` is `main`.
 
 ```bash
@@ -51,6 +42,15 @@ Fetch it **once** per run, then work against `origin/<base>`. Wherever this file
 says `<base>`, substitute the resolved name — never hardcode `main` into a
 command you actually run, and name `<base>` explicitly in every agent prompt that
 needs it. Agents do not resolve it themselves.
+
+---
+
+## PRECONDITIONS
+
+- [ ] `node ${CLAUDE_PLUGIN_ROOT}/scripts/plan-artifacts.mjs ready EPIC-<n> --base <base>` exits 0
+- [ ] No `ARCH` blocking a target story is still `OPEN`
+
+Any `OPEN` handoff on a target story → run the architect first.
 
 ---
 
