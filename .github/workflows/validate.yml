@@ -92,6 +92,9 @@ jobs:
       - name: meter invariants
         run: ./scripts/meter.test.sh
 
+      - name: config reader and writer
+        run: ./scripts/config.test.sh
+
       # The consent answer gates every export; the wiring check keeps the
       # protocol reachable from plan and build.
       - name: consent store and wiring

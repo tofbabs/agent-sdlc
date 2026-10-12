@@ -391,3 +391,24 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: LOW
 - Category: other
 - Address when: the first fill-in that comes out over the cap
+
+### `plan.epic` values have no upper bound
+- Raised: 2026-10-12 by architect (ARCH-3)
+- Current: `cap: 100000` validates; only ≥ 1 and the cross-field order are checked.
+- Risk: LOW
+- Category: robustness (run-report-categories.mjs)
+- Address when: a consuming project reports a config that disables the budget by accident, or the estimate-vs-actual calibration lands.
+
+### The planner's numbers arrive by prose, not by a tool
+- Raised: 2026-10-12 by architect (ARCH-2)
+- Current: `/plan` pastes `config.mjs get plan.epic` into the planner prompt because the reference says to. Nothing enforces it, and `check` (which reads the config itself) is the backstop.
+- Risk: LOW
+- Category: robustness (run-report-categories.mjs)
+- Address when: a `/plan` run's `check` fails because the planner sized against the defaults instead of a project's config.
+
+### `updateConfig` writes in place, with no temp-file rename or lock
+- Raised: 2026-10-12 by architect (ARCH-1)
+- Current: `writeFileSync` straight to `.claude/agentic-sdlc.json`. Its only writer is `consent set`, run interactively.
+- Risk: LOW
+- Category: robustness (run-report-categories.mjs)
+- Address when: a second script, or any unattended or cloud routine, writes the file.

@@ -114,6 +114,18 @@ else
   note "node not found — skipping meter tests"
 fi
 
+# 6a. config.mjs is the one reader of the project config; check and consent both
+#     lean on it.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/config.test.sh" >/dev/null 2>&1; then
+    ok "config reader and writer hold"
+  else
+    bad "config tests failed — run scripts/config.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping config tests"
+fi
+
 # 6b. consent.mjs holds the team-wide telemetry answer; a regression here either
 #     nags users or exports without their say-so.
 if command -v node >/dev/null 2>&1; then
