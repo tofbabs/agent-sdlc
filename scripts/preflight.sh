@@ -126,6 +126,18 @@ else
   note "node not found — skipping round-state tests"
 fi
 
+# 6a1. config.mjs is the only reader of .claude/agentic-sdlc.json; a bad value
+#      must stop the command rather than fall back to a default.
+if command -v node >/dev/null 2>&1; then
+  if "$ROOT/scripts/config.test.sh" >/dev/null 2>&1; then
+    ok "pipeline config defaults and validation hold"
+  else
+    bad "config tests failed — run scripts/config.test.sh to see which check broke"
+  fi
+else
+  note "node not found — skipping config tests"
+fi
+
 # 6a2. The round comment contract is one reference; boot-path files only point at it.
 if "$ROOT/scripts/review-rounds-contract.test.sh" >/dev/null 2>&1; then
   ok "review round contract lives in reference/review-rounds.md"

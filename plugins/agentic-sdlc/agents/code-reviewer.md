@@ -168,5 +168,5 @@ verdict: REQUEST_CHANGES | APPROVE | COMMENT-fallback
 reviewed sha: <sha>
 findings: <n open> open, <n new>, <n carried>, <n closed>
 skills used: <list, or none>
-escalate: none | round cap | [ARCH] F<n>
+escalate: none | [ARCH] F<n>
 ```

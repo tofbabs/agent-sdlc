@@ -34,7 +34,6 @@ The command does not poll or retry; the next invocation re-reads CI.
 - **RESOLVED**: a finding closed this round (`FIXED` confirmed, or a `DISPUTED` accepted) is re-listed under its ID with `RESOLVED` after the tag. It no longer counts as open.
 - **Untagged** (legacy) finding lines read as `BLOCKING`.
 - **Verdict**: `REQUEST_CHANGES` if and only if an open `BLOCKING` finding exists; otherwise `APPROVE`. `NON-BLOCKING` findings are advisory and never revised. Add "Ready for human merge" to an `APPROVE` body.
-- **Round 4 or later**, still `REQUEST_CHANGES`: add `- round cap reached — escalate to the human`.
 - On a re-review, rule on every ID in the coder's `## Response — round k`.
 
 ## Posting
@@ -54,3 +53,7 @@ gh api repos/{owner}/{repo}/pulls/<n>/reviews -f event=<REQUEST_CHANGES|APPROVE>
 On HTTP 422 (the reviewing identity authored the PR), post the identical body with `event=COMMENT` and say so in the report. A PR author's own review is stored as `COMMENTED`, so the **comment body is authoritative** for verdict and reviewed sha; the review state is only a fallback (`scripts/round-state.mjs` implements this).
 
 If the head sha moved or the reviewer hit a blocker and "needs a human", it posts nothing; no comment, no verdict.
+
+## Round cap
+
+The cap is `review.round_cap` (default 3). When the rounds posted equal the cap and the last verdict is `REQUEST_CHANGES`, `/review` reports "needs a human" and posts nothing; it refuses before the reviewer is spawned, so the comment carries no cap token. A cap of 2 refuses the third round. `/build` REVISE stops at the same cap.

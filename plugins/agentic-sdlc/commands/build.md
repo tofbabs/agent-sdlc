@@ -285,8 +285,8 @@ the PR comment; the coder owns only the judgment.** When the latest round says
 5. Run `/agentic-sdlc:review <n>` again (or let the routine) to re-review the
    new head and rule on disputes.
 
-6. Max 3 rounds. Still REQUEST_CHANGES → the story or a contract is probably
-   wrong. Escalate to the human rather than grinding.
+6. Cap: `config.mjs get review.round_cap` (default 3). Still REQUEST_CHANGES → likely a wrong
+   story or contract; escalate to the human.
 ```
 
 One `fix(...)` commit per round on the epic branch, for the same reason stories

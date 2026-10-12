@@ -307,7 +307,7 @@ only delegates to `/review`.
 
 ### STORY-7-8: Round cap from config, "needs a human"
 
-- status: TODO
+- status: DONE
 - mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: S
 - select: risk_class=none@brief:L71 one_way_doors=0@brief:L71 existing_pattern=yes@AC2 modules_crossed=2@brief:L71 review_bounced=no@brief:L71 risk_kind=code@brief:L71

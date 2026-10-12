@@ -193,6 +193,20 @@ cp templates/hooks/lsp-preflight.sh    <project>/.claude/hooks/
 
 ---
 
+## Pipeline settings
+
+Per-repo settings live in the committed `.claude/agentic-sdlc.json`, read only
+through `scripts/config.mjs`. A missing file means every default applies.
+
+    {"schema": 1, "review": {"round_cap": 3}}
+
+`review.round_cap` (integer >= 1, default 3) is the number of review rounds
+before `/review` reports "needs a human" and stops. Invalid JSON, a wrong type
+or a `schema` other than 1 stops the command; an unknown key is warned about
+and ignored. The `telemetry` key below shares this file.
+
+---
+
 ## Telemetry consent
 
 `/agentic-sdlc:plan` and `/agentic-sdlc:build` ask once, per project, whether

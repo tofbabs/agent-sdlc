@@ -43,8 +43,8 @@ Also read `pulls/<n>/reviews`, `issues/<n>/comments` and `pulls/<n>/commits`.
 - If `k ≥ 1`, the head sha equals `sha` and `response` is false: report `"already reviewed at <sha>, no
   response yet"` and **stop**. This is what makes an hourly routine call
   cheap — nothing changed, nothing spawns.
-- If `k ≥ 4` and the last verdict was `REQUEST_CHANGES`: report `"round cap
-  reached — escalate to the human"` and **stop**.
+- If `k ≥` the cap (`node ${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs get review.round_cap`; non-zero
+  exit → stop) and the last verdict was `REQUEST_CHANGES`: report `"needs a human"`, post nothing, **stop**.
 
 ---
 
@@ -101,7 +101,7 @@ Record a review event per story ID (`reference/outcomes.md`), then the next step
 
 - `REQUEST_CHANGES` → `/agentic-sdlc:build` REVISE on PR `<n>`.
 - `APPROVE` → "Ready for human merge — the human owns the merge."
-- round cap or `[ARCH]` → the human.
+- `[ARCH]` → the human.
 
 ---
 
