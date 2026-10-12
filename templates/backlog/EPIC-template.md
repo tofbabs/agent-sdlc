@@ -1,5 +1,8 @@
 # EPIC-<n>: <title>
 
+- Brief: <docs/briefs/slug.md>
+- Part: 1 of 1
+- Depends on: none
 - Outcome: <what is true after this that isn't now>
 - Success metric: <the one number, if there is one>
 - Status: TODO

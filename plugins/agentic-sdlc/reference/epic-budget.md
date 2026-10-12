@@ -40,3 +40,31 @@ anchor is L even if its lines say M, and as an L it fills its epic alone.
 Anchors are advisory: `check` never reads them. They make an estimate a
 measurement rather than a mood; the points cap is what is enforced. Size
 blast radius with LSP, not Grep.
+
+---
+
+## SPLIT
+
+An outcome that does not fit one epic is cut into parts, each its own epic.
+
+- Cut at a release-signal seam (a part that ships a user-visible change on
+  its own) or a contract seam (a schema, API or interface the later part
+  consumes). Both let Part 1 merge before Part 2 starts.
+- Cut between stories, never mid-story. A story is never divided to make
+  the points fit.
+- Each part carries `Part: k of N` and a `Depends on:` naming the part it
+  needs merged.
+- A brief within the cap stays one epic: `Part: 1 of 1` and `Depends on: none`.
+
+---
+
+## STUB
+
+Parts after Part 1 are written as stubs, so their detail is planned against
+what Part 1 actually merged.
+
+- `Status: STUB`, with `Brief:`, `Part: k of N`, `Depends on:` and `Outcome:`.
+- Stories carry only an `estimate` and `depends_on`: no detail.
+- Keep any RESOLVED ARCH rows the part relies on. An architecture question the
+  part will probably raise goes in as an OPEN ARCH row.
+- Stubs are not added to Part 1's Artifacts.

@@ -54,8 +54,9 @@
 **Out of scope:** `released` dependencies, `gh`, a status field.
 
 ### STORY-9-3: Planner splits a brief into linked epics; `/plan` runs `check`
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L92 one_way_doors=0@brief:L92 existing_pattern=no@brief:L121 modules_crossed=3@brief:L92 review_bounced=no@brief:L92 risk_kind=code@brief:L92
 - depends_on: [STORY-9-1]

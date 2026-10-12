@@ -179,6 +179,54 @@ grep -qF -- "**$ml lines**" "$REF" || drift="$drift [max_lines $ml]"
 grep -qF -- "starts by line $sl" "$REF" || drift="$drift [stories_by_line $sl]"
 [ -z "$cap" ] || [ -z "$ml" ] || [ -z "$sl" ] && drift="$drift [constants not parsed]"
 [ -z "$drift" ] && ok "epic-budget.md matches the weights, cap and limits in plan-artifacts.mjs" || bad "epic-budget.md drifted:$drift"
+# 10b. The template is what the planner copies; without these header lines a split
+#      epic has nowhere to record its parent brief, position and predecessor.
+TPL="$ROOT/templates/backlog/EPIC-template.md"
+hdr=$(sed '/^## /,$d' "$TPL")
+miss=""
+for h in 'Brief:' 'Part: ' 'Depends on:'; do
+  printf '%s\n' "$hdr" | grep -qE "^- $h" || miss="$miss [$h]"
+done
+[ -z "$miss" ] && ok "EPIC template header carries Brief, Part and Depends on" || bad "EPIC template header missing:$miss"
+# 10c. The split rules and stub shape live in the reference so plan.md and the planner
+#      stay pointer-only; a missing rule leaves the planner to cut mid-story.
+miss=""
+for s in 'release-signal' 'contract seam' 'never mid-story' 'Status: STUB' 'Part: k of N' 'Depends on:' 'estimate' 'depends_on' 'RESOLVED' 'OPEN ARCH' 'Artifacts'; do
+  grep -qF -- "$s" "$REF" || miss="$miss [$s]"
+done
+grep -qE '^## SPLIT' "$REF" || miss="$miss [## SPLIT heading]"
+grep -qE '^## STUB' "$REF" || miss="$miss [## STUB heading]"
+[ -z "$miss" ] && ok "epic-budget.md states the split rules and stub shape" || bad "epic-budget.md missing:$miss"
+# 10d. A stub is checked like any epic; a stub-only rule in check would force the
+#      fill-in step to delete content just to pass.
+printf '# EPIC-40: stub part\n\n- Brief: docs/briefs/x.md\n- Part: 2 of 2\n- Depends on: EPIC-1\n- Outcome: later half\n- Status: STUB\n\n## Stories\n\n### STORY-40-1: a\n- estimate: M\n- depends_on: []\n\n### STORY-40-2: b\n- estimate: M\n- depends_on: [STORY-40-1]\n' > "$TMP/chk/backlog/EPIC-40.md"
+out=$(chk EPIC-40); rc=$?
+[ $rc -eq 0 ] && ok "check passes a stub in the template shape" || bad "stub rejected: rc=$rc out=$out"
+# 10e. /plan must run check on what it wrote, allow one re-split, and stop on a
+#      second failure; the protocol stays in the reference to fit plan.md's byte cap.
+PLANMD="$ROOT/plugins/agentic-sdlc/commands/plan.md"
+miss=""
+for s in 'plan-artifacts.mjs check' 're-split' 'still over' 'SPLIT'; do
+  grep -qF -- "$s" "$PLANMD" || miss="$miss [$s]"
+done
+[ -z "$miss" ] && ok "plan.md runs check, re-splits once, and stops on still over" || bad "plan.md missing:$miss"
+[ "$(wc -c < "$PLANMD")" -le 2493 ] && ok "plan.md within its byte cap" || bad "plan.md over 2493 bytes"
+# 10f. The REPORT must show build order with points and dependencies, so a split
+#      brief reads as a sequence of reviewable PRs.
+rpt=$(sed -n '/^## REPORT/,$p' "$PLANMD")
+miss=""
+for s in 'Points' 'Depends on' 'build order'; do
+  printf '%s' "$rpt" | grep -qiF -- "$s" || miss="$miss [$s]"
+done
+[ -z "$miss" ] && ok "plan.md REPORT lists epics in build order with points and Depends on" || bad "REPORT missing:$miss"
+# 10g. A brief within the cap must stay one epic; without a stated default the planner
+#      may split needlessly or leave the new header lines blank.
+sec=$(sed -n '/^## SPLIT/,/^## STUB/p' "$REF")
+miss=""
+for s in 'within the cap' 'Part: 1 of 1' 'Depends on: none'; do
+  printf '%s' "$sec" | grep -qF -- "$s" || miss="$miss [$s]"
+done
+[ -z "$miss" ] && ok "epic-budget.md keeps a within-cap brief as one epic, Part 1 of 1" || bad "SPLIT missing:$miss"
 # 11. ready: stub refusal and merged-dependency anchoring against origin/<base>.
 rdy() { (cd "$TMP/rw" && node "$PA" ready "$@" 2>&1); }
 g init -q --bare "$TMP/rorigin.git"
