@@ -438,6 +438,20 @@ else
   bad "brief-issue tests failed — run scripts/brief-issue.test.sh to see which check broke"
 fi
 
+# 6d. Wave selection is pure on a payload; a drifting rule would silently
+#     re-pick different briefs for the same board.
+if bash "$ROOT/scripts/wave-select.test.sh" >/dev/null 2>&1; then
+  ok "wave selection rules hold"
+else
+  bad "wave-select tests failed — run scripts/wave-select.test.sh to see which check broke"
+fi
+
+if bash "$ROOT/scripts/wave-select-report.test.sh" >/dev/null 2>&1; then
+  ok "wave exhaustion report holds"
+else
+  bad "wave-select-report tests failed — run scripts/wave-select-report.test.sh to see which check broke"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.
