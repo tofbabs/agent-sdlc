@@ -26,7 +26,8 @@ Part 1 needs none of the OPEN rows: `start` reads only labels it creates, and
 
 ### STORY-11-1: Brief-Issue schema, parser and Issue template
 
-- status: TODO
+- status: LANDED
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: S
 - select: risk_class=none@brief:L40 one_way_doors=0@brief:L40 existing_pattern=yes@brief:L50 modules_crossed=3@brief:L50 review_bounced=no@brief:L40 risk_kind=code@brief:L50
 - depends_on: []
@@ -51,7 +52,9 @@ Part 1 needs none of the OPEN rows: `start` reads only labels it creates, and
 
 ### STORY-11-2: Wave selection
 
-- status: TODO
+- status: LANDED
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L62 one_way_doors=0@brief:L62 existing_pattern=yes@brief:L154 modules_crossed=3@brief:L62 review_bounced=no@brief:L62 risk_kind=code@brief:L62
 - depends_on: [STORY-11-1]
@@ -78,7 +81,8 @@ Part 1 needs none of the OPEN rows: `start` reads only labels it creates, and
 
 ### STORY-11-3: `/wave start` and `/wave status` dispatcher
 
-- status: TODO
+- status: LANDED
+- mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: M
 - select: risk_class=none@brief:L60 one_way_doors=0@brief:L60 existing_pattern=no@brief:L147 modules_crossed=4@brief:L147 review_bounced=no@brief:L60 risk_kind=code@brief:L60
 - depends_on: [STORY-11-2]
