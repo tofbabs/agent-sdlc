@@ -6,13 +6,22 @@ import { parseBriefIssue, conflicts } from './brief-issue.mjs';
 import { classify } from './ci-state.mjs';
 
 // An open PR already carries evidence, so it decides the phase over a plan file.
-const EVIDENCE_PHASE = { green: 'review', pending: 'ci', none: 'ci', red: 'build' };
+// Approved-on-head is not derivable from check-runs; round-state owns that.
+const EVIDENCE_PHASE = { green: 'ci', pending: 'ci', none: 'ci', red: 'revise' };
 const startPhase = (i) => {
   if (i.open_pr) return EVIDENCE_PHASE[classify(i.open_pr).state];
   return i.plan ? 'build' : 'plan';
 };
 
-export function select({ issues, priority_labels: priorities = [] }) {
+// Raw REST returns label objects and mixes PRs into /issues; accepting both
+// shapes here keeps the agent from having to reshape the payload.
+const normalize = (issues) =>
+  issues
+    .filter((i) => !i.pull_request)
+    .map((i) => ({ ...i, labels: (i.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name)) }));
+
+export function select({ issues: rawIssues, priority_labels: priorities = [] }) {
+  const issues = normalize(rawIssues);
   const active = issues
     .filter((i) => i.labels.includes('wave:active'))
     .map((i) => i.number)

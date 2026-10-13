@@ -183,6 +183,14 @@ jobs:
           ./scripts/export-revoke.test.sh
           ./scripts/export-revoke-cli.test.sh
 
+      # Wave scripts are pure and deterministic; preflight runs them, so CI must
+      # too or a regression passes review and fails only locally.
+      - name: wave script tests
+        run: |
+          for t in brief-issue wave-select wave-select-report wave-board; do
+            ./scripts/$t.test.sh
+          done
+
       # The agent boot path is a cost surface, not a style surface: a byte added
       # to coder.md is paid ~40 times on a PAIR story, so this file's growth is a
       # cost regression. The budget is ratchet-only — a file over its cap fails,

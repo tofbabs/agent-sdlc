@@ -36,6 +36,10 @@ case "$first" in *"| #5 |"*) ok "rows are ordered by brief number" ;; *) bad "ro
 head=$(render "$STATE" | head -1)
 [ "$head" = "<!-- wave-board:3 -->" ] && ok "first line is a hidden marker naming the wave" || bad "marker missing: '$head'"
 
+# A missing since would print NaNm into a public comment; the render must fail.
+BAD='{"wave":3,"epic":40,"now":"2026-01-01T12:05:00Z","briefs":[{"number":7,"phase":"plan"}]}'
+if printf '%s' "$BAD" | node "$WB" >/dev/null 2>&1; then bad "a missing since was rendered"; else ok "a missing since fails instead of rendering NaN"; fi
+
 CMD="$ROOT/plugins/agentic-sdlc/commands/wave.md"
 REF="$ROOT/plugins/agentic-sdlc/reference/wave.md"
 
@@ -70,6 +74,18 @@ if [ -f "$REF" ]; then
   # next select() refuse against the briefs themselves.
   grep -qiE 'label the selected Issues .wave:active' "$REF" && bad "reference puts wave:active on the selected briefs" || ok "wave:active is not put on selected briefs"
 fi
+
+# The reference is the only place the payload contract lives; each needle is a
+# step the selector silently depends on.
+if [ -f "$REF" ]; then
+  for needle in 'state=all' 'config.mjs get wave.priority_labels' 'check-runs' 'plan: true' '/events' '`created_at`'; do
+    grep -qF -- "$needle" "$REF" && ok "reference specifies $needle" || bad "reference lacks $needle"
+  done
+fi
+# The command's own first instruction is a cat, and the protocol writes JSON.
+for tool in 'Bash(cat:*)' 'Write'; do
+  grep -qF -- "$tool" "$CMD" && ok "command grants $tool" || bad "command lacks $tool"
+done
 
 # An unwired test script never runs in CI, so a board regression would ship.
 grep -qF 'wave-board.test.sh' "$ROOT/scripts/preflight.sh" && ok "preflight runs the wave-board tests" || bad "preflight does not run wave-board.test.sh"

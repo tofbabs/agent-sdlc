@@ -13,6 +13,12 @@ function duration(ms) {
 
 export function render({ wave, epic, now, briefs }) {
   const at = Date.parse(now);
+  // A bad timestamp would post "NaNm" to a public Issue; refuse before that.
+  for (const b of briefs) {
+    if (Number.isNaN(at) || Number.isNaN(Date.parse(b.since))) {
+      throw new Error(`unparseable now/since for #${b.number}`);
+    }
+  }
   const rows = [...briefs]
     .sort((a, b) => a.number - b.number)
     .map((b) => `| #${b.number} | ${b.phase} | ${b.pr ? `#${b.pr}` : '—'} | ${duration(at - Date.parse(b.since))} |`);
@@ -28,5 +34,10 @@ export function render({ wave, epic, now, briefs }) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  process.stdout.write(render(JSON.parse(readFileSync(0, 'utf8'))));
+  try {
+    process.stdout.write(render(JSON.parse(readFileSync(0, 'utf8'))));
+  } catch (e) {
+    console.error(`wave-board: ${e.message}`);
+    process.exit(2);
+  }
 }

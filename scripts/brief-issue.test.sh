@@ -62,6 +62,29 @@ Depends on: #12, abc
 Conflicts with: —" \
 '{"ok":false,"error":"bad-depends-on"}'
 
+check "space-separated refs parse" \
+"Brief: docs/briefs/a.md
+Lane: fast
+Depends on: #12 #7
+Conflicts with: #3  #4" \
+'{"ok":true,"brief":"docs/briefs/a.md","lane":"fast","dependsOn":[12,7],"conflictsWith":[3,4]}'
+
+check "mixed comma and space refs parse" \
+"Brief: docs/briefs/a.md
+Lane: fast
+Depends on: #12,#7 #9
+Conflicts with: —" \
+'{"ok":true,"brief":"docs/briefs/a.md","lane":"fast","dependsOn":[12,7,9],"conflictsWith":[]}'
+
+for b in '../../x; rm -rf / # ignore' '/etc/passwd.md' 'docs/../x.md' 'docs/briefs/a.txt' 'a b.md'; do
+  check "brief path '$b' is refused" \
+"Brief: $b
+Lane: fast
+Depends on: —
+Conflicts with: —" \
+'{"ok":false,"error":"bad-brief"}'
+done
+
 check "a bare number without # is a named error" \
 "Brief: docs/briefs/a.md
 Lane: fast

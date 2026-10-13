@@ -88,6 +88,17 @@ field "start phase: plan file -> build, open PR -> its evidence phase, else plan
 {"number":3,"state":"open","labels":["brief"],"plan":true,"open_pr":{"check_runs":[{"name":"t","status":"in_progress"}]},"body":"'"$(pbody)"'"},
 {"number":4,"state":"open","labels":["brief"],"open_pr":{"check_runs":[{"name":"t","status":"completed","conclusion":"failure"}]},"body":"'"$(pbody)"'"},
 {"number":5,"state":"open","labels":["brief"],"open_pr":{"check_runs":[{"name":"t","status":"completed","conclusion":"success"}]},"body":"'"$(pbody)"'"}]}' \
-phases '{"1":"plan","2":"build","3":"ci","4":"build","5":"review"}'
+phases '{"1":"plan","2":"build","3":"ci","4":"revise","5":"ci"}'
+
+# Raw REST shape: label objects, PRs mixed in. A PR must never be selected.
+field "raw REST label objects count, and PR entries are dropped" \
+'{"issues":[
+{"number":1,"state":"open","labels":[{"name":"brief"}],"body":"'"$(pbody)"'"},
+{"number":2,"state":"open","labels":[{"name":"brief"}],"pull_request":{},"body":"'"$(pbody)"'"}]}' \
+selected '[1]'
+
+check "a raw-shaped active label refuses" \
+'{"issues":[{"number":9,"state":"open","labels":[{"name":"wave:active"}],"body":""}]}' \
+'{"ok":false,"error":"wave-active","issues":[9]}'
 
 exit $fail

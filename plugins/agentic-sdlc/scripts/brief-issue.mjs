@@ -9,11 +9,11 @@ const field = (body, label) => {
 };
 
 // An em dash stands for "none" so the line is never left blank. Anything
-// else must be strictly #N, comma-separated; a guess here would schedule
-// the wrong work.
+// else must be strictly #N, comma- or space-separated; a guess here would
+// schedule the wrong work.
 const refs = (value) => {
   if (value === '—') return [];
-  const parts = value.split(',').map((p) => p.trim());
+  const parts = value.split(/[,\s]+/).filter(Boolean);
   if (!parts.every((p) => /^#\d+$/.test(p))) return null;
   return parts.map((p) => Number(p.slice(1)));
 };
@@ -23,6 +23,11 @@ const fail = (error) => ({ ok: false, error });
 export function parseBriefIssue(body) {
   const brief = field(body, 'Brief');
   if (!brief) return fail('missing-brief');
+  // The path is later handed to /plan as an argument, so it must stay a plain
+  // repo-relative markdown path.
+  if (!/^[\w.\/-]+\.md$/.test(brief) || brief.startsWith('/') || brief.split('/').includes('..')) {
+    return fail('bad-brief');
+  }
   const lane = field(body, 'Lane');
   if (lane === null || lane === '') return fail('missing-lane');
   if (!LANES.includes(lane)) return fail('unknown-lane');
