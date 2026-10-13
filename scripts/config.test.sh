@@ -165,4 +165,18 @@ for bad_content in '{ nope' '[1]' '{"schema":2}'; do
     && ok "updateConfig: refuses $bad_content and leaves the file untouched" || bad "updateConfig: $bad_content — out: $out"
 done
 
+echo "wave.priority_labels"
+P=$(proj wavedef)
+check "no file: priority labels default to P0..P3 in order" "$(get "$P" wave.priority_labels)" \
+  '["priority:P0","priority:P1","priority:P2","priority:P3"]'
+P=$(proj waveover); echo '{"wave":{"priority_labels":["p:high","p:low"]}}' > "$(cfg "$P")"
+check "a file's priority labels replace the default list whole" "$(get "$P" wave.priority_labels)" '["p:high","p:low"]'
+check "wave override: stderr is empty" "$(cat "$TMP/err")" ""
+for case in 'notlist|{"wave":{"priority_labels":"priority:P0"}}' 'empty|{"wave":{"priority_labels":[]}}' 'nonstring|{"wave":{"priority_labels":["a",2]}}'; do
+  P=$(proj "wavebad${case%%|*}"); printf '%s' "${case#*|}" > "$(cfg "$P")"
+  out=$(get "$P" wave.priority_labels); rc=$?
+  check "${case%%|*}: exits 2" "$rc" "2"
+  check "${case%%|*}: message" "$(cat "$TMP/err")" "config: wave.priority_labels: must be a non-empty list of strings"
+done
+
 exit $fail

@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 
 const DEFAULTS = {
   review: { round_cap: 3 },
+  wave: { priority_labels: ['priority:P0', 'priority:P1', 'priority:P2', 'priority:P3'] },
   plan: {
     epic: {
       points: { S: 3, M: 5, L: 15 },
@@ -50,9 +51,19 @@ function validateReview(review) {
   }
 }
 
+function validateWave(wave) {
+  if (wave === undefined) return;
+  if (!isObj(wave)) throw new ConfigError('wave', 'must be an object');
+  const labels = wave.priority_labels;
+  if (labels !== undefined && !(Array.isArray(labels) && labels.length > 0 && labels.every((l) => typeof l === 'string'))) {
+    throw new ConfigError('wave.priority_labels', 'must be a non-empty list of strings');
+  }
+}
+
 function validateShape(raw) {
   if (raw.schema !== undefined && raw.schema !== 1) throw new ConfigError('schema', 'must be 1');
   validateReview(raw.review);
+  validateWave(raw.wave);
   if (raw.plan === undefined) return;
   if (!isObj(raw.plan)) throw new ConfigError('plan', 'must be an object');
   const epic = raw.plan.epic;
@@ -116,6 +127,7 @@ const KNOWN = {
   schema: true,
   telemetry: true,
   review: { round_cap: true },
+  wave: { priority_labels: true },
   plan: { epic: { points: { S: true, M: true, L: true }, cap: true, max_lines: true, stories_by_line: true, anchors: { S: { lines: true, files: true }, M: { lines: true, files: true }, L: { lines: true, files: true } } } },
 };
 
