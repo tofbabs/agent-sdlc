@@ -2,6 +2,13 @@
 
 Each entry says what a consuming project must do. Usually nothing.
 
+## [0.2.14](https://github.com/tofbabs/agent-sdlc/compare/v0.2.13...v0.2.14) (2026-10-13)
+
+
+### Features
+
+* wave core part 1 — brief Issues, selection, /wave start and status [EPIC-11] ([#58](https://github.com/tofbabs/agent-sdlc/issues/58)) ([f50f466](https://github.com/tofbabs/agent-sdlc/commit/f50f4661d5409f4a212f866b99b67029a8249172))
+
 ## [0.2.13](https://github.com/tofbabs/agent-sdlc/compare/v0.2.12...v0.2.13) (2026-10-12)
 
 
