@@ -4,7 +4,7 @@
 
 import { readFileSync } from 'node:fs';
 
-function duration(ms) {
+export function duration(ms) {
   const mins = Math.max(0, Math.floor(ms / 60000));
   const h = Math.floor(mins / 60);
   const m = mins % 60;

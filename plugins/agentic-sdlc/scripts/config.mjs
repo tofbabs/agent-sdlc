@@ -13,6 +13,7 @@ const DEFAULTS = {
   wave: {
     priority_labels: ['priority:P0', 'priority:P1', 'priority:P2', 'priority:P3'],
     lock_timeouts: { plan: 60, build: 240 },
+    stall_thresholds: { 'awaiting-merge': 24, ci: 2, revise: 3 },
   },
   plan: {
     epic: {
@@ -62,11 +63,20 @@ function validateWave(wave) {
     throw new ConfigError('wave.priority_labels', 'must be a non-empty list of strings');
   }
   const t = wave.lock_timeouts;
-  if (t === undefined) return;
-  if (!isObj(t)) throw new ConfigError('wave.lock_timeouts', 'must be an object');
-  for (const phase of ['plan', 'build']) {
-    if (t[phase] !== undefined && !isInt(t[phase])) {
-      throw new ConfigError(`wave.lock_timeouts.${phase}`, 'must be an integer >= 1 (minutes)');
+  if (t !== undefined) {
+    if (!isObj(t)) throw new ConfigError('wave.lock_timeouts', 'must be an object');
+    for (const phase of ['plan', 'build']) {
+      if (t[phase] !== undefined && !isInt(t[phase])) {
+        throw new ConfigError(`wave.lock_timeouts.${phase}`, 'must be an integer >= 1 (minutes)');
+      }
+    }
+  }
+  const st = wave.stall_thresholds;
+  if (st === undefined) return;
+  if (!isObj(st)) throw new ConfigError('wave.stall_thresholds', 'must be an object');
+  for (const phase of ['awaiting-merge', 'ci', 'revise']) {
+    if (st[phase] !== undefined && !isInt(st[phase])) {
+      throw new ConfigError(`wave.stall_thresholds.${phase}`, 'must be an integer >= 1 (hours)');
     }
   }
 }
@@ -138,7 +148,7 @@ const KNOWN = {
   schema: true,
   telemetry: true,
   review: { round_cap: true },
-  wave: { priority_labels: true, lock_timeouts: { plan: true, build: true } },
+  wave: { priority_labels: true, lock_timeouts: { plan: true, build: true }, stall_thresholds: { 'awaiting-merge': true, ci: true, revise: true } },
   plan: { epic: { points: { S: true, M: true, L: true }, cap: true, max_lines: true, stories_by_line: true, anchors: { S: { lines: true, files: true }, M: { lines: true, files: true }, L: { lines: true, files: true } } } },
 };
 

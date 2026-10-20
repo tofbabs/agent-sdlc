@@ -50,9 +50,39 @@ Writes nothing: no label, no comment, no edit.
   (`gh api repos/{o}/{r}/issues/<n>/events`), and `pr` is carried over from the
   existing board row. Use the clock for `now`, render with `wave-board.mjs`, print.
 
-## tick, phase
+## tick
 
-`tick` and `phase` are not available in this release. Say so and do nothing else.
+Advances the active wave one step. Find the epic (`wave:active`) and N as in
+`status`; no epic, say so and stop. Calls are REST `gh api` only.
+
+1. Fetch: the epic's comments (first lines only, as `epic_comments`, plus the
+   board comment id); per brief (Issues labelled `wave:<N>` and `brief`) its
+   labels, `issue_state`, the `phase:*` `since` (as in `status`), its
+   comments, and its PRs (`pulls?state=all`, matched by `Closes #<n>`).
+   `pr_state` is `open` if any PR is open, else `merged` if any merged, else
+   `closed`, else absent. `ci_state` is `pending` while the open head's check
+   runs are unfinished.
+2. Classify: payload of the classifier shape through `wave-classify.mjs`, with
+   `round_cap` from `config.mjs get review.round_cap`. Take `phase` from it.
+3. Locks: `wave-lock.mjs` per brief with `timeouts` from
+   `config.mjs get wave.lock_timeouts`; put its output on the brief as `lock`.
+   Tick reads lock results, it never takes or clears a lock.
+4. Build `{wave,epic,now,stall_thresholds,epic_comments,briefs:[{number,phase,
+   labels,since,pr?,ci_state?,lock?,issue_state,pr_state?}]}` with
+   `stall_thresholds` from `config.mjs get wave.stall_thresholds`, and pipe it
+   to `node wave-tick.mjs`.
+5. Apply `label_changes` (add and remove only what is listed; an unchanged wave
+   makes no label call), edit the board comment in place from `board`, and
+   post each `notices[].body` as an epic comment, then send a best-effort
+   PushNotification per notice (its failure changes nothing).
+6. If `close` is set: remove `wave:active` from the epic, close it, then run
+   `start` above. A brief whose PR closed unmerged is in `dropped`: its Issue
+   stays open and rejoins the pool.
+
+Human levers: close a brief Issue as not planned and the wave closes without
+it; reopen it and it returns to the pool. There is no `wave:deferred` label.
+
+`phase` is not available in this release. Say so and do nothing else.
 
 ## Board content
 

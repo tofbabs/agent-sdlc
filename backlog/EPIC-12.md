@@ -4,7 +4,7 @@
 - Part: 2 of 3
 - Depends on: EPIC-11
 - Outcome: `wave tick` derives each brief's phase from GitHub evidence, writes only changed labels, edits the board, notifies once per stall, and applies the close rule.
-- Status: IN_PROGRESS
+- Status: DONE
 - Artifacts: none
 - Lane: deliberate — recommended deliberate (rubric 1): 2 stories are PAIR, lane is deliberate
 
@@ -80,8 +80,9 @@ STORY-12-1 and STORY-12-2 need no OPEN row; they are pure scripts over payloads.
 
 ### STORY-12-3: `wave tick` write path, stall notices and close rule
 
-- status: TODO
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L83 one_way_doors=0@AC5 existing_pattern=no@brief:L83 modules_crossed=4@brief:L83 review_bounced=no@brief:L83 risk_kind=code@brief:L83
 - depends_on: [STORY-12-1, STORY-12-2]
