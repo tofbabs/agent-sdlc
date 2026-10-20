@@ -433,3 +433,17 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: LOW
 - Category: robustness (run-report-categories.mjs)
 - Address when: a second script, or any unattended or cloud routine, writes the file.
+
+### Stall notices depend on a GitHub subscription
+- Raised: 2026-10-20 by architect (ARCH-5, EPIC-12)
+- Current: the only durable channel is the epic comment, and GitHub delivers it only to people watching the epic or the repo. When a routine posts as a bot (03), the maintainer is not subscribed automatically.
+- Risk: LOW
+- Category: observability
+- Address when: 03 routines run waves under a non-human token.
+
+### No guard against reselection churn
+- Raised: 2026-10-20 by architect (ARCH-4, EPIC-12)
+- Current: a brief whose PRs keep getting closed unmerged is rebuilt every wave until a human closes its Issue. It cannot run away, because each cycle needs a human to close a PR.
+- Risk: LOW
+- Category: robustness
+- Address when: a brief is reselected after two unmerged PRs.
