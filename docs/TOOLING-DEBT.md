@@ -447,3 +447,10 @@ Ledgered in docs/TOOLING-DEBT.md by the plan commit.
 - Risk: LOW
 - Category: robustness
 - Address when: a brief is reselected after two unmerged PRs.
+
+### `wave-select` keeps its own partial `startPhase`
+- Raised: 2026-10-20 by coder (STORY-12-2)
+- Current: `wave-select.mjs` decides start phases from an Issue's `open_pr` check-runs and `plan` only, with no `done`, round-state or `pr.state`. `wave-classify.mjs` takes a different payload shape and adds round-state rules, so importing it would change select's inputs and results.
+- Risk: LOW
+- Category: other
+- Address when: select's payload gains round-state, or the two rule sets drift on `ci`/`build`/`plan`.

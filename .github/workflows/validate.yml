@@ -187,7 +187,7 @@ jobs:
       # too or a regression passes review and fails only locally.
       - name: wave script tests
         run: |
-          for t in brief-issue wave-select wave-select-report wave-board wave-lock; do
+          for t in brief-issue wave-select wave-select-report wave-board wave-lock wave-classify; do
             ./scripts/$t.test.sh
           done
 

@@ -464,6 +464,12 @@ else
   bad "wave-lock tests failed — run scripts/wave-lock.test.sh to see which check broke"
 fi
 
+if bash "$ROOT/scripts/wave-classify.test.sh" >/dev/null 2>&1; then
+  ok "wave phase classifier rules hold"
+else
+  bad "wave-classify tests failed — run scripts/wave-classify.test.sh to see which check broke"
+fi
+
 # 7. The agent boot path is a cost surface: a byte added to coder.md is paid ~40
 #    times on a PAIR story. The budget is ratchet-only — a file over its cap, or a
 #    cap raised above origin/main, fails. reference/*.md is exempt by design.

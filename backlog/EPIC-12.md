@@ -51,8 +51,9 @@ STORY-12-1 and STORY-12-2 need no OPEN row; they are pure scripts over payloads.
 
 ### STORY-12-2: Eight-rule phase classifier
 
-- status: IN_PROGRESS
+- status: DONE
 - mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
+- correction: PAIR→SOLO trigger=navigator_no_rejections
 - estimate: M
 - select: risk_class=none@brief:L72 one_way_doors=0@brief:L72 existing_pattern=yes@brief:L72 modules_crossed=3@brief:L72 review_bounced=no@brief:L72 risk_kind=code@brief:L72
 - depends_on: []
