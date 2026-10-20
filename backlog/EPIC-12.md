@@ -4,7 +4,7 @@
 - Part: 2 of 3
 - Depends on: EPIC-11
 - Outcome: `wave tick` derives each brief's phase from GitHub evidence, writes only changed labels, edits the board, notifies once per stall, and applies the close rule.
-- Status: TODO
+- Status: IN_PROGRESS
 - Artifacts: none
 - Lane: deliberate — recommended deliberate (rubric 1): 2 stories are PAIR, lane is deliberate
 
@@ -22,7 +22,8 @@ STORY-12-1 and STORY-12-2 need no OPEN row; they are pure scripts over payloads.
 
 ### STORY-12-1: Phase lock and stale detection
 
-- status: TODO
+- status: DONE
+- mode: SOLO — recommended SOLO (rubric 1): score 2 at or below 2 is SOLO
 - estimate: M
 - select: risk_class=none@brief:L56 one_way_doors=0@brief:L56 existing_pattern=yes@brief:L56 modules_crossed=2@brief:L56 review_bounced=no@brief:L56 risk_kind=code@brief:L56
 - depends_on: []
@@ -50,7 +51,8 @@ STORY-12-1 and STORY-12-2 need no OPEN row; they are pure scripts over payloads.
 
 ### STORY-12-2: Eight-rule phase classifier
 
-- status: TODO
+- status: IN_PROGRESS
+- mode: PAIR — recommended PAIR (rubric 1): score 3 in the gap resolves to PAIR, flagged borderline
 - estimate: M
 - select: risk_class=none@brief:L72 one_way_doors=0@brief:L72 existing_pattern=yes@brief:L72 modules_crossed=3@brief:L72 review_bounced=no@brief:L72 risk_kind=code@brief:L72
 - depends_on: []
@@ -78,6 +80,7 @@ STORY-12-1 and STORY-12-2 need no OPEN row; they are pure scripts over payloads.
 ### STORY-12-3: `wave tick` write path, stall notices and close rule
 
 - status: TODO
+- mode: PAIR — recommended PAIR (rubric 1): score 5 at or above 4 is PAIR
 - estimate: M
 - select: risk_class=none@brief:L83 one_way_doors=0@AC5 existing_pattern=no@brief:L83 modules_crossed=4@brief:L83 review_bounced=no@brief:L83 risk_kind=code@brief:L83
 - depends_on: [STORY-12-1, STORY-12-2]

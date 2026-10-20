@@ -179,4 +179,17 @@ for case in 'notlist|{"wave":{"priority_labels":"priority:P0"}}' 'empty|{"wave":
   check "${case%%|*}: message" "$(cat "$TMP/err")" "config: wave.priority_labels: must be a non-empty list of strings"
 done
 
+echo "wave.lock_timeouts"
+P=$(proj lockdef)
+check "no file: lock timeouts default to 60 plan, 240 build" "$(get "$P" wave.lock_timeouts)" '{"plan":60,"build":240}'
+P=$(proj lockover); echo '{"wave":{"lock_timeouts":{"build":90}}}' > "$(cfg "$P")"
+check "a partial override merges over the defaults" "$(get "$P" wave.lock_timeouts)" '{"plan":60,"build":90}'
+for case in 'zero|{"plan":0}|plan' 'string|{"build":"4h"}|build'; do
+  IFS='|' read -r n body key <<< "$case"
+  P=$(proj "lockbad$n"); printf '{"wave":{"lock_timeouts":%s}}' "$body" > "$(cfg "$P")"
+  out=$(get "$P" wave.lock_timeouts); rc=$?
+  check "$n: exits 2" "$rc" "2"
+  check "$n: message" "$(cat "$TMP/err")" "config: wave.lock_timeouts.$key: must be an integer >= 1 (minutes)"
+done
+
 exit $fail

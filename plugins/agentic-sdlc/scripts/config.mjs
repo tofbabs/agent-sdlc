@@ -10,7 +10,10 @@ import { pathToFileURL } from 'node:url';
 
 const DEFAULTS = {
   review: { round_cap: 3 },
-  wave: { priority_labels: ['priority:P0', 'priority:P1', 'priority:P2', 'priority:P3'] },
+  wave: {
+    priority_labels: ['priority:P0', 'priority:P1', 'priority:P2', 'priority:P3'],
+    lock_timeouts: { plan: 60, build: 240 },
+  },
   plan: {
     epic: {
       points: { S: 3, M: 5, L: 15 },
@@ -57,6 +60,14 @@ function validateWave(wave) {
   const labels = wave.priority_labels;
   if (labels !== undefined && !(Array.isArray(labels) && labels.length > 0 && labels.every((l) => typeof l === 'string'))) {
     throw new ConfigError('wave.priority_labels', 'must be a non-empty list of strings');
+  }
+  const t = wave.lock_timeouts;
+  if (t === undefined) return;
+  if (!isObj(t)) throw new ConfigError('wave.lock_timeouts', 'must be an object');
+  for (const phase of ['plan', 'build']) {
+    if (t[phase] !== undefined && !isInt(t[phase])) {
+      throw new ConfigError(`wave.lock_timeouts.${phase}`, 'must be an integer >= 1 (minutes)');
+    }
   }
 }
 
@@ -127,7 +138,7 @@ const KNOWN = {
   schema: true,
   telemetry: true,
   review: { round_cap: true },
-  wave: { priority_labels: true },
+  wave: { priority_labels: true, lock_timeouts: { plan: true, build: true } },
   plan: { epic: { points: { S: true, M: true, L: true }, cap: true, max_lines: true, stories_by_line: true, anchors: { S: { lines: true, files: true }, M: { lines: true, files: true }, L: { lines: true, files: true } } } },
 };
 
