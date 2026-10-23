@@ -4,7 +4,7 @@
 - Part: 3 of 4
 - Depends on: EPIC-12
 - Parts: EPIC-14 (sweep, migration check, parity config), stub
-- Outcome: `/agentic-sdlc:phase <plan|build> <issue>` runs one locked phase in a fresh session and behaves as QuestionMe's production worker does (port-source `phase.md`, `Sanimara/question-me@28938c7b`). Plan commits the plan to `feat/<id>`; build ends in a PR with `Closes #<issue>`; every exit closes its marker with `ended=`/`result=`.
+- Outcome: `/agentic-sdlc:phase <plan|build> <issue>` runs one locked phase in a fresh session and behaves as the proven phase-worker skill does in production (port-source `phase.md`). Plan commits the plan to `feat/<id>`; build ends in a PR with `Closes #<issue>`; every exit closes its marker with `ended=`/`result=`.
 - Covers: PARITY P3 (marker writes), P4 (arbitration), C8 (`wave-depskip`), C18 (repo from `origin`)
 - Status: STUB
 
@@ -12,7 +12,7 @@
 | ID | Question | Blocks | Status |
 |----|----------|--------|--------|
 | ARCH-2 | Round comment contract. RESOLVED by ADR-0005 | none | RESOLVED |
-| ARCH-6 | Who closes a stale lock still under the attempt limit (PARITY P5)? QuestionMe's tick edits the marker in place to `ended=<t> result=stale` and removes `phase-running`, so each stale lock counts once. If #60 round 2 settles it in tick, close this row; otherwise the worker takes over a `cleared` lock. | STORY-13-1 | OPEN |
+| ARCH-6 | Who closes a stale lock still under the attempt limit (PARITY P5)? The proven skill's tick edits the marker in place to `ended=<t> result=stale` and removes `phase-running`, so each stale lock counts once. If #60 round 2 settles it in tick, close this row; otherwise the worker takes over a `cleared` lock. | STORY-13-1 | OPEN |
 | ARCH-7 | One lock shape for phase, review and revise (PARITY C16)? If 03 reuses the comment marker plus a label for `reviewing`/`revising`, `wave-run.mjs` is keyed by lock kind rather than phase, and 03 adds no second design. | STORY-13-1 | OPEN |
 
 Fill-in reads the merged #60 first: `wave-lock.mjs`'s reader must already

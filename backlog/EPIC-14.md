@@ -3,7 +3,7 @@
 - Brief: docs/briefs/waves/02-wave-core.md
 - Part: 4 of 4
 - Depends on: EPIC-13
-- Outcome: `/agentic-sdlc:phase --next` picks at most one eligible brief, so 03's hourly sweep routine needs no logic of its own. Migration numbers can't collide across parallel builds when `wave.migrations` is set. The last numbers QuestionMe tunes per repo become config instead of constants.
+- Outcome: `/agentic-sdlc:phase --next` picks at most one eligible brief, so 03's hourly sweep routine needs no logic of its own. Migration numbers can't collide across parallel builds when `wave.migrations` is set. The numbers a project tunes per repo become config instead of constants.
 - Covers: PARITY C12 (revise stall from last commit), the `--next` command surface, the `wave.max_failed_attempts` and `wave.migrations` config keys
 - Status: STUB
 
