@@ -57,7 +57,7 @@ if [ -f "$REF" ]; then
   for needle in 'start' 'status' 'wave-select.mjs' 'wave-board.mjs' 'brief-issue.mjs' 'wave:active' 'gh api'; do
     grep -qF -- "$needle" "$REF" && ok "reference covers $needle" || bad "reference lacks $needle"
   done
-  grep -qi 'tick.*not available in this release' "$REF" && ok "tick answers not available in this release" || bad "tick not answered as unavailable"
+  grep -qF 'wave-tick.mjs' "$REF" && ok "tick runs wave-tick.mjs" || bad "reference lacks the tick procedure"
   grep -qiE 'refus' "$REF" && ok "start refuses on an active wave" || bad "reference lacks the active-wave refusal"
   grep -qiE 'phase.*not available in this release' "$REF" && ok "phase answers not available in this release" || bad "phase not answered as unavailable"
 else
