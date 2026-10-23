@@ -39,13 +39,15 @@ pick "a closed Issue is done, whatever the reason" \
 "$(brief '"issue_state":"closed","plan":true')" \
 phase '"done"'
 
-# Red CI on a merged PR is history, so it must not ask for a CI-failure comment.
+# An Issue closed while its PR is still open and red matches both rules; a
+# closed Issue is delivered, so it must not ask for a CI-failure comment.
+CLOSED_OPEN_RED='"issue_state":"closed","pr":{"state":"open","merged":false,"head_sha":"abc",'"$RED"'}'
 pick "done wins over red CI" \
-"$(brief '"issue_state":"closed","pr":{"state":"closed","merged":true,"head_sha":"abc",'"$RED"'}')" \
+"$(brief "$CLOSED_OPEN_RED")" \
 phase '"done"'
 
 pick "a done brief carries no ci_failure flag" \
-"$(brief '"issue_state":"closed","pr":{"state":"closed","merged":true,"head_sha":"abc",'"$RED"'}')" \
+"$(brief "$CLOSED_OPEN_RED")" \
 ci_failure 'null'
 
 # The command posts the one CI-failure comment, so the script only reports the

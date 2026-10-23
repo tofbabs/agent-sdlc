@@ -57,15 +57,27 @@ Advances the active wave one step. Find the epic (`wave:active`) and N as in
 
 1. Fetch: the epic's comments (first lines only, as `epic_comments`, plus the
    board comment id); per brief (Issues labelled `wave:<N>` and `brief`) its
-   labels, `issue_state`, the `phase:*` `since` (as in `status`), its
-   comments, and its PRs (`pulls?state=all`, matched by `Closes #<n>`).
-   `pr_state` is `open` if any PR is open, else `merged` if any merged, else
-   `closed`, else absent. `ci_state` is `pending` while the open head's check
-   runs are unfinished.
-2. Classify: payload of the classifier shape through `wave-classify.mjs`, with
-   `round_cap` from `config.mjs get review.round_cap`. Take `phase` from it.
-3. Locks: `wave-lock.mjs` per brief with `timeouts` from
-   `config.mjs get wave.lock_timeouts`; put its output on the brief as `lock`.
+   labels, `issue_state`, its events (`issues/<n>/events`), its comments,
+   `plan` (as in Payload), and its PRs (`pulls?state=all`, matched by
+   `Closes #<n>`). From the events: the `phase:*` `since` (as in `status`) and
+   `wave_labeled_at`, the `created_at` of the latest `labeled` event for
+   `wave:<N>`. `pr_state` is `open` if any PR is open, else `merged` if any
+   merged, else `closed`, else absent. The brief's PR is the open one, else the
+   merged one, else the newest; for it fetch the head's check runs
+   (`commits/<sha>/check-runs`), its reviews (`pulls/<pr>/reviews`) and its
+   comments (`issues/<pr>/comments`). `ci_state` is `pending` while the head's
+   check runs are unfinished.
+2. Classify: pipe `{round_cap,briefs:[{number,issue_state,plan?,pr?:{state,
+   merged,head_sha,check_runs},round?}]}` to `wave-classify.mjs`, with
+   `round_cap` from `config.mjs get review.round_cap`, `check_runs` the raw
+   check-runs payload, and `round` the output of `round-state.mjs --reviews
+   <reviews> --comments <comments>` for the PR. Without `round` no brief can
+   reach `awaiting-merge`, `blocked` or findings-driven `revise`. Take `phase`
+   from it.
+3. Locks: pipe `{labels,comments,now,timeouts,wave_labeled_at}` per brief to
+   `wave-lock.mjs`, with `timeouts` from `config.mjs get wave.lock_timeouts`.
+   `wave_labeled_at` scopes failed attempts to this wave; omitted, runs from an
+   earlier wave block a reopened brief. Put its output on the brief as `lock`.
    Tick reads lock results, it never takes or clears a lock.
 4. Build `{wave,epic,now,stall_thresholds,epic_comments,briefs:[{number,phase,
    labels,since,pr?,ci_state?,lock?,issue_state,pr_state?}]}` with

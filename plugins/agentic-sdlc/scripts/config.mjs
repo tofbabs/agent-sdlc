@@ -8,11 +8,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const DEFAULTS = {
+export const DEFAULTS = {
   review: { round_cap: 3 },
   wave: {
     priority_labels: ['priority:P0', 'priority:P1', 'priority:P2', 'priority:P3'],
     lock_timeouts: { plan: 60, build: 240 },
+    // Revise is a bot loop that should finish fast; a merge waits on a human,
+    // and an unreviewed head waits on the reviewer.
     stall_thresholds: { 'awaiting-merge': 24, ci: 2, revise: 3 },
   },
   plan: {

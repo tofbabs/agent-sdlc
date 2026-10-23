@@ -6,12 +6,13 @@
 // Never calls gh; the command applies the result.
 import { readFileSync } from 'node:fs';
 import { render, duration } from './wave-board.mjs';
+import { DEFAULTS as CONFIG_DEFAULTS } from './config.mjs';
 
 const PHASE = 'phase:';
 const HOUR = 3600000;
-// Revise is a bot loop that should finish fast; a merge waits on a human, and
-// an unreviewed head waits on the reviewer. Config owns the override.
-const DEFAULTS = { 'awaiting-merge': 24, ci: 2, revise: 3 };
+// One source for the thresholds: a payload built without config still gets
+// the same limits the command would have passed.
+const DEFAULTS = CONFIG_DEFAULTS.wave.stall_thresholds;
 
 const labelNames = (labels) => (labels ?? []).map((l) => (typeof l === 'string' ? l : l.name));
 
