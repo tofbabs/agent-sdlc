@@ -32,19 +32,27 @@ test passes unchanged and the boot-path size budget does not grow.
 
 ## Scope — in
 
-- **The interface:** read brief, claim ID, write plan, read plan, read story,
-  set story or plan status, record ARCH resolution, link a PR to the stories it
-  implements, and record a story's landing commit. The ops are drawn from what
-  the commands do today, not from what GitHub could do. The interface knows
-  the brief → epic → story hierarchy, so a PR link that spans epics can be
-  refused in every store. The repo adapter writes the PR and commit into the
-  story's section of `backlog/<ID>.md`.
+- **The interface:** write brief, read brief, claim ID, write plan, read plan,
+  read story, set story or plan status, record ARCH resolution, link a PR to
+  the stories it implements, and record a story's landing commit. The ops are
+  drawn from what the commands do today, not from what GitHub could do. The
+  interface knows the brief → epic → story hierarchy, so a PR link that spans
+  epics can be refused in every store. The repo adapter writes the PR and
+  commit into the story's section of `backlog/<ID>.md`.
+- **Write brief** is the one op no command calls yet. 02's `/write-brief` is its
+  first caller. It takes a slug and the brief markdown and returns the brief's
+  reference, which is what `read brief` and `/plan` take. The repo adapter
+  creates `docs/briefs/<slug>.md` with an exclusive open and refuses if the file
+  exists, so a re-run never overwrites a hand-edited brief. It lives here
+  rather than in 02 so the architect checks the full op list against both
+  stores at once.
 - **A shipped script** (`scripts/backlog-store.mjs` or similar) that exposes
   those ops as subcommands, with a `.test.sh`. Plain Node, no dependencies.
   `claim` moves behind it. `carry` keeps handling ADRs and other repo files.
-- **The selector.** A persistent project setting plus a per-command `--store`
-  flag that overrides it, read once and resolved by the script. Default:
-  `repo`.
+- **The selector.** `backlog.store` in `.claude/agentic-sdlc.json`, read only
+  through `config.mjs` (ADR-0006), plus a per-command `--store` flag that
+  overrides it. It is read once and resolved by the script as flag > project
+  config > `repo`.
 - **Commands and agents** switch to the script for plan reads and writes. The
   protocol goes in `reference/`. Boot-path files shrink or hold steady.
 - **Headless:** every new script invocation needs a scoped allow rule that
@@ -68,6 +76,8 @@ knowledge, even if 02 never ships.
   `coder.md`, `code-reviewer.md`, `scripts/plan-artifacts.mjs`,
   `scripts/mode-select.mjs` (`--file backlog/EPIC-<n>.md --id`),
   `reference/plan-artifacts.md`, `reference/fast-mode.md`.
+- Where the setting lives is settled: `backlog.store` in
+  `.claude/agentic-sdlc.json` (ADR-0006, amended by ADR-0007). Don't reopen it.
 - Precedent for a setting plus a flag override: `**Agent models:**` in
   `CLAUDE.md` with `--model`, documented in `reference/models.md`.
 - Plain Node 22, Bash tests run by `scripts/preflight.sh` and CI.
@@ -77,14 +87,13 @@ knowledge, even if 02 never ships.
 ## Constraints
 
 - The interface must fit a remote store (02): ops are coarse, IDs are opaque
-  strings, and the store assigns IDs. The architect checks the op list against
-  02's needs before accepting it.
+  strings, and the store assigns IDs. In 02 the ID is the brief Issue's
+  number, so `claim` must accept an ID the brief already fixes (it does today,
+  with `--id`). The architect checks the op list against 02's needs before
+  accepting it.
 - Deadline: none.
 
 ## Open questions
 
-- Where the setting lives: a `CLAUDE.md` line, `.claude/settings.json`, or a
-  plugin config file. Scripts have to read it as well as agents. This is a
-  one-way door once projects set it, so it needs an ADR.
 - Does `mode-select.mjs` take a story ID and ask the store, or keep taking a
   file that the store materialises?
