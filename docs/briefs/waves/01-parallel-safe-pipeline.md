@@ -4,8 +4,8 @@
 
 `/plan`, `/build` and `/review` assume one human, one checkout and one brief at
 a time. Run them in parallel, or as fresh cloud sessions with no memory, and
-they break in five places. QuestionMe had to override every one of them to run
-waves (see `README.md`):
+they break in five places. The proven wave skill had to override every one of them
+to run waves (see `README.md`):
 
 1. **Plan ids collide.** `/plan` takes the next free number, so two parallel
    planners pick the same `FAST-5` and one overwrites the other.

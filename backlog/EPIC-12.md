@@ -1,7 +1,7 @@
-# EPIC-12: Wave core, part 2 of 3: lock, phase classifier, `wave tick`
+# EPIC-12: Wave core, part 2 of 4: lock, phase classifier, `wave tick`
 
 - Brief: docs/briefs/waves/02-wave-core.md
-- Part: 2 of 3
+- Part: 2 of 4
 - Depends on: EPIC-11
 - Outcome: `wave tick` derives each brief's phase from GitHub evidence, writes only changed labels, edits the board, notifies once per stall, and applies the close rule.
 - Status: DONE
