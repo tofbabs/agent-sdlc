@@ -9,8 +9,8 @@ schedules them:
 - they start each phase;
 - they notice when a PR is ready or stuck.
 
-The human gets the "together" decision wrong. On QuestionMe, four briefs all
-rewrote `generateStandardAnswer`, and a dependency graph alone didn't show it.
+The human gets the "together" decision wrong. In production, four briefs all
+rewrote the same function, and a dependency graph alone didn't show it.
 A human is also the bottleneck between every phase of every brief.
 
 ## Users
@@ -26,7 +26,8 @@ A human is also the bottleneck between every phase of every brief.
 now. `tick` moves each brief to the right phase from evidence on GitHub. A
 human runs `/agentic-sdlc:phase` for each plan or build step, or 03's routines
 do. Each brief ends as a PR that is approved on green CI. The wave closes when
-all its PRs are closed, and the next wave opens.
+every brief in it is delivered (its Issue closed) or has left it, and the next
+wave opens.
 
 ## Success metric
 
@@ -50,13 +51,14 @@ with the released plugin.
   It comes with a parser in `scripts/*.mjs` with its `.test.sh`, and an Issue
   template under `templates/`. Conflicts are checked in both directions.
 - **Labels and locks, created on first run.**
-  - `wave`, `wave:active`, `wave:<N>` and `wave:deferred` (if kept, see the
-    open questions).
+  - `wave`, `wave:active` and `wave:<N>`. There is no `wave:deferred`
+    (ARCH-3).
   - One phase label per brief: `phase:plan|build|ci|revise|awaiting-merge|blocked|done`.
   - The lock: `phase-running` plus a
-    `<!-- wave-run phase= started= -->` comment. It goes stale after the
-    configured timeout. A stale lock counts as one failed attempt, and two
-    failed attempts set `phase:blocked`.
+    `<!-- wave-run phase= run= started= -->` comment, closed in place with
+    `ended=` and `result=` (EPIC-13 STORY-13-1 owns the grammar). It goes
+    stale after the configured timeout. A stale or failed run counts as one
+    attempt, and two attempts set `phase:blocked`.
 - **`/agentic-sdlc:wave start`:**
   1. **Gate.** If any Issue has `wave:active`, refuse.
   2. **Pool.** Every open `brief` Issue that isn't done.
@@ -69,22 +71,31 @@ with the released plugin.
      with an open PR starts where that PR is.
   6. **Nothing selected.** If the pool is empty, report "backlog exhausted".
      Otherwise report "cannot continue" with what blocks each brief.
-- **`/agentic-sdlc:wave tick`.** It works out each brief's phase from evidence,
-  and the first match wins:
-  1. PR merged or Issue closed → done.
-  2. CI red → revise. Post a CI-failure comment for the revise loop.
-  3. Past the round cap without approval → blocked.
-  4. REQUEST_CHANGES with no Response → revise.
-  5. Approved on the head sha with green CI → awaiting-merge.
-  6. Any other open PR → ci.
-  7. A plan exists → build.
-  8. Otherwise → plan.
+- **`/agentic-sdlc:wave tick`.** It works out each brief's phase from
+  evidence, and the first match wins (EPIC-12 order, plus brief 06):
+  1. Issue closed → done. A `Closes` PR merged after the latest reopen →
+     tick closes the Issue, then done.
+  2. A maintainer's `<!-- wave-hold -->` comment on the Issue → blocked,
+     until the comment is deleted.
+  3. A merged `Part of` PR, or a Closes PR from before a reopen, with no
+     open PR → blocked, with one `wave-partof` comment.
+  4. CI red → revise, with one `wave-ci` comment per head sha.
+  5. At the round cap, not approved, Response posted → blocked.
+  6. REQUEST_CHANGES with no Response → revise.
+  7. Approved on the head sha with green CI → awaiting-merge.
+  8. Any other open PR → ci.
+  9. A plan exists → build.
+  10. Otherwise → plan.
+
+  A fresh phase lock leaves the brief untouched, and a stale one is closed
+  in place (EPIC-14). A hand-set `phase:blocked` with no `wave-hold` marker
+  is recomputed (06).
 
   Then it writes only the labels that changed, edits the board, and notifies
-  once per stall. Next it applies the **close rule**: every brief in the wave
-  has a PR, and every PR is closed. A brief whose PR closed without merging
-  leaves the wave and goes back to the pool. Closing removes `wave:active` and
-  runs `start`.
+  once per stall. Next it applies the **close rule**: the wave closes when
+  every brief in it is done or has left it. A brief whose PR closed without
+  merging leaves the wave and goes back to the pool (ARCH-4). Closing removes
+  `wave:active` and runs `start`.
 - **`/agentic-sdlc:wave status`.** Prints the board, or with no active wave,
   the briefs `start` would pick. It changes nothing.
 - **`/agentic-sdlc:phase <plan|build> <issue>`.** It runs one phase for one
@@ -119,8 +130,8 @@ with the released plugin.
   `tick` and `phase`.
 - **Review and revise themselves.** The wave only reads their output, through
   the round comment format from 01.
-- **Anything specific to QuestionMe:** its gate, its `staging` base, its
-  Supabase path, its environment and trigger ids.
+- **Anything specific to one consuming project:** its gate, its `staging`
+  base, its migration path, its environment and trigger ids.
 - **Storing the plan in Issues.** That's the GitHub backlog adapter (see
   `README.md`).
 
@@ -139,11 +150,11 @@ epic.
   - `commands/build.md`'s gate
   - `scripts/plan-artifacts.mjs`
   - `templates/`
-- **Reference:**
-  - QuestionMe `.claude/skills/wave/SKILL.md` covers start, tick, status and
-    the conventions.
-  - `.claude/skills/wave-phase/SKILL.md` covers the phase worker.
-  - Both are at commit `e0fde3f0`.
+- **Reference:** the proven wave skill's `wave` and `wave-phase` skills, as
+  run in production on 2026-10-26. They aren't in this repo: brief 06 and the
+  EPIC-13 and EPIC-14 handoffs and stories state what planning needs from
+  them. Where the plugin has shipped a different contract (the board marker,
+  payload shapes, ARCH-3/4/5), the shipped contract wins.
 - **Hard constraints:**
   - **The boot-path budget has zero headroom.** agents+commands are 62,231 of
     62,231 bytes, and caps only go down. `wave.md` and `phase.md` must be thin
@@ -164,14 +175,13 @@ epic.
 
 ## Open questions
 
-- **A brief that never reaches a PR.** It might be blocked, or have failed
-  twice. Under the close rule it holds the wave open. Do we keep QuestionMe's
-  `wave:deferred` label, so a human can let the wave close without it? Or must
-  the human close the Issue?
-- **A PR closed without merging.** Does the brief go back into the pool
-  automatically, or only once a human re-labels it?
-- **Where config lives.** This is shared with the GitHub backlog adapter, and
-  one ADR answers both. It's a one-way door for consuming projects.
-- **Notifications.** Use `PushNotification` when it's available, and otherwise
-  the board and the run report. Is a comment on the wave epic enough as the
-  durable channel?
+- ~~A brief that never reaches a PR~~ **Decided in #60 (ARCH-3):** no
+  `wave:deferred`. Close the Issue as not planned to let the wave close
+  without it, and reopen it to return it to the pool. Brief 06 adds a
+  `wave-hold` marker comment for "wait, but not abandoned".
+- ~~A PR closed without merging~~ **Decided in #60 (ARCH-4):** the brief
+  leaves the wave and rejoins the pool automatically.
+- ~~Where config lives~~ **Decided by ADR-0006/0007:**
+  `.claude/agentic-sdlc.json`, with `wave.*` keys added through `config.mjs`.
+- ~~Notifications~~ **Decided in #60 (ARCH-5):** one `wave-stall` comment
+  per stall on the epic. PushNotification is best effort.

@@ -1,11 +1,11 @@
-# EPIC-11: Wave core, part 1 of 3: brief Issues, selection, `wave start` and `status`
+# EPIC-11: Wave core, part 1 of 4: brief Issues, selection, `wave start` and `status`
 
 - Brief: docs/briefs/waves/02-wave-core.md
-- Part: 1 of 3
+- Part: 1 of 4
 - Depends on: none
 - Artifacts: none
 - Lane: deliberate — recommended deliberate (rubric 1): 3 stories are PAIR, lane is deliberate
-- Parts: EPIC-12 (tick), EPIC-13 (phase), stubs
+- Parts: EPIC-12 (tick), EPIC-13 (phase), EPIC-14 (sweep)
 - Outcome: a maintainer runs `/agentic-sdlc:wave start` and gets one wave of every brief that can safely be built together, as labelled Issues plus a board. `wave status` previews or prints it. Phases are still started by hand.
 - Success metric: briefs in a wave that conflict with one another: 0 (the ~5 → 1 human-actions metric is measured after Part 3)
 - Status: TODO
@@ -101,7 +101,7 @@ Part 1 needs none of the OPEN rows: `start` reads only labels it creates, and
 
 **Technical notes**
 - New `commands/wave.md`, `reference/wave.md`, `scripts/wave-board.mjs` + `.test.sh` (renders the board from JSON, pure). `./scripts/preflight.sh` checks the budget; the coder picks the cuts.
-- Port the mechanism from QuestionMe `wave/SKILL.md` at `e0fde3f0`, not its repo facts (gate, `staging`, Supabase).
+- Port the mechanism from the proven `wave` skill, not its repo facts (gate, `staging`, migration path).
 - `tick` and `phase` are not wired yet; `wave.md` answers "not available in this release" for `tick`.
 
 **Out of scope**
